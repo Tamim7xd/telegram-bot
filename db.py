@@ -8,7 +8,7 @@ def init_db():
     CREATE TABLE IF NOT EXISTS users(
         user_id INTEGER PRIMARY KEY,
         name TEXT,
-        money INTEGER DEFAULT 0,
+        xp INTEGER DEFAULT 0,
         messages INTEGER DEFAULT 0,
         role TEXT DEFAULT 'user',
         locked INTEGER DEFAULT 0
