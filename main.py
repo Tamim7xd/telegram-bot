@@ -1,151 +1,97 @@
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters
+from telegram import Update
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
-from config import TOKEN, ADMIN_ID, GROUP_ID
-from db import c, conn
-from core import users
-from core.users import get_question
+from config import TOKEN
+from db import init_db
 
-app = Application.builder().token(TOKEN).build()
+from core.users import register, get, add_xp, get_title
+from core.questions import random_q, set_q, get_q, del_q
+from core.admin import notify, is_admin
 
-admin_state = {}
-active_questions = {}
+# ========= START =========
+async def start(update: Update, context):
+    register(update.effective_user)
+    await update.message.reply_text("🚀 بوت التحديات الفخم يعمل")
 
-# 👥 قائمة أعضاء بدون ID
-def users_keyboard(action):
-    c.execute("SELECT user_id, name FROM users LIMIT 20")
-    rows = c.fetchall()
+# ========= INFO =========
+async def info(update: Update, context):
+    u = get(update.effective_user.id)
+    title = get_title(u[2])
 
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton(r[1], callback_data=f"{action}_{r[0]}")]
-        for r in rows
-    ])
+    await update.message.reply_text(
+        f"👤 {u[1]}\n"
+        f"⭐ XP: {u[2]}\n"
+        f"🏆 اللقب: {title}"
+    )
 
-# 👑 لوحة الأدمن
-async def admin(update, context):
+# ========= QUESTION =========
+async def ask(update: Update, context):
+    q, a = random_q()
+    set_q(update.effective_user.id, a)
+    await update.message.reply_text(f"❓ {q}")
 
-    if update.effective_user.id != ADMIN_ID:
-        return
+# ========= HANDLE =========
+async def handle(update: Update, context):
+    u = update.effective_user
+    register(u)
 
-    keyboard = [
-        [InlineKeyboardButton("💰 فلوس", callback_data="money")],
-        [InlineKeyboardButton("🏷️ لقب", callback_data="title")],
-        [InlineKeyboardButton("🚫 حظر", callback_data="ban")],
-        [InlineKeyboardButton("🔇 كتم", callback_data="mute")],
-    ]
+    add_xp(u.id, 1)
 
-    await update.message.reply_text("👑 لوحة الأدمن", reply_markup=InlineKeyboardMarkup(keyboard))
+    ans = get_q(u.id)
 
+    if ans:
+        user_ans = update.message.text.lower().strip()
+        correct = ans[0].lower().strip()
 
-# 🔘 الأزرار
-async def buttons(update, context):
-
-    q = update.callback_query
-    await q.answer()
-
-    uid = q.from_user.id
-    data = q.data
-
-    if uid != ADMIN_ID:
-        return
-
-    if data == "money":
-        await q.message.reply_text("💰 اختر العضو:", reply_markup=users_keyboard("money"))
-
-    if data == "title":
-        await q.message.reply_text("🏷️ اختر العضو:", reply_markup=users_keyboard("title"))
-
-    if data == "ban":
-        await q.message.reply_text("🚫 اختر العضو:", reply_markup=users_keyboard("ban"))
-
-    if data == "mute":
-        await q.message.reply_text("🔇 اختر العضو:", reply_markup=users_keyboard("mute"))
-
-
-    if data.startswith("money_"):
-        target = int(data.split("_")[1])
-        admin_state[uid] = f"money_{target}"
-        await q.message.reply_text("💰 اكتب المبلغ")
-
-    if data.startswith("title_"):
-        target = int(data.split("_")[1])
-        admin_state[uid] = f"title_{target}"
-        await q.message.reply_text("🏷️ اكتب اللقب")
-
-    if data.startswith("ban_"):
-        target = int(data.split("_")[1])
-        c.execute("UPDATE users SET banned=1 WHERE user_id=?", (target,))
-        conn.commit()
-        await context.bot.send_message(GROUP_ID, f"🚫 تم حظر {target}")
-
-    if data.startswith("mute_"):
-        target = int(data.split("_")[1])
-        import time
-        c.execute("UPDATE users SET muted_until=? WHERE user_id=?",
-                  (int(time.time()) + 300, target))
-        conn.commit()
-        await context.bot.send_message(GROUP_ID, f"🔇 تم كتم {target} 5 دقائق")
-
-
-# 💬 الرسائل
-async def handle(update, context):
-
-    text = update.message.text
-    uid = update.effective_user.id
-
-    if users.is_banned(uid):
-        return
-
-    if users.is_muted(uid):
-        return
-
-    users.reg(update.effective_user)
-
-    t = text.lower().strip()
-
-    # ❓ سؤال / سوال
-    if t in ["سؤال","سوال","اسأل","سؤالي"]:
-
-        qst = get_question()
-
-        active_questions[uid] = qst
-
-        await update.message.reply_text(
-            f"❓ {qst['q']}\n\n✍️ اكتب الإجابة"
-        )
-        return
-
-    # ✅ إجابة
-    if uid in active_questions:
-
-        qst = active_questions[uid]
-
-        if t == qst["a"].lower():
-
-            c.execute("UPDATE users SET money=money+5 WHERE user_id=?", (uid,))
-            conn.commit()
-
-            await update.message.reply_text("✅ إجابة صحيحة +5 💰")
-
-            await context.bot.send_message(
-                GROUP_ID,
-                f"🎉 {update.effective_user.first_name} أجاب صح +5 فلوس"
+        if user_ans == correct:
+            add_xp(u.id, 10)
+            await update.message.reply_text(
+                "🎉🔥 إجابة صحيحة!\n+10 XP"
             )
+            await notify(context.bot, f"{u.first_name} أجاب صحيح")
         else:
-            await update.message.reply_text("❌ إجابة خاطئة")
+            await update.message.reply_text(
+                f"❌ خطأ!\n✔ الإجابة الصحيحة: {ans[0]}"
+            )
 
-        active_questions.pop(uid)
+        del_q(u.id)
+
+# ========= BROADCAST + PIN =========
+async def broadcast(update: Update, context):
+    if not is_admin("admin"):
         return
 
+    text = " ".join(context.args)
+    name = update.effective_user.first_name
 
-    res = users.handle_user(text, update)
-    if res:
-        await update.message.reply_text(res)
+    msg = await context.bot.send_message(
+        chat_id=GROUP_ID,
+        text=f"📢 إعلان فخم\n👤 {name}\n\n{text}"
+    )
 
+    try:
+        await context.bot.pin_chat_message(GROUP_ID, msg.message_id)
+    except:
+        pass
 
-app.add_handler(CommandHandler("admin", admin))
-app.add_handler(CallbackQueryHandler(buttons))
-app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle))
+    await notify(context.bot, f"📢 إعلان جديد من {name}")
+    await update.message.reply_text("📌 تم النشر والتثبيت")
 
-print("BOT RUNNING")
-app.run_polling()
+# ========= RUN =========
+def main():
+    init_db()
+
+    app = Application.builder().token(TOKEN).build()
+
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("info", info))
+    app.add_handler(CommandHandler("سؤال", ask))
+    app.add_handler(CommandHandler("broadcast", broadcast))
+
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle))
+
+    print("🔥 FANCY BOT RUNNING")
+    app.run_polling()
+
+if __name__ == "__main__":
+    main()
