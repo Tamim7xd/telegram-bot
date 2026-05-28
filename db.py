@@ -1,10 +1,6 @@
 import sqlite3
 
-conn = sqlite3.connect(
-    "bot.db",
-    check_same_thread=False
-)
-
+conn = sqlite3.connect("bot.db", check_same_thread=False)
 c = conn.cursor()
 
 
@@ -13,7 +9,7 @@ c = conn.cursor()
 # ─────────────────────────────
 def init_db():
 
-    # ───────── users (النظام الكامل) ─────────
+    # ───────── USERS (النظام الكامل) ─────────
     c.execute("""
     CREATE TABLE IF NOT EXISTS users(
 
@@ -27,11 +23,9 @@ def init_db():
         level INTEGER DEFAULT 1,
 
         warns INTEGER DEFAULT 0,
-
         rewards INTEGER DEFAULT 0,
 
         title TEXT DEFAULT 'مبتدئ',
-
         title_locked INTEGER DEFAULT 0,
 
         banned INTEGER DEFAULT 0,
@@ -39,11 +33,12 @@ def init_db():
     )
     """)
 
-    # ───────── questions ─────────
+    # ───────── QUESTIONS ─────────
     c.execute("""
     CREATE TABLE IF NOT EXISTS questions(
 
-        user_id INTEGER PRIMARY KEY,
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        question TEXT,
         answer TEXT
     )
     """)
