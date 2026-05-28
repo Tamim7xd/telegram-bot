@@ -1,40 +1,30 @@
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+await query.edit_message_text(
+f"""
+━━━━━━━━━━━━━━
+👤 ملف العضو
+━━━━━━━━━━━━━━
 
+🆔 ID: {u[0]}
+👤 الاسم: {u[1]}
 
-# =========================
-# ADMIN MENU
-# =========================
-def admin_menu():
+💰 المال:
+{format_iq_money(u[3])}
 
-    keyboard = [
+📨 عدد الرسائل:
+{u[2]:,}
 
-        [
-            InlineKeyboardButton(
-                "👥 الأعضاء",
-                callback_data="users"
-            )
-        ],
+⭐ المستوى:
+{u[4]}
 
-        [
-            InlineKeyboardButton(
-                "📊 الإحصائيات",
-                callback_data="stats"
-            )
-        ],
+🏆 اللقب:
+{u[8]}
 
-        [
-            InlineKeyboardButton(
-                "🚫 المخالفين",
-                callback_data="bad"
-            )
-        ],
+━━━━━━━━━━━━━━
+📊 الحالة
 
-        [
-            InlineKeyboardButton(
-                "❌ إغلاق",
-                callback_data="close"
-            )
-        ]
-    ]
+🚫 الحظر: {'❌ محظور' if u[10] else '✅ آمن'}
+🔇 الكتم: {'🔇 مكتوم' if u[11] else '🔊 حر'}
 
-    return InlineKeyboardMarkup(keyboard)
+━━━━━━━━━━━━━━
+"""
+)
