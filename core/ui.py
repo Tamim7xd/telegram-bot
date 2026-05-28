@@ -1,56 +1,50 @@
-from core.users import (
-    get_title,
-    progress_bar,
-    next_goal,
-    format_money
-)
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+from db import c
+
+def admin_menu():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("👥 الأعضاء", callback_data="users:0")],
+        [InlineKeyboardButton("📊 الإحصائيات", callback_data="stats")],
+        [InlineKeyboardButton("📢 إرسال", callback_data="send")],
+        [InlineKeyboardButton("🚫 مخالفات", callback_data="punish")],
+        [InlineKeyboardButton("❌ إغلاق", callback_data="close")]
+    ])
 
 
-def profile_text(user):
+def users_page(page=0):
+    limit = 5
+    offset = page * limit
 
-    messages = user[2]
+    c.execute("SELECT user_id,name FROM users LIMIT ? OFFSET ?", (limit, offset))
+    users = c.fetchall()
 
-    money = user[3]
+    buttons = []
 
-    warnings = user[4]
+    for u in users:
+        buttons.append([
+            InlineKeyboardButton(u[1], callback_data=f"user:{u[0]}")
+        ])
 
-    rewards = user[5]
+    nav = []
 
-    custom = user[6]
+    if page > 0:
+        nav.append(InlineKeyboardButton("⬅", callback_data=f"users:{page-1}"))
 
-    locked = user[7]
+    nav.append(InlineKeyboardButton("➡", callback_data=f"users:{page+1}"))
 
-    title = get_title(
-        messages,
-        custom,
-        locked
-    )
+    buttons.append(nav)
+    buttons.append([InlineKeyboardButton("🔙 رجوع", callback_data="home")])
 
-    target = next_goal(messages)
+    return InlineKeyboardMarkup(buttons)
 
-    remain = target - messages
 
-    return f"""
-👤 الاسم:
-{user[1]}
-
-💰 الفلوس:
-{format_money(money)} دينار
-
-🏆 اللقب:
-{title}
-
-💬 الرسائل:
-{messages}
-
-⚠️ التنبيهات:
-{warnings}
-
-🎁 المكافآت:
-{rewards}
-
-📈 التقدم:
-{progress_bar(messages)}
-
-🚀 باقي {remain} رسالة للقب التالي
-"""
+def user_panel(uid):
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("💰 فلوس", callback_data=f"add:{uid}")],
+        [InlineKeyboardButton("➖ خصم", callback_data=f"rem:{uid}")],
+        [InlineKeyboardButton("🏆 لقب", callback_data=f"title:{uid}")],
+        [InlineKeyboardButton("🔇 كتم", callback_data=f"mute:{uid}")],
+        [InlineKeyboardButton("🚫 حظر", callback_data=f"ban:{uid}")],
+        [InlineKeyboardButton("🔓 فك", callback_data=f"unban:{uid}")],
+        [InlineKeyboardButton("🔙 رجوع", callback_data="users:0")]
+    ])
