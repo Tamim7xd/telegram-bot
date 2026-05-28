@@ -15,7 +15,11 @@ from core.state import set_state
 from core.actions import (
     add_money,
     remove_money,
-    set_title
+    set_title,
+    mute,
+    unmute,
+    ban,
+    unban
 )
 
 from core.utils import format_iq_money
@@ -87,14 +91,14 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         money = format_iq_money(u[3] or 0)
         messages = u[2] or 0
         level = u[4] or 1
-        xp = u[5] if len(u) > 5 else 0
-        title = u[8] or "بدون لقب"
+        xp = u[5] or 0
+        title = u[6] or "بدون لقب"
 
-        banned = u[10] if len(u) > 10 else 0
-        muted = u[11] if len(u) > 11 else 0
+        muted = u[7] or 0
+        banned = u[8] or 0
 
         need_xp = level * 100
-        percent = int((xp / need_xp) * 100) if need_xp > 0 else 0
+        percent = int((xp / need_xp) * 100) if need_xp else 0
         bar = "█" * (percent // 10) + "░" * (10 - percent // 10)
 
         text = f"""
@@ -114,7 +118,7 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 ⭐ المستوى:
 {level}
 
-📊 XP:
+🔥 XP:
 {xp} / {need_xp}
 {bar} {percent}%
 
