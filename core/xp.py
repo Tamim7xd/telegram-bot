@@ -1,51 +1,37 @@
 from db import c, conn
+from core.titles import TITLES
 
-# ─────────────────────────────
-# ⭐ إضافة XP + مستوى
-# ─────────────────────────────
-def add_xp(uid, amount):
+def add_xp(uid, amount=25):
+
+    c.execute("UPDATE users SET xp = xp + ? WHERE user_id=?", (amount, uid))
 
     c.execute("SELECT xp, level FROM users WHERE user_id=?", (uid,))
-    row = c.fetchone()
+    xp, level = c.fetchone()
 
-    if not row:
-        return False, 1
+    needed = level * 100
 
-    xp, level = row
-
-    xp += amount
-    leveled_up = False
-
-    while xp >= level * 100:
-        xp -= level * 100
+    if xp >= needed:
         level += 1
-        leveled_up = True
+        xp = 0
 
-    c.execute(
-        "UPDATE users SET xp=?, level=? WHERE user_id=?",
-        (xp, level, uid)
-    )
+        c.execute("""
+            UPDATE users
+            SET level=?, xp=?, money = money + 250
+            WHERE user_id=?
+        """, (level, xp, uid))
+
     conn.commit()
+    return xp, level
 
-    return leveled_up, level
 
-
-# ─────────────────────────────
-# 📊 شريط التقدم
-# ─────────────────────────────
 def get_progress(uid):
 
     c.execute("SELECT xp, level FROM users WHERE user_id=?", (uid,))
-    row = c.fetchone()
+    xp, level = c.fetchone()
 
-    if not row:
-        return 0, 1, 100, 0, ""
-
-    xp, level = row
-
-    need = level * 100
-    percent = int((xp / need) * 100) if need else 0
+    needed = level * 100
+    percent = int((xp / needed) * 100)
 
     bar = "█" * (percent // 10) + "░" * (10 - percent // 10)
 
-    return xp, level, need, percent, bar
+    return xp, level, needed, percent, bar
