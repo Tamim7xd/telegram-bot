@@ -1,37 +1,46 @@
 from telegram import Update
-from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
+from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
 
 from config import TOKEN
 from db import init_db
 
 from core.users import register, get, add_xp, get_title
 from core.questions import random_q, set_q, get_q, del_q
-from core.admin import notify, is_admin
+from core.admin import notify
 
-# ========= START =========
-async def start(update: Update, context):
+# ================= START =================
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     register(update.effective_user)
-    await update.message.reply_text("🚀 بوت التحديات الفخم يعمل")
 
-# ========= INFO =========
-async def info(update: Update, context):
+    await update.message.reply_text(
+        "🚀 أهلاً بك في بوت التحديات الفخم\n"
+        "اكتب /سؤال لبدء اللعب 🎮"
+    )
+
+# ================= INFO =================
+async def info(update: Update, context: ContextTypes.DEFAULT_TYPE):
     u = get(update.effective_user.id)
     title = get_title(u[2])
 
     await update.message.reply_text(
-        f"👤 {u[1]}\n"
+        f"👤 الاسم: {u[1]}\n"
         f"⭐ XP: {u[2]}\n"
         f"🏆 اللقب: {title}"
     )
 
-# ========= QUESTION =========
-async def ask(update: Update, context):
+# ================= QUESTION =================
+async def ask(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q, a = random_q()
+
     set_q(update.effective_user.id, a)
+
     await update.message.reply_text(f"❓ {q}")
 
-# ========= HANDLE =========
-async def handle(update: Update, context):
+# ================= HANDLE TEXT =================
+async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not update.message:
+        return
+
     u = update.effective_user
     register(u)
 
@@ -40,57 +49,32 @@ async def handle(update: Update, context):
     ans = get_q(u.id)
 
     if ans:
-        user_ans = update.message.text.lower().strip()
+        user_answer = update.message.text.lower().strip()
         correct = ans[0].lower().strip()
 
-        if user_ans == correct:
+        if user_answer == correct:
             add_xp(u.id, 10)
-            await update.message.reply_text(
-                "🎉🔥 إجابة صحيحة!\n+10 XP"
-            )
-            await notify(context.bot, f"{u.first_name} أجاب صحيح")
+            await update.message.reply_text("🎉 صحيح +10 XP 🔥")
+            await notify(context.bot, f"🔥 {u.first_name} أجاب صحيح")
         else:
-            await update.message.reply_text(
-                f"❌ خطأ!\n✔ الإجابة الصحيحة: {ans[0]}"
-            )
+            await update.message.reply_text(f"❌ خطأ!\n✔ الصحيح: {ans[0]}")
 
         del_q(u.id)
 
-# ========= BROADCAST + PIN =========
-async def broadcast(update: Update, context):
-    if not is_admin("admin"):
-        return
-
-    text = " ".join(context.args)
-    name = update.effective_user.first_name
-
-    msg = await context.bot.send_message(
-        chat_id=GROUP_ID,
-        text=f"📢 إعلان فخم\n👤 {name}\n\n{text}"
-    )
-
-    try:
-        await context.bot.pin_chat_message(GROUP_ID, msg.message_id)
-    except:
-        pass
-
-    await notify(context.bot, f"📢 إعلان جديد من {name}")
-    await update.message.reply_text("📌 تم النشر والتثبيت")
-
-# ========= RUN =========
+# ================= RUN =================
 def main():
     init_db()
 
     app = Application.builder().token(TOKEN).build()
 
+    # 🔥 مهم جدًا: ربط الأوامر
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("info", info))
-    app.add_handler(CommandHandler("gg", ask))
-    app.add_handler(CommandHandler("broadcast", broadcast))
+    app.add_handler(CommandHandler("سؤال", ask))
 
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle))
 
-    print("🔥 FANCY BOT RUNNING")
+    print("🚀 BOT RUNNING SUCCESSFULLY")
     app.run_polling()
 
 if __name__ == "__main__":
