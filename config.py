@@ -1,3 +1,5 @@
-TOKEN = "8984230400:AAG_CVAFh6uk26rdpL_s3rwflbEiLHKgZwo"
-ADMIN_ID = 1007010982
-GROUP_ID = -1003998886042
+import os
+
+TOKEN = os.getenv("BOT_TOKEN")
+ADMIN_ID = int(os.getenv("ADMIN_ID"))
+GROUP_ID = int(os.getenv("GROUP_ID"))
