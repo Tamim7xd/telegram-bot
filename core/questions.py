@@ -123,6 +123,5 @@ QUESTIONS = [
 
 ]
 
-def random_question():
-
+def random_q():
     return random.choice(QUESTIONS)
