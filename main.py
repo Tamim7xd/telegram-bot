@@ -1,256 +1,100 @@
-from telegram import Update
+import logging
 
+from telegram import Update
 from telegram.ext import (
     Application,
     CommandHandler,
     MessageHandler,
-    CallbackQueryHandler,
     ContextTypes,
     filters
 )
 
-from config import TOKEN, ADMIN_ID
+from config import BOT_TOKEN
+from db import c, conn
 
-from db import init_db
-
-from core.users import (
-    register,
-    get,
-    add_message
-)
-
-from core.ui import admin_menu
-
-from core.callbacks import callback_handler
-
-from core.state import (
-    get_state,
-    clear_state
-)
-
-from core.actions import (
-    add_money,
-    remove_money,
-    set_title
-)
-
-from core.questions import random_question
-
-
-active_questions = {}
-
+from core.service import create_user, add_message
 
 # =========================
-# START
+# LOGGING
+# =========================
+logging.basicConfig(
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    level=logging.INFO
+)
+
+# =========================
+# START COMMAND
 # =========================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.message.from_user
 
-    register(update.effective_user)
+    create_user(user.id, user.first_name)
 
     await update.message.reply_text(
-        "🚀 البوت يعمل"
+        f"👋 أهلاً {user.first_name}\n"
+        "🚀 البوت يعمل بنجاح"
     )
 
 
 # =========================
-# ADMIN PANEL
+# MESSAGE HANDLER (أساسي)
 # =========================
-async def adminpy(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.message.from_user
 
-    if update.effective_user.id != ADMIN_ID:
-        return
+    # تسجيل المستخدم
+    create_user(user.id, user.first_name)
 
-    await update.message.reply_text(
-        "🛠 لوحة التحكم",
-        reply_markup=admin_menu()
-    )
-
-
-# =========================
-# MESSAGES
-# =========================
-async def messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
-    user = update.effective_user
-
-    text = update.message.text.lower()
-
-    register(user)
-
-    # =========================
-    # STATE SYSTEM
-    # =========================
-    state = get_state(user.id)
-
-    if state:
-
-        action = state["action"]
-
-        target = state["target"]
-
-        if action == "add":
-
-            add_money(target, int(text))
-
-            await update.message.reply_text(
-                "✅ تم إضافة المال"
-            )
-
-            clear_state(user.id)
-
-            return
-
-        elif action == "rem":
-
-            remove_money(target, int(text))
-
-            await update.message.reply_text(
-                "✅ تم الخصم"
-            )
-
-            clear_state(user.id)
-
-            return
-
-        elif action == "title":
-
-            set_title(target, text)
-
-            await update.message.reply_text(
-                "🏆 تم تعديل اللقب"
-            )
-
-            clear_state(user.id)
-
-            return
-
-    # =========================
-    # ADD MESSAGE
-    # =========================
+    # زيادة عدد الرسائل
     add_message(user.id)
 
-    # =========================
-    # MONEY
-    # =========================
-    if text in ["فلوسي", "فلوس"]:
+    # أوامر بسيطة مستقبلية
+    text = update.message.text.lower()
 
-        u = get(user.id)
+    if text == "#ملفي":
+        c.execute("SELECT * FROM users WHERE user_id=?", (user.id,))
+        u = c.fetchone()
+
+        if not u:
+            await update.message.reply_text("❌ لم يتم العثور على بياناتك")
+            return
 
         await update.message.reply_text(
-f"""
-💰 فلوسك الحالية
+            f"""👤 ملفك
 
-{u[3]:,} دينار عراقي
+🆔 {u[0]}
+👤 {u[1]}
+💰 المال: {u[3]}
+📨 الرسائل: {u[2]}
+⭐ المستوى: {u[4]}
+🏆 اللقب: {u[6]}
 """
         )
 
-        return
 
-    # =========================
-    # INFO
-    # =========================
-    if text in ["معلوماتي", "معلومات"]:
-
-        u = get(user.id)
-
-        await update.message.reply_text(
-f"""
-👤 معلومات العضو
-
-💰 المال:
-{u[3]:,}
-
-📨 الرسائل:
-{u[2]:,}
-
-🏆 اللقب:
-{u[8]}
-"""
-        )
-
-        return
-
-    # =========================
-    # QUESTION
-    # =========================
-    if text in ["سؤال", "سوال"]:
-
-        q = random_question()
-
-        active_questions[user.id] = q["answer"].lower()
-
-        await update.message.reply_text(
-f"""
-❓ سؤال جديد
-
-{q['question']}
-
-💰 الجائزة 250 دينار
-"""
-        )
-
-        return
-
-    # =========================
-    # ANSWER
-    # =========================
-    if user.id in active_questions:
-
-        answer = active_questions[user.id]
-
-        if text == answer:
-
-            add_money(user.id, 250)
-
-            await update.message.reply_text(
-                "🎉 إجابة صحيحة +250"
-            )
-
-        else:
-
-            await update.message.reply_text(
-                "❌ إجابة خاطئة"
-            )
-
-        del active_questions[user.id]
+# =========================
+# ERROR HANDLER
+# =========================
+async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
+    print(f"Error: {context.error}")
 
 
 # =========================
 # MAIN
 # =========================
 def main():
+    app = Application.builder().token(BOT_TOKEN).build()
 
-    init_db()
+    # أوامر
+    app.add_handler(CommandHandler("start", start))
 
-    app = Application.builder().token(TOKEN).build()
+    # الرسائل
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-    app.add_handler(
-        CommandHandler(
-            "start",
-            start
-        )
-    )
-
-    app.add_handler(
-        CommandHandler(
-            "adminpy",
-            adminpy
-        )
-    )
-
-    app.add_handler(
-        CallbackQueryHandler(callback_handler)
-    )
-
-    app.add_handler(
-        MessageHandler(
-            filters.TEXT & ~filters.COMMAND,
-            messages
-        )
-    )
+    # أخطاء
+    app.add_error_handler(error_handler)
 
     print("🚀 BOT RUNNING")
-
     app.run_polling()
 
 
