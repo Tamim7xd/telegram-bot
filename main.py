@@ -1,177 +1,86 @@
 from telegram import Update
-from telegram.ext import (
-    Application,
-    CommandHandler,
-    MessageHandler,
-    CallbackQueryHandler,
-    ContextTypes,
-    filters
-)
+from telegram.ext import Application, MessageHandler, CallbackQueryHandler, ContextTypes, filters
 
 from config import TOKEN, ADMIN_ID
 from db import init_db
 
 from core.users import register, get
-from core.ui import admin_menu
 from core.callbacks import callback_handler
-from core.questions import random_q
-from core.xp import add_xp, get_progress
-from core.titles import get_title
-from core.actions import add_money, remove_money, set_title
 from core.state import get_state, clear_state
+from core.actions import add_money, remove_money, set_title
+from core.xp import add_xp, get_progress
+from core.titles import TITLES
 
 
-# ─────────────────────────────
-# 📌 سؤال نشط
-# ─────────────────────────────
-active_q = {}
-
-
-# ─────────────────────────────
-# 🚀 START
-# ─────────────────────────────
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    register(update.effective_user)
-    await update.message.reply_text("🚀 البوت يعمل")
-
-
-# ─────────────────────────────
-# 🛠 لوحة الأدمن
-# ─────────────────────────────
-async def adminpy(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID:
-        return
-
-    await update.message.reply_text(
-        "🛠 لوحة الأدمن",
-        reply_markup=admin_menu()
-    )
-
-
-# ─────────────────────────────
-# 🎮 نظام المستخدم
-# ─────────────────────────────
-async def handle_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
+# ───────── USER MESSAGES ─────────
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     user = update.effective_user
     text = update.message.text.lower()
 
     register(user)
 
-    # ❓ سؤال
-    if text in ["سؤال", "سوال"]:
-        q = random_q()
-        active_q[user.id] = q[1].lower()
+    # XP + money
+    xp, level = add_xp(user.id, 25)
 
-        await update.message.reply_text(f"❓ {q[0]}")
+    u = get(user.id)
+    title = TITLES[min(level, len(TITLES)-1)]
+
+    # update title
+    c.execute("UPDATE users SET title=? WHERE user_id=?", (title, user.id))
+    from db import conn
+    conn.commit()
+
+    # ───── STATE ─────
+    state = get_state(user.id)
+
+    if state:
+
+        if state["action"] == "add":
+            add_money(state["target"], int(text))
+            await update.message.reply_text("✅ تم إضافة المال")
+
+        elif state["action"] == "rem":
+            remove_money(state["target"], int(text))
+            await update.message.reply_text("✅ تم الخصم")
+
+        elif state["action"] == "title":
+            set_title(state["target"], text)
+            await update.message.reply_text("🏆 تم تعديل اللقب")
+
+        clear_state(user.id)
         return
 
-    # 🎯 جواب سؤال
-    if user.id in active_q:
-
-        correct = active_q[user.id]
-
-        if text == correct:
-
-            add_xp(user.id, 25)
-            xp, level, need, percent, bar = get_progress(user.id)
-            title = get_title(level)
-
-            await update.message.reply_text(
-f"""🎉 صحيح
-💰 +250
-⭐ +25 XP
-🏆 {title}
-📊 {bar} {percent}%"""
-            )
-
-        else:
-            await update.message.reply_text("❌ خطأ")
-
-        del active_q[user.id]
-        return
-
-    # 💰 فلوسي
+    # ───── USER COMMANDS ─────
     if text in ["فلوسي", "فلوس"]:
-        u = get(user.id)
-        await update.message.reply_text(f"💰 {u[2]}")
-        return
+        await update.message.reply_text(f"💰 {u[3]}")
 
-    # 🏆 لقب
-    if text in ["لقبي", "لقب"]:
-        u = get(user.id)
-        await update.message.reply_text(f"🏆 {u[6]}")
-        return
-
-    # 👤 معلوماتي
     if text in ["معلوماتي", "معلومات"]:
-        u = get(user.id)
+        xp, level, need, percent, bar = get_progress(user.id)
 
         await update.message.reply_text(
-f"""👤 معلوماتك:
+f"""👤 معلوماتك
 
 💰 {u[3]}
-⭐ XP {u[4]}
-📊 LVL {u[5]}
-🏆 {u[7]}
-⚠ {u[6]}"""
+⭐ {xp}/{need}
+📊 LVL {level}
+🏆 {u[8]}
+{bar} {percent}%"""
         )
-        return
 
 
-# ─────────────────────────────
-# 🔐 أوامر الأدمن $
-# ─────────────────────────────
-async def admin_commands(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
-    user = update.effective_user
-    text = update.message.text
-
-    if user.id != ADMIN_ID:
-        return
-
-    parts = text.split()
-
-    # 💰 $فلوس
-    if text.startswith("$فلوس"):
-        add_money(int(parts[1]), int(parts[2]))
-        await update.message.reply_text("💰 تم إضافة فلوس")
-        return
-
-    # 💸 $خصم
-    if text.startswith("$خصم"):
-        remove_money(int(parts[1]), int(parts[2]))
-        await update.message.reply_text("💸 تم الخصم")
-        return
-
-    # 🏆 $لقب
-    if text.startswith("$لقب"):
-        uid = int(parts[1])
-        title = " ".join(parts[2:])
-        set_title(uid, title)
-        await update.message.reply_text("🏆 تم تعديل اللقب")
-        return
-
-
-# ─────────────────────────────
-# 🚀 MAIN
-# ─────────────────────────────
+# ───────── MAIN ─────────
 def main():
 
     init_db()
 
     app = Application.builder().token(TOKEN).build()
 
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("adminpy", adminpy))
-
     app.add_handler(CallbackQueryHandler(callback_handler))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-    # ⚠ مهم: ترتيب صحيح
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_messages))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, admin_commands))
+    print("🚀 BOT RUNNING FULL SYSTEM")
 
-    print("🚀 BOT RUNNING")
     app.run_polling()
 
 
