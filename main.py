@@ -1,5 +1,12 @@
 from telegram import Update
-from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, ContextTypes, filters
+from telegram.ext import (
+    Application,
+    CommandHandler,
+    MessageHandler,
+    CallbackQueryHandler,
+    ContextTypes,
+    filters
+)
 
 from config import TOKEN, ADMIN_ID
 from db import init_db
@@ -11,8 +18,14 @@ from core.questions import random_q
 from core.xp import add_xp, get_progress
 from core.titles import get_title
 from core.actions import add_money, remove_money, set_title
+from core.state import get_state, clear_state
 
+
+# ─────────────────────────────
+# 📌 سؤال نشط
+# ─────────────────────────────
 active_q = {}
+
 
 # ─────────────────────────────
 # 🚀 START
@@ -21,16 +34,22 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     register(update.effective_user)
     await update.message.reply_text("🚀 البوت يعمل")
 
+
 # ─────────────────────────────
-# 🛠 الأدمن
+# 🛠 لوحة الأدمن
 # ─────────────────────────────
 async def adminpy(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
         return
-    await update.message.reply_text("🛠 لوحة الأدمن", reply_markup=admin_menu())
+
+    await update.message.reply_text(
+        "🛠 لوحة الأدمن",
+        reply_markup=admin_menu()
+    )
+
 
 # ─────────────────────────────
-# 🎮 USER SYSTEM (فلوسي / معلومات / سؤال)
+# 🎮 نظام المستخدم
 # ─────────────────────────────
 async def handle_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
@@ -47,14 +66,14 @@ async def handle_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"❓ {q[0]}")
         return
 
-    # 🎯 جواب
+    # 🎯 جواب سؤال
     if user.id in active_q:
 
         correct = active_q[user.id]
 
         if text == correct:
 
-            up, lvl = add_xp(user.id, 25)
+            add_xp(user.id, 25)
             xp, level, need, percent, bar = get_progress(user.id)
             title = get_title(level)
 
@@ -84,23 +103,24 @@ f"""🎉 صحيح
         await update.message.reply_text(f"🏆 {u[6]}")
         return
 
-    # 👤 معلومات
+    # 👤 معلوماتي
     if text in ["معلوماتي", "معلومات"]:
         u = get(user.id)
 
         await update.message.reply_text(
 f"""👤 معلوماتك:
 
-💰 {u[2]}
-⭐ XP {u[3]}
-📊 LVL {u[4]}
-🏆 {u[6]}
-⚠ {u[5]}"""
+💰 {u[3]}
+⭐ XP {u[4]}
+📊 LVL {u[5]}
+🏆 {u[7]}
+⚠ {u[6]}"""
         )
         return
 
+
 # ─────────────────────────────
-# 🔐 ADMIN $ COMMANDS
+# 🔐 أوامر الأدمن $
 # ─────────────────────────────
 async def admin_commands(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
@@ -110,28 +130,28 @@ async def admin_commands(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if user.id != ADMIN_ID:
         return
 
+    parts = text.split()
+
     # 💰 $فلوس
     if text.startswith("$فلوس"):
-        uid, amount = text.split()[1], text.split()[2]
-        add_money(int(uid), int(amount))
+        add_money(int(parts[1]), int(parts[2]))
         await update.message.reply_text("💰 تم إضافة فلوس")
         return
 
     # 💸 $خصم
     if text.startswith("$خصم"):
-        uid, amount = text.split()[1], text.split()[2]
-        remove_money(int(uid), int(amount))
+        remove_money(int(parts[1]), int(parts[2]))
         await update.message.reply_text("💸 تم الخصم")
         return
 
     # 🏆 $لقب
     if text.startswith("$لقب"):
-        parts = text.split()
         uid = int(parts[1])
         title = " ".join(parts[2:])
         set_title(uid, title)
         await update.message.reply_text("🏆 تم تعديل اللقب")
         return
+
 
 # ─────────────────────────────
 # 🚀 MAIN
@@ -147,12 +167,13 @@ def main():
 
     app.add_handler(CallbackQueryHandler(callback_handler))
 
-    # ⚠ مهم جدًا الترتيب
+    # ⚠ مهم: ترتيب صحيح
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_messages))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, admin_commands))
 
-    print("🚀 SYSTEM RUNNING ON YOUR STRUCTURE")
+    print("🚀 BOT RUNNING")
     app.run_polling()
+
 
 if __name__ == "__main__":
     main()
