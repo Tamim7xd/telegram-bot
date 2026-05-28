@@ -1,4 +1,4 @@
-from db import conn, c
+from db import c, conn
 
 
 # ─────────────────────────────
@@ -65,7 +65,7 @@ TITLES = [
 
 
 # ─────────────────────────────
-# 🧾 REGISTER USER (مُدمج)
+# 🧾 REGISTER USER
 # ─────────────────────────────
 def register(user):
 
@@ -105,7 +105,7 @@ def add_message(uid):
 
 
 # ─────────────────────────────
-# 🏆 TITLE SYSTEM
+# 🏆 TITLE LOGIC
 # ─────────────────────────────
 def get_title(messages, custom="", locked=0):
 
@@ -124,7 +124,7 @@ def get_title(messages, custom="", locked=0):
 
 
 # ─────────────────────────────
-# 🎯 NEXT GOAL
+# 🎯 NEXT LEVEL GOAL
 # ─────────────────────────────
 def next_goal(messages):
 
@@ -134,24 +134,3 @@ def next_goal(messages):
     level = ((messages - 100) // 250) + 1
 
     return 100 + (level * 250)
-
-
-# ─────────────────────────────
-# 📊 PROGRESS BAR
-# ─────────────────────────────
-def progress_bar(messages):
-
-    target = next_goal(messages)
-    previous = target - 250 if target > 100 else 0
-
-    current = messages - previous
-    needed = target - previous
-
-    percent = int((current / needed) * 10)
-
-    if percent > 10:
-        percent = 10
-    if percent < 0:
-        percent = 0
-
-    return "█" * percent + "░" * (10 - percent)
