@@ -1,6 +1,9 @@
 from db import conn, c
 
 
+# ─────────────────────────────
+# 🧠 TITLES SYSTEM
+# ─────────────────────────────
 TITLES = [
 
 "🌱 المبتدئ",
@@ -61,64 +64,49 @@ TITLES = [
 ] * 5
 
 
-# ================= REGISTER =================
+# ─────────────────────────────
+# 🧾 REGISTER USER (مُدمج)
+# ─────────────────────────────
 def register(user):
 
-    c.execute(
-        "SELECT user_id FROM users WHERE user_id=?",
-        (user.id,)
-    )
-
+    c.execute("SELECT user_id FROM users WHERE user_id=?", (user.id,))
     if not c.fetchone():
 
         c.execute("""
-        INSERT INTO users(
-            user_id,
-            name
-        )
+        INSERT INTO users(user_id, name)
         VALUES (?,?)
-        """, (
-            user.id,
-            user.first_name
-        ))
+        """, (user.id, user.first_name))
 
         conn.commit()
 
 
-# ================= GET =================
+# ─────────────────────────────
+# 📦 GET USER
+# ─────────────────────────────
 def get(uid):
 
-    c.execute(
-        "SELECT * FROM users WHERE user_id=?",
-        (uid,)
-    )
-
+    c.execute("SELECT * FROM users WHERE user_id=?", (uid,))
     return c.fetchone()
 
 
-# ================= ADD MESSAGE =================
+# ─────────────────────────────
+# 💬 ADD MESSAGE + MONEY
+# ─────────────────────────────
 def add_message(uid):
 
     c.execute("""
     UPDATE users
-
-    SET
-        messages = messages + 1,
+    SET messages = messages + 1,
         money = money + 250
-
     WHERE user_id=?
     """, (uid,))
 
     conn.commit()
 
 
-# ================= MONEY =================
-def format_money(amount):
-
-    return f"{amount:,}"
-
-
-# ================= TITLE =================
+# ─────────────────────────────
+# 🏆 TITLE SYSTEM
+# ─────────────────────────────
 def get_title(messages, custom="", locked=0):
 
     if locked and custom:
@@ -135,7 +123,9 @@ def get_title(messages, custom="", locked=0):
     return TITLES[level]
 
 
-# ================= NEXT GOAL =================
+# ─────────────────────────────
+# 🎯 NEXT GOAL
+# ─────────────────────────────
 def next_goal(messages):
 
     if messages < 100:
@@ -146,24 +136,22 @@ def next_goal(messages):
     return 100 + (level * 250)
 
 
-# ================= PROGRESS =================
+# ─────────────────────────────
+# 📊 PROGRESS BAR
+# ─────────────────────────────
 def progress_bar(messages):
 
     target = next_goal(messages)
-
     previous = target - 250 if target > 100 else 0
 
     current = messages - previous
-
     needed = target - previous
 
     percent = int((current / needed) * 10)
 
     if percent > 10:
         percent = 10
+    if percent < 0:
+        percent = 0
 
-    return (
-        "█" * percent
-        +
-        "░" * (10 - percent)
-    )
+    return "█" * percent + "░" * (10 - percent)
