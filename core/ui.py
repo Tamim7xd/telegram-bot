@@ -8,11 +8,11 @@ money = format_iq_money(u[3] or 0)
 messages = u[2] or 0
 level = u[4] or 1
 title = u[8] or "بدون لقب"
+
 banned = u[10] if len(u) > 10 else 0
 muted = u[11] if len(u) > 11 else 0
 
-await query.edit_message_text(
-f"""
+text = f"""
 ━━━━━━━━━━━━━━
 👤 ملف العضو
 ━━━━━━━━━━━━━━
@@ -40,4 +40,5 @@ f"""
 
 ━━━━━━━━━━━━━━
 """
-)
+
+await query.edit_message_text(text)
