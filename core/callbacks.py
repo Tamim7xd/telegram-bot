@@ -2,29 +2,28 @@ from telegram import Update
 from telegram.ext import ContextTypes
 
 from config import ADMIN_ID, GROUP_ID
-
 from core.ui import admin_menu, users_page, user_panel
 from core.users import get
 from core.actions import add_money, remove_money, set_title, mute, ban, unban
 
 
 # ─────────────────────────────
-# 🎛️ CALLBACK HANDLER (LIVE SYSTEM)
+# 🎛 CALLBACK HANDLER
 # ─────────────────────────────
 async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     query = update.callback_query
     await query.answer()
 
+    user_id = query.from_user.id
     data = query.data
-    admin = query.from_user.id
 
     # ───────── حماية الأدمن ─────────
-    if admin != ADMIN_ID:
+    if user_id != ADMIN_ID:
         await query.answer("❌ غير مصرح", show_alert=True)
         return
 
-    # ───────── الرجوع للوحة ─────────
+    # ───────── الرجوع ─────────
     if data == "home":
         await query.edit_message_text(
             "🛠 لوحة الأدمن",
@@ -32,21 +31,18 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    # ───────── صفحة الأعضاء ─────────
+    # ───────── الأعضاء (Pagination) ─────────
     if data.startswith("users:"):
 
-        try:
-            page = int(data.split(":")[1])
-        except:
-            page = 0
+        page = int(data.split(":")[1])
 
         await query.edit_message_text(
-            "👥 الأعضاء",
+            "👥 قائمة الأعضاء",
             reply_markup=users_page(page)
         )
         return
 
-    # ───────── ملف المستخدم ─────────
+    # ───────── فتح مستخدم ─────────
     if data.startswith("user:"):
 
         uid = int(data.split(":")[1])
@@ -57,183 +53,108 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
 
         await query.edit_message_text(
-f"""👤 ━━━ ملف العضو ━━━
+f"""👤 ملف المستخدم
 
-🆔 {u[0]}
-👤 {u[1]}
-💰 فلوس: {u[2]}
-⭐ XP: {u[3]}
-📊 مستوى: {u[4]}
-🏆 لقب: {u[6]}
-⚠ تنبيهات: {u[5]}
-🚫 حالة: {"محظور" if u[7] else "نشط"}
+🆔 ID: {u[0]}
+👤 الاسم: {u[1]}
+💰 فلوس: {u[3]}
+⭐ XP: {u[4]}
+📊 مستوى: {u[5]}
+⚠ تنبيهات: {u[6]}
+🏆 لقب: {u[7]}
 
-━━━━━━━━━━━━""",
+🚫 حالة:
+{'محظور' if len(u) > 8 and u[8] else 'نشط'}
+""",
             reply_markup=user_panel(uid)
         )
         return
 
-    # ─────────────────────────────
-    # 💰 إضافة فلوس (حقيقي)
-    # ─────────────────────────────
+    # ───────── إضافة فلوس ─────────
     if data.startswith("add:"):
 
         uid = int(data.split(":")[1])
-
         add_money(uid, 250)
-
-        user = get(uid)
 
         await context.bot.send_message(
             GROUP_ID,
-f"""💰 ━━━ عملية مالية ━━━
-
-👤 المستخدم: {user[1]}
-➕ تمت إضافة: 250 دينار
-💰 الرصيد الجديد: {user[2]}
-
-👮 بواسطة: ADMIN
-
-━━━━━━━━━━━━"""
+            f"💰 تم إضافة 250 دينار للمستخدم {uid} بواسطة الأدمن"
         )
 
-        await query.answer("تمت إضافة الفلوس")
+        await query.answer("تمت الإضافة", show_alert=True)
         return
 
-    # ─────────────────────────────
-    # ➖ خصم فلوس (حقيقي)
-    # ─────────────────────────────
+    # ───────── خصم ─────────
     if data.startswith("rem:"):
 
         uid = int(data.split(":")[1])
-
         remove_money(uid, 250)
-
-        user = get(uid)
 
         await context.bot.send_message(
             GROUP_ID,
-f"""💸 ━━━ عملية مالية ━━━
-
-👤 المستخدم: {user[1]}
-➖ تم خصم: 250 دينار
-💰 الرصيد الجديد: {user[2]}
-
-👮 بواسطة: ADMIN
-
-━━━━━━━━━━━━"""
+            f"💸 تم خصم 250 دينار من المستخدم {uid}"
         )
 
-        await query.answer("تم الخصم")
+        await query.answer("تم الخصم", show_alert=True)
         return
 
-    # ─────────────────────────────
-    # 🏆 تعديل لقب (حقيقي)
-    # ─────────────────────────────
+    # ───────── لقب ─────────
     if data.startswith("title:"):
 
         uid = int(data.split(":")[1])
-
         set_title(uid, "أسطورة")
-
-        user = get(uid)
 
         await context.bot.send_message(
             GROUP_ID,
-f"""🏆 ━━━ ترقية لقب ━━━
-
-👤 المستخدم: {user[1]}
-✨ اللقب الجديد: أسطورة
-
-👮 بواسطة: ADMIN
-
-━━━━━━━━━━━━"""
+            f"🏆 تم تعديل لقب المستخدم {uid}"
         )
 
-        await query.answer("تم تعديل اللقب")
+        await query.answer("تم تعديل اللقب", show_alert=True)
         return
 
-    # ─────────────────────────────
-    # 🔇 كتم (حقيقي)
-    # ─────────────────────────────
+    # ───────── كتم ─────────
     if data.startswith("mute:"):
 
         uid = int(data.split(":")[1])
-
         mute(uid)
-
-        user = get(uid)
 
         await context.bot.send_message(
             GROUP_ID,
-f"""🔇 ━━━ كتم ━━━
-
-👤 المستخدم: {user[1]}
-⚠ تم كتمه من النظام
-
-👮 بواسطة: ADMIN
-
-━━━━━━━━━━━━"""
+            f"🔇 تم كتم المستخدم {uid}"
         )
 
-        await query.answer("تم الكتم")
+        await query.answer("تم الكتم", show_alert=True)
         return
 
-    # ─────────────────────────────
-    # 🚫 حظر (حقيقي)
-    # ─────────────────────────────
+    # ───────── حظر ─────────
     if data.startswith("ban:"):
 
         uid = int(data.split(":")[1])
-
         ban(uid)
-
-        user = get(uid)
 
         await context.bot.send_message(
             GROUP_ID,
-f"""🚫 ━━━ حظر ━━━
-
-👤 المستخدم: {user[1]}
-❌ تم حظره نهائيًا
-
-👮 بواسطة: ADMIN
-
-━━━━━━━━━━━━"""
+            f"🚫 تم حظر المستخدم {uid}"
         )
 
-        await query.answer("تم الحظر")
+        await query.answer("تم الحظر", show_alert=True)
         return
 
-    # ─────────────────────────────
-    # 🔓 فك الحظر
-    # ─────────────────────────────
+    # ───────── فك حظر ─────────
     if data.startswith("unban:"):
 
         uid = int(data.split(":")[1])
-
         unban(uid)
-
-        user = get(uid)
 
         await context.bot.send_message(
             GROUP_ID,
-f"""🔓 ━━━ فك الحظر ━━━
-
-👤 المستخدم: {user[1]}
-✅ تم إعادة تفعيله
-
-👮 بواسطة: مصطفى،التميمي
-
-━━━━━━━━━━━━"""
+            f"🔓 تم فك حظر المستخدم {uid}"
         )
 
-        await query.answer("تم فك الحظر")
+        await query.answer("تم فك الحظر", show_alert=True)
         return
 
-    # ─────────────────────────────
-    # ❌ إغلاق
-    # ─────────────────────────────
+    # ───────── إغلاق ─────────
     if data == "close":
-        await query.edit_message_text("❌ تم إغلاق لوحة التحكم")
+        await query.edit_message_text("❌ تم إغلاق اللوحة")
         return
