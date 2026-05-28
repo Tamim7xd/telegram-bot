@@ -1,12 +1,12 @@
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
 
-from config import TOKEN, OWNER_ID, GROUP_ID
+from config import TOKEN, ADMIN_ID, GROUP_ID
 from db import init_db
 
 from core.users import register, add_xp, get, get_title
 from core.questions import random_q, set_q, get_q, del_q
-from core.admin import is_admin, is_owner, set_role, notify
+from core.admin import is_admin, is_admin, set_role, notify
 
 # ================= START =================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -61,9 +61,9 @@ async def broadcast(update: Update, context):
     except:
         pass
 
-# ================= OWNER COMMANDS =================
+# ================= ADMIN COMMANDS =================
 async def setadmin(update: Update, context):
-    if update.effective_user.id != OWNER_ID:
+    if update.effective_user.id != ADMIN_ID:
         return
 
     uid = int(context.args[0])
@@ -71,7 +71,7 @@ async def setadmin(update: Update, context):
     await update.message.reply_text("تم رفعه Admin")
 
 async def setmod(update: Update, context):
-    if update.effective_user.id != OWNER_ID:
+    if update.effective_user.id != ADMIN_ID:
         return
 
     uid = int(context.args[0])
