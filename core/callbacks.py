@@ -22,6 +22,8 @@ from core.actions import (
     unban
 )
 
+from core.utils import format_iq_money
+
 
 # =========================
 # CALLBACK HANDLER
@@ -64,10 +66,7 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         for u in users:
             keyboard.append([
-                InlineKeyboardButton(
-                    u[1],
-                    callback_data=f"user:{u[0]}"
-                )
+                InlineKeyboardButton(u[1], callback_data=f"user:{u[0]}")
             ])
 
         keyboard.append([
@@ -87,54 +86,46 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         uid = int(data.split(":")[1])
         u = get(uid)
 
-        keyboard = [
-
-            [
-                InlineKeyboardButton("💰 إضافة", callback_data=f"add:{uid}"),
-                InlineKeyboardButton("💸 خصم", callback_data=f"rem:{uid}")
-            ],
-
-            [
-                InlineKeyboardButton("🏆 لقب", callback_data=f"title:{uid}")
-            ],
-
-            [
-                InlineKeyboardButton("🔇 كتم", callback_data=f"mute:{uid}"),
-                InlineKeyboardButton("🔊 فك", callback_data=f"unmute:{uid}")
-            ],
-
-            [
-                InlineKeyboardButton("🚫 حظر", callback_data=f"ban:{uid}"),
-                InlineKeyboardButton("✅ فك", callback_data=f"unban:{uid}")
-            ],
-
-            [
-                InlineKeyboardButton("👢 طرد", callback_data=f"kick:{uid}")
-            ],
-
-            [
-                InlineKeyboardButton("🔙 رجوع", callback_data="users")
-            ]
-        ]
-
         await query.edit_message_text(
 f"""
 👤 معلومات العضو
 
 🆔 {u[0]}
 👤 {u[1]}
-💰 المال: {u[3]:,}
+💰 المال: {format_iq_money(u[3])}
 📨 الرسائل: {u[2]:,}
 🏆 اللقب: {u[8]}
 
 🚫 محظور: {'نعم' if u[10] else 'لا'}
 🔇 مكتوم: {'نعم' if u[11] else 'لا'}
 """,
-            reply_markup=InlineKeyboardMarkup(keyboard)
+            reply_markup=InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("💰 إضافة", callback_data=f"add:{uid}"),
+                    InlineKeyboardButton("💸 خصم", callback_data=f"rem:{uid}")
+                ],
+                [
+                    InlineKeyboardButton("🏆 لقب", callback_data=f"title:{uid}")
+                ],
+                [
+                    InlineKeyboardButton("🔇 كتم", callback_data=f"mute:{uid}"),
+                    InlineKeyboardButton("🔊 فك", callback_data=f"unmute:{uid}")
+                ],
+                [
+                    InlineKeyboardButton("🚫 حظر", callback_data=f"ban:{uid}"),
+                    InlineKeyboardButton("✅ فك", callback_data=f"unban:{uid}")
+                ],
+                [
+                    InlineKeyboardButton("👢 طرد", callback_data=f"kick:{uid}")
+                ],
+                [
+                    InlineKeyboardButton("🔙 رجوع", callback_data="users")
+                ]
+            ])
         )
 
     # =========================
-    # ADD MONEY (STATE)
+    # ADD MONEY
     # =========================
     elif data.startswith("add:"):
         uid = int(data.split(":")[1])
@@ -167,9 +158,7 @@ f"""
         await context.bot.restrict_chat_member(
             GROUP_ID,
             uid,
-            permissions=ChatPermissions(
-                can_send_messages=False
-            )
+            permissions=ChatPermissions(can_send_messages=False)
         )
 
         c.execute("UPDATE users SET muted=1 WHERE user_id=?", (uid,))
@@ -177,10 +166,7 @@ f"""
 
         await context.bot.send_message(
             GROUP_ID,
-f"""
-🔇 تم كتم العضو
-بواسطة: {query.from_user.first_name}
-"""
+            f"🔇 تم كتم العضو بواسطة: {query.from_user.first_name}"
         )
 
     # =========================
@@ -220,10 +206,7 @@ f"""
 
         await context.bot.send_message(
             GROUP_ID,
-f"""
-🚫 تم حظر العضو
-بواسطة: {query.from_user.first_name}
-"""
+            f"🚫 تم حظر العضو بواسطة: {query.from_user.first_name}"
         )
 
     # =========================
@@ -252,13 +235,8 @@ f"""
 
         await context.bot.send_message(
             GROUP_ID,
-f"""
-👢 تم طرد العضو
-بواسطة: {query.from_user.first_name}
-"""
+            f"👢 تم طرد العضو بواسطة: {query.from_user.first_name}"
         )
-
-        await query.answer("👢 تم الطرد")
 
     # =========================
     # STATS
@@ -286,7 +264,7 @@ f"""
 
 👥 الأعضاء: {users}
 📨 الرسائل: {messages}
-💰 الأموال: {money}
+💰 الأموال: {format_iq_money(money)}
 
 🚫 محظورين: {banned}
 🔇 مكتومين: {muted}
