@@ -1,17 +1,14 @@
 import random
 import asyncio
 from db import c, conn
-from core.users import add_xp
+from core.service import add_xp
 
-GAME = {
-    "active": False,
-    "answer": None
-}
+GAME = {"active": False, "answer": None}
 
 QUESTIONS = [
-    ("كم عدد أيام الأسبوع؟", "7"),
+    ("ما عاصمة العراق؟", "بغداد"),
+    ("2+2؟", "4"),
     ("ما لون السماء؟", "أزرق"),
-    ("5 + 5 = ?", "10"),
     ("أكبر كوكب؟", "المشتري")
 ]
 
@@ -26,19 +23,12 @@ async def start_game(bot, chat_id):
     GAME["active"] = True
     GAME["answer"] = a.lower()
 
-    await bot.send_message(chat_id, f"""
-🎮 لعبة جديدة!
+    await bot.send_message(chat_id, f"🎮 سؤال:\n\n{q}")
 
-❓ {q}
-
-⚡ أول إجابة صحيحة تفوز!
-""")
-
-    await asyncio.sleep(25)
+    await asyncio.sleep(20)
 
     GAME["active"] = False
-
-    await bot.send_message(chat_id, "⏱ انتهت اللعبة!")
+    await bot.send_message(chat_id, "⏱ انتهت اللعبة")
 
 
 async def check_answer(bot, message):
@@ -59,5 +49,5 @@ async def check_answer(bot, message):
 
         await bot.send_message(
             message.chat.id,
-            f"🏆 {message.from_user.first_name} فاز!\n💰 +100"
+            f"🏆 {message.from_user.first_name} فاز! +100"
         )
