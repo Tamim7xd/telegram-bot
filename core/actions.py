@@ -6,7 +6,6 @@ from core.users import register
 # 🧠 ضمان وجود المستخدم
 # ─────────────────────────────
 def ensure_user(uid):
-
     register(type("U", (), {"id": uid, "first_name": "user"}))
 
 
@@ -14,7 +13,6 @@ def ensure_user(uid):
 # 💰 إضافة فلوس
 # ─────────────────────────────
 def add_money(uid, amount):
-
     ensure_user(uid)
 
     c.execute("""
@@ -30,7 +28,6 @@ def add_money(uid, amount):
 # 💸 خصم فلوس
 # ─────────────────────────────
 def remove_money(uid, amount):
-
     ensure_user(uid)
 
     c.execute("""
@@ -43,10 +40,9 @@ def remove_money(uid, amount):
 
 
 # ─────────────────────────────
-# 🔇 كتم
+# 🔇 كتم المستخدم
 # ─────────────────────────────
 def mute(uid):
-
     ensure_user(uid)
 
     c.execute("""
@@ -59,10 +55,9 @@ def mute(uid):
 
 
 # ─────────────────────────────
-# 🚫 حظر
+# 🚫 حظر المستخدم
 # ─────────────────────────────
 def ban(uid):
-
     ensure_user(uid)
 
     c.execute("""
@@ -75,10 +70,9 @@ def ban(uid):
 
 
 # ─────────────────────────────
-# 🔓 فك حظر
+# 🔓 فك الحظر
 # ─────────────────────────────
 def unban(uid):
-
     ensure_user(uid)
 
     c.execute("""
@@ -91,10 +85,9 @@ def unban(uid):
 
 
 # ─────────────────────────────
-# 🏆 لقب
+# 🏆 تعديل اللقب
 # ─────────────────────────────
 def set_title(uid, title):
-
     ensure_user(uid)
 
     c.execute("""
