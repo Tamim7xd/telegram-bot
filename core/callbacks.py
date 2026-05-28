@@ -7,43 +7,48 @@ from core.ui import admin_menu, users_page, user_panel
 from core.users import get
 from core.actions import add_money, remove_money, set_title, mute, ban, unban
 
+
 # ─────────────────────────────
-# 🎛️ CALLBACK HANDLER
+# 🎛️ CALLBACK HANDLER (LIVE SYSTEM)
 # ─────────────────────────────
 async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     query = update.callback_query
     await query.answer()
 
-    user_id = query.from_user.id
     data = query.data
+    admin = query.from_user.id
 
-    # ───── حماية الأدمن ─────
-    if user_id != ADMIN_ID:
-        await query.edit_message_text("❌ غير مصرح لك")
+    # ───────── حماية الأدمن ─────────
+    if admin != ADMIN_ID:
+        await query.answer("❌ غير مصرح", show_alert=True)
         return
 
-    # ───── الرجوع للوحة ─────
+    # ───────── الرجوع للوحة ─────────
     if data == "home":
         await query.edit_message_text(
             "🛠 لوحة الأدمن",
             reply_markup=admin_menu()
         )
+        return
 
-    # ───── قائمة الأعضاء (pagination) ─────
-    elif data.startswith("users:"):
+    # ───────── صفحة الأعضاء ─────────
+    if data.startswith("users:"):
+
         try:
             page = int(data.split(":")[1])
         except:
             page = 0
 
         await query.edit_message_text(
-            "👥 قائمة الأعضاء",
+            "👥 الأعضاء",
             reply_markup=users_page(page)
         )
+        return
 
-    # ───── فتح ملف عضو ─────
-    elif data.startswith("user:"):
+    # ───────── ملف المستخدم ─────────
+    if data.startswith("user:"):
+
         uid = int(data.split(":")[1])
         u = get(uid)
 
@@ -52,152 +57,183 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
 
         await query.edit_message_text(
-f"""👤 ━━━ ملف المستخدم ━━━
+f"""👤 ━━━ ملف العضو ━━━
 
-🆔 ID: {u[0]}
-👤 الاسم: {u[1]}
-💰 الفلوس: {u[2]}
+🆔 {u[0]}
+👤 {u[1]}
+💰 فلوس: {u[2]}
 ⭐ XP: {u[3]}
-📊 المستوى: {u[4]}
-🏆 اللقب: {u[6]}
-⚠ التنبيهات: {u[5]}
-🚫 الحالة: {"محظور" if u[7] else "نشط"}
+📊 مستوى: {u[4]}
+🏆 لقب: {u[6]}
+⚠ تنبيهات: {u[5]}
+🚫 حالة: {"محظور" if u[7] else "نشط"}
 
-━━━━━━━━━━━━━━""",
+━━━━━━━━━━━━""",
             reply_markup=user_panel(uid)
         )
+        return
 
     # ─────────────────────────────
-    # 💰 إضافة فلوس
+    # 💰 إضافة فلوس (حقيقي)
     # ─────────────────────────────
-    elif data.startswith("add:"):
+    if data.startswith("add:"):
+
         uid = int(data.split(":")[1])
 
         add_money(uid, 250)
+
+        user = get(uid)
 
         await context.bot.send_message(
             GROUP_ID,
 f"""💰 ━━━ عملية مالية ━━━
 
-👤 تم إضافة فلوس
-💵 المبلغ: 250 دينار
+👤 المستخدم: {user[1]}
+➕ تمت إضافة: 250 دينار
+💰 الرصيد الجديد: {user[2]}
+
 👮 بواسطة: ADMIN
 
-━━━━━━━━━━━━━━"""
+━━━━━━━━━━━━"""
         )
 
-        await query.answer("تم إضافة الفلوس")
+        await query.answer("تمت إضافة الفلوس")
+        return
 
     # ─────────────────────────────
-    # ➖ خصم فلوس
+    # ➖ خصم فلوس (حقيقي)
     # ─────────────────────────────
-    elif data.startswith("rem:"):
+    if data.startswith("rem:"):
+
         uid = int(data.split(":")[1])
 
         remove_money(uid, 250)
+
+        user = get(uid)
 
         await context.bot.send_message(
             GROUP_ID,
 f"""💸 ━━━ عملية مالية ━━━
 
-👤 تم خصم فلوس
-💵 المبلغ: 250 دينار
+👤 المستخدم: {user[1]}
+➖ تم خصم: 250 دينار
+💰 الرصيد الجديد: {user[2]}
+
 👮 بواسطة: ADMIN
 
-━━━━━━━━━━━━━━"""
+━━━━━━━━━━━━"""
         )
 
         await query.answer("تم الخصم")
+        return
 
     # ─────────────────────────────
-    # 🏆 تعديل لقب
+    # 🏆 تعديل لقب (حقيقي)
     # ─────────────────────────────
-    elif data.startswith("title:"):
+    if data.startswith("title:"):
+
         uid = int(data.split(":")[1])
 
         set_title(uid, "أسطورة")
+
+        user = get(uid)
 
         await context.bot.send_message(
             GROUP_ID,
 f"""🏆 ━━━ ترقية لقب ━━━
 
-👤 تم تعديل اللقب
+👤 المستخدم: {user[1]}
 ✨ اللقب الجديد: أسطورة
 
 👮 بواسطة: ADMIN
 
-━━━━━━━━━━━━━━"""
+━━━━━━━━━━━━"""
         )
 
         await query.answer("تم تعديل اللقب")
+        return
 
     # ─────────────────────────────
-    # 🔇 كتم
+    # 🔇 كتم (حقيقي)
     # ─────────────────────────────
-    elif data.startswith("mute:"):
+    if data.startswith("mute:"):
+
         uid = int(data.split(":")[1])
 
         mute(uid)
 
+        user = get(uid)
+
         await context.bot.send_message(
             GROUP_ID,
-f"""🔇 ━━━ إجراء إداري ━━━
+f"""🔇 ━━━ كتم ━━━
 
-👤 تم كتم المستخدم
-⏱ الحالة: MUTE
+👤 المستخدم: {user[1]}
+⚠ تم كتمه من النظام
 
 👮 بواسطة: ADMIN
 
-━━━━━━━━━━━━━━"""
+━━━━━━━━━━━━"""
         )
 
         await query.answer("تم الكتم")
+        return
 
     # ─────────────────────────────
-    # 🚫 حظر
+    # 🚫 حظر (حقيقي)
     # ─────────────────────────────
-    elif data.startswith("ban:"):
+    if data.startswith("ban:"):
+
         uid = int(data.split(":")[1])
 
         ban(uid)
 
+        user = get(uid)
+
         await context.bot.send_message(
             GROUP_ID,
-f"""🚫 ━━━ إجراء إداري ━━━
+f"""🚫 ━━━ حظر ━━━
 
-👤 تم حظر المستخدم
-⚠️ الحالة: BAN
+👤 المستخدم: {user[1]}
+❌ تم حظره نهائيًا
 
 👮 بواسطة: ADMIN
 
-━━━━━━━━━━━━━━"""
+━━━━━━━━━━━━"""
         )
 
         await query.answer("تم الحظر")
+        return
 
     # ─────────────────────────────
     # 🔓 فك الحظر
     # ─────────────────────────────
-    elif data.startswith("unban:"):
+    if data.startswith("unban:"):
+
         uid = int(data.split(":")[1])
 
         unban(uid)
 
+        user = get(uid)
+
         await context.bot.send_message(
             GROUP_ID,
-f"""🔓 ━━━ إجراء إداري ━━━
+f"""🔓 ━━━ فك الحظر ━━━
 
-👤 تم فك الحظر
+👤 المستخدم: {user[1]}
+✅ تم إعادة تفعيله
 
-👮 بواسطة: ADMIN
+👮 بواسطة: مصطفى،التميمي
 
-━━━━━━━━━━━━━━"""
+━━━━━━━━━━━━"""
         )
 
         await query.answer("تم فك الحظر")
+        return
 
     # ─────────────────────────────
     # ❌ إغلاق
     # ─────────────────────────────
-    elif data == "close":
-        await query.edit_message_text("❌ تم إغلاق اللوحة")
+    if data == "close":
+        await query.edit_message_text("❌ تم إغلاق لوحة التحكم")
+        return
