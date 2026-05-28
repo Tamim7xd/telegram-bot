@@ -2,14 +2,12 @@ from telegram import Update
 from telegram.ext import ContextTypes
 
 from config import ADMIN_ID, GROUP_ID
+
 from core.ui import admin_menu, users_page, user_panel
 from core.users import get
-from core.actions import add_money, remove_money, set_title, mute, ban, unban
+from core.actions import add_money, remove_money, mute, ban, unban, set_title
 
 
-# ─────────────────────────────
-# 🎛 CALLBACK HANDLER
-# ─────────────────────────────
 async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     query = update.callback_query
@@ -23,7 +21,7 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.answer("❌ غير مصرح", show_alert=True)
         return
 
-    # ───────── الرجوع ─────────
+    # ───────── الرئيسية ─────────
     if data == "home":
         await query.edit_message_text(
             "🛠 لوحة الأدمن",
@@ -31,9 +29,8 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    # ───────── الأعضاء (Pagination) ─────────
+    # ───────── الأعضاء ─────────
     if data.startswith("users:"):
-
         page = int(data.split(":")[1])
 
         await query.edit_message_text(
@@ -42,7 +39,7 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    # ───────── فتح مستخدم ─────────
+    # ───────── ملف عضو ─────────
     if data.startswith("user:"):
 
         uid = int(data.split(":")[1])
@@ -55,16 +52,15 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text(
 f"""👤 ملف المستخدم
 
-🆔 ID: {u[0]}
-👤 الاسم: {u[1]}
+🆔 {u[0]}
+👤 {u[1]}
 💰 فلوس: {u[3]}
+💬 رسائل: {u[2]}
 ⭐ XP: {u[4]}
 📊 مستوى: {u[5]}
-⚠ تنبيهات: {u[6]}
 🏆 لقب: {u[7]}
-
-🚫 حالة:
-{'محظور' if len(u) > 8 and u[8] else 'نشط'}
+🚫 محظور: {u[8]}
+🔇 مكتوم: {u[9]}
 """,
             reply_markup=user_panel(uid)
         )
@@ -78,7 +74,7 @@ f"""👤 ملف المستخدم
 
         await context.bot.send_message(
             GROUP_ID,
-            f"💰 تم إضافة 250 دينار للمستخدم {uid} بواسطة الأدمن"
+            f"💰 تم إضافة 250 دينار للمستخدم {uid}"
         )
 
         await query.answer("تمت الإضافة", show_alert=True)
@@ -96,20 +92,6 @@ f"""👤 ملف المستخدم
         )
 
         await query.answer("تم الخصم", show_alert=True)
-        return
-
-    # ───────── لقب ─────────
-    if data.startswith("title:"):
-
-        uid = int(data.split(":")[1])
-        set_title(uid, "أسطورة")
-
-        await context.bot.send_message(
-            GROUP_ID,
-            f"🏆 تم تعديل لقب المستخدم {uid}"
-        )
-
-        await query.answer("تم تعديل اللقب", show_alert=True)
         return
 
     # ───────── كتم ─────────
@@ -148,13 +130,26 @@ f"""👤 ملف المستخدم
 
         await context.bot.send_message(
             GROUP_ID,
-            f"🔓 تم فك حظر المستخدم {uid}"
+            f"🔓 تم فك الحظر {uid}"
         )
 
         await query.answer("تم فك الحظر", show_alert=True)
         return
 
+    # ───────── لقب ─────────
+    if data.startswith("title:"):
+
+        uid = int(data.split(":")[1])
+        set_title(uid, "أسطورة")
+
+        await context.bot.send_message(
+            GROUP_ID,
+            f"🏆 تم تعديل لقب المستخدم {uid}"
+        )
+
+        await query.answer("تم تعديل اللقب", show_alert=True)
+        return
+
     # ───────── إغلاق ─────────
     if data == "close":
-        await query.edit_message_text("❌ تم إغلاق اللوحة")
-        return
+        await query.edit_message_text("❌ تم الإغلاق")
