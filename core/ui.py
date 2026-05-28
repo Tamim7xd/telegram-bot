@@ -4,6 +4,13 @@ if not u:
     await query.edit_message_text("❌ المستخدم غير موجود")
     return
 
+money = format_iq_money(u[3] or 0)
+messages = u[2] or 0
+level = u[4] or 1
+title = u[8] or "بدون لقب"
+banned = u[10] if len(u) > 10 else 0
+muted = u[11] if len(u) > 11 else 0
+
 await query.edit_message_text(
 f"""
 ━━━━━━━━━━━━━━
@@ -14,22 +21,22 @@ f"""
 👤 الاسم: {u[1]}
 
 💰 المال:
-{format_iq_money(u[3] or 0)}
+{money}
 
 📨 عدد الرسائل:
-{u[2] or 0:,}
+{messages:,}
 
 ⭐ المستوى:
-{u[4] or 1}
+{level}
 
 🏆 اللقب:
-{u[8] or "بدون لقب"}
+{title}
 
 ━━━━━━━━━━━━━━
 📊 الحالة
 
-🚫 الحظر: {'❌ محظور' if u[10] else '✅ آمن'}
-🔇 الكتم: {'🔇 مكتوم' if u[11] else '🔊 حر'}
+🚫 الحظر: {'❌ محظور' if banned else '✅ آمن'}
+🔇 الكتم: {'🔇 مكتوم' if muted else '🔊 حر'}
 
 ━━━━━━━━━━━━━━
 """
