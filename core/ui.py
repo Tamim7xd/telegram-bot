@@ -1,7 +1,7 @@
 u = get(uid)
 
 if not u:
-    await query.edit_message_text("❌ المستخدم غير موجود")
+    
     return
 
 money = format_iq_money(u[3] or 0)
