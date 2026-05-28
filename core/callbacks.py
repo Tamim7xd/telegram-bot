@@ -1,78 +1,57 @@
 from telegram import Update
 from telegram.ext import ContextTypes
 
-from config import ADMIN_ID, GROUP_ID
-from core.ui import admin_menu, users_page, user_panel
+from config import ADMIN_ID
 from core.users import get
+from core.ui import admin_menu, user_panel
 from core.actions import add_money, remove_money, set_title, mute, ban, unban
 from core.state import set_state
 
 
 async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
-    query = update.callback_query
-    await query.answer()
+    q = update.callback_query
+    await q.answer()
 
-    uid = query.from_user.id
-    data = query.data
+    uid = q.from_user.id
+    data = q.data
 
     if uid != ADMIN_ID:
-        await query.answer("❌ غير مصرح", show_alert=True)
         return
 
     if data == "home":
-        await query.edit_message_text("🛠 لوحة الأدمن", reply_markup=admin_menu())
-        return
-
-    if data.startswith("users:"):
-        await query.edit_message_text("👥 الأعضاء", reply_markup=users_page())
-        return
+        await q.edit_message_text("🛠 لوحة الأدمن", reply_markup=admin_menu())
 
     if data.startswith("user:"):
-        user_id = int(data.split(":")[1])
-        u = get(user_id)
+        target = int(data.split(":")[1])
+        u = get(target)
 
-        if not u:
-            await query.edit_message_text("❌ غير موجود")
-            return
-
-        await query.edit_message_text(
+        await q.edit_message_text(
             f"👤 {u[1]}",
-            reply_markup=user_panel(user_id)
+            reply_markup=user_panel(target)
         )
-        return
 
-    # ───── إدخال بيانات بعد الضغط ─────
-
+    # STATE INPUT
     if data.startswith("add:"):
         set_state(uid, "add", int(data.split(":")[1]))
-        await query.message.reply_text("💰 اكتب المبلغ:")
-        return
+        await q.message.reply_text("💰 اكتب المبلغ")
 
     if data.startswith("rem:"):
         set_state(uid, "rem", int(data.split(":")[1]))
-        await query.message.reply_text("💸 اكتب المبلغ:")
-        return
+        await q.message.reply_text("💸 اكتب المبلغ")
 
     if data.startswith("title:"):
         set_state(uid, "title", int(data.split(":")[1]))
-        await query.message.reply_text("🏆 اكتب اللقب:")
-        return
+        await q.message.reply_text("🏆 اكتب اللقب")
 
     if data.startswith("mute:"):
         mute(int(data.split(":")[1]))
-        await query.message.reply_text("🔇 تم الكتم")
-        return
+        await q.message.reply_text("🔇 تم الكتم")
 
     if data.startswith("ban:"):
         ban(int(data.split(":")[1]))
-        await query.message.reply_text("🚫 تم الحظر")
-        return
+        await q.message.reply_text("🚫 تم الحظر")
 
     if data.startswith("unban:"):
         unban(int(data.split(":")[1]))
-        await query.message.reply_text("🔓 تم فك الحظر")
-        return
-
-    if data == "close":
-        await query.edit_message_text("❌ تم الإغلاق")
+        await q.message.reply_text("🔓 تم فك الحظر")
