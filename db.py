@@ -3,7 +3,6 @@ import sqlite3
 conn = sqlite3.connect("bot.db", check_same_thread=False)
 c = conn.cursor()
 
-
 def init_db():
 
     c.execute("""
@@ -20,14 +19,6 @@ def init_db():
         title_locked INTEGER DEFAULT 0,
         banned INTEGER DEFAULT 0,
         muted INTEGER DEFAULT 0
-    )
-    """)
-
-    c.execute("""
-    CREATE TABLE IF NOT EXISTS questions(
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        question TEXT,
-        answer TEXT
     )
     """)
 
