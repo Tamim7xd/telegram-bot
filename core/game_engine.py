@@ -1,99 +1,63 @@
 import random
 import asyncio
-
 from db import c, conn
 from core.users import add_xp
-from core.service import add_message
 
+GAME = {
+    "active": False,
+    "answer": None
+}
 
-# =========================
-# بنك الأسئلة
-# =========================
 QUESTIONS = [
-    ("ما عاصمة العراق؟", "بغداد"),
-    ("2 + 2 = ?", "4"),
-    ("ما اسم الكوكب الأحمر؟", "المريخ"),
-    ("كم عدد القارات؟", "7"),
-    ("ما لغة بايثون؟", "برمجة")
+    ("كم عدد أيام الأسبوع؟", "7"),
+    ("ما لون السماء؟", "أزرق"),
+    ("5 + 5 = ?", "10"),
+    ("أكبر كوكب؟", "المشتري")
 ]
 
 
-# =========================
-# حالة اللعبة
-# =========================
-active_game = {
-    "active": False,
-    "answer": None,
-    "winner": None
-}
-
-
-# =========================
-# بدء لعبة
-# =========================
 async def start_game(bot, chat_id):
 
-    if active_game["active"]:
+    if GAME["active"]:
         return
 
     q, a = random.choice(QUESTIONS)
 
-    active_game["active"] = True
-    active_game["answer"] = a.lower()
-    active_game["winner"] = None
+    GAME["active"] = True
+    GAME["answer"] = a.lower()
 
     await bot.send_message(chat_id, f"""
-🎮 لعبة بدأت!
+🎮 لعبة جديدة!
 
-❓ السؤال:
-{q}
+❓ {q}
 
 ⚡ أول إجابة صحيحة تفوز!
 """)
 
-    # انتهاء تلقائي بعد 30 ثانية
-    await asyncio.sleep(30)
+    await asyncio.sleep(25)
 
-    active_game["active"] = False
+    GAME["active"] = False
 
-    if not active_game["winner"]:
-        await bot.send_message(chat_id, "⏱ انتهت اللعبة بدون فائز!")
+    await bot.send_message(chat_id, "⏱ انتهت اللعبة!")
 
 
-# =========================
-# معالجة الإجابة
-# =========================
 async def check_answer(bot, message):
 
-    if not active_game["active"]:
+    if not GAME["active"]:
         return
 
-    if active_game["winner"]:
-        return
+    if message.text.lower().strip() == GAME["answer"]:
 
-    if message.text.lower().strip() == active_game["answer"]:
+        GAME["active"] = False
 
-        user = message.from_user
-        active_game["winner"] = user.id
+        uid = message.from_user.id
 
-        # مكافآت
-        add_xp(user.id, 100)
+        add_xp(uid, 100)
 
-        c.execute("""
-            UPDATE users
-            SET money = money + 100
-            WHERE user_id=?
-        """, (user.id,))
+        c.execute("UPDATE users SET money = money + 100 WHERE user_id=?", (uid,))
         conn.commit()
 
         await bot.send_message(
             message.chat.id,
-            f"""
-🏆 فاز {user.first_name}!
-
-💰 +100 فلوس
-🔥 +100 XP
-"""
+            f"🏆 {message.from_user.first_name} فاز!\n💰 +100"
         )
-
-        active_game["active"] = False
