@@ -15,11 +15,7 @@ from core.state import set_state
 from core.actions import (
     add_money,
     remove_money,
-    set_title,
-    mute,
-    unmute,
-    ban,
-    unban
+    set_title
 )
 
 from core.utils import format_iq_money
@@ -62,12 +58,10 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         c.execute("SELECT user_id, name FROM users LIMIT 20")
         users = c.fetchall()
 
-        keyboard = []
-
-        for u in users:
-            keyboard.append([
-                InlineKeyboardButton(u[1], callback_data=f"user:{u[0]}")
-            ])
+        keyboard = [
+            [InlineKeyboardButton(u[1], callback_data=f"user:{u[0]}")]
+            for u in users
+        ]
 
         keyboard.append([
             InlineKeyboardButton("🔙 رجوع", callback_data="home")
@@ -79,26 +73,65 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
     # =========================
-    # USER PROFILE
+    # USER PROFILE (FULL FIXED)
     # =========================
     elif data.startswith("user:"):
 
         uid = int(data.split(":")[1])
         u = get(uid)
 
+        if not u:
+            await query.edit_message_text("❌ المستخدم غير موجود")
+            return
+
+        money = format_iq_money(u[3] or 0)
+        messages = u[2] or 0
+        level = u[4] or 1
+        xp = u[5] if len(u) > 5 else 0
+        title = u[8] or "بدون لقب"
+
+        banned = u[10] if len(u) > 10 else 0
+        muted = u[11] if len(u) > 11 else 0
+
+        need_xp = level * 100
+        percent = int((xp / need_xp) * 100) if need_xp > 0 else 0
+        bar = "█" * (percent // 10) + "░" * (10 - percent // 10)
+
+        text = f"""
+━━━━━━━━━━━━━━
+👤 ملف العضو
+━━━━━━━━━━━━━━
+
+🆔 ID: {u[0]}
+👤 الاسم: {u[1]}
+
+💰 المال:
+{money}
+
+📨 الرسائل:
+{messages:,}
+
+⭐ المستوى:
+{level}
+
+📊 XP:
+{xp} / {need_xp}
+{bar} {percent}%
+
+🏆 اللقب:
+{title}
+
+━━━━━━━━━━━━━━
+📊 الحالة
+
+🚫 الحظر: {'❌ محظور' if banned else '✅ آمن'}
+🔇 الكتم: {'🔇 مكتوم' if muted else '🔊 حر'}
+
+━━━━━━━━━━━━━━
+"""
+
         await query.edit_message_text(
-f"""
-👤 معلومات العضو
-
-🆔 {u[0]}
-👤 {u[1]}
-💰 المال: {format_iq_money(u[3])}
-📨 الرسائل: {u[2]:,}
-🏆 اللقب: {u[8]}
-
-🚫 محظور: {'نعم' if u[10] else 'لا'}
-🔇 مكتوم: {'نعم' if u[11] else 'لا'}
-""",
+            text,
             reply_markup=InlineKeyboardMarkup([
                 [
                     InlineKeyboardButton("💰 إضافة", callback_data=f"add:{uid}"),
