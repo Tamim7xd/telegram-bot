@@ -45,13 +45,23 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 # ================= ADMIN PANEL (مستبدل بالكامل) =================
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+
 async def adminpy(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if update.effective_user.id != ADMIN_ID:
         return
 
-    await update.message.reply_text("🛠 تم فتح لوحة الأدمن (سيتم ربط الأزرار في callbacks)")
+    keyboard = [
+        [InlineKeyboardButton("👥 الأعضاء", callback_data="users_0")],
+        [InlineKeyboardButton("📊 الإحصائيات", callback_data="stats")],
+        [InlineKeyboardButton("❌ إغلاق", callback_data="close")]
+    ]
 
+    await update.message.reply_text(
+        "🛠 لوحة الأدمن الاحترافية",
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
 
 # ================= ASK QUESTION =================
 async def ask_question(update: Update, context: ContextTypes.DEFAULT_TYPE):
