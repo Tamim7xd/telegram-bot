@@ -62,7 +62,6 @@ async def adminpy(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "🛠 لوحة الأدمن الاحترافية",
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
-
 # ================= ASK QUESTION =================
 async def ask_question(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
