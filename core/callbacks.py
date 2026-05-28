@@ -2,56 +2,103 @@ from telegram import Update
 from telegram.ext import ContextTypes
 
 from config import ADMIN_ID
-from core.users import get
-from core.ui import admin_menu, user_panel
-from core.actions import add_money, remove_money, set_title, mute, ban, unban
+
 from core.state import set_state
 
 
+# =========================
+# CALLBACK HANDLER
+# =========================
 async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
-    q = update.callback_query
-    await q.answer()
+    query = update.callback_query
 
-    uid = q.from_user.id
-    data = q.data
+    await query.answer()
 
-    if uid != ADMIN_ID:
+    data = query.data
+
+    if query.from_user.id != ADMIN_ID:
         return
 
-    if data == "home":
-        await q.edit_message_text("🛠 لوحة الأدمن", reply_markup=admin_menu())
+    # =========================
+    # CLOSE
+    # =========================
+    if data == "close":
 
-    if data.startswith("user:"):
-        target = int(data.split(":")[1])
-        u = get(target)
-
-        await q.edit_message_text(
-            f"👤 {u[1]}",
-            reply_markup=user_panel(target)
+        await query.edit_message_text(
+            "❌ تم إغلاق اللوحة"
         )
 
-    # STATE INPUT
-    if data.startswith("add:"):
-        set_state(uid, "add", int(data.split(":")[1]))
-        await q.message.reply_text("💰 اكتب المبلغ")
+    # =========================
+    # USER PANEL
+    # =========================
+    elif data.startswith("user:"):
 
-    if data.startswith("rem:"):
-        set_state(uid, "rem", int(data.split(":")[1]))
-        await q.message.reply_text("💸 اكتب المبلغ")
+        uid = int(data.split(":")[1])
 
-    if data.startswith("title:"):
-        set_state(uid, "title", int(data.split(":")[1]))
-        await q.message.reply_text("🏆 اكتب اللقب")
+        await query.edit_message_text(
+f"""
+👤 لوحة العضو
 
-    if data.startswith("mute:"):
-        mute(int(data.split(":")[1]))
-        await q.message.reply_text("🔇 تم الكتم")
+🆔 {uid}
 
-    if data.startswith("ban:"):
-        ban(int(data.split(":")[1]))
-        await q.message.reply_text("🚫 تم الحظر")
+اختر العملية:
 
-    if data.startswith("unban:"):
-        unban(int(data.split(":")[1]))
-        await q.message.reply_text("🔓 تم فك الحظر")
+➕ إضافة فلوس
+➖ خصم فلوس
+🏆 تعديل لقب
+🔇 كتم
+🚫 حظر
+"""
+        )
+
+    # =========================
+    # ADD MONEY
+    # =========================
+    elif data.startswith("add:"):
+
+        uid = int(data.split(":")[1])
+
+        set_state(
+            query.from_user.id,
+            "add",
+            uid
+        )
+
+        await query.message.reply_text(
+            "💰 أرسل المبلغ الآن"
+        )
+
+    # =========================
+    # REMOVE MONEY
+    # =========================
+    elif data.startswith("rem:"):
+
+        uid = int(data.split(":")[1])
+
+        set_state(
+            query.from_user.id,
+            "rem",
+            uid
+        )
+
+        await query.message.reply_text(
+            "💸 أرسل مبلغ الخصم"
+        )
+
+    # =========================
+    # TITLE
+    # =========================
+    elif data.startswith("title:"):
+
+        uid = int(data.split(":")[1])
+
+        set_state(
+            query.from_user.id,
+            "title",
+            uid
+        )
+
+        await query.message.reply_text(
+            "🏆 أرسل اللقب الجديد"
+        )
