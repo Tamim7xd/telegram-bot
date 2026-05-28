@@ -1,25 +1,106 @@
 from db import c, conn
+from core.users import register
 
+
+# ─────────────────────────────
+# 🧠 ضمان وجود المستخدم
+# ─────────────────────────────
+def ensure_user(uid):
+
+    register(type("U", (), {"id": uid, "first_name": "user"}))
+
+
+# ─────────────────────────────
+# 💰 إضافة فلوس
+# ─────────────────────────────
 def add_money(uid, amount):
-    c.execute("UPDATE users SET money = money + ? WHERE user_id=?", (amount, uid))
+
+    ensure_user(uid)
+
+    c.execute("""
+        UPDATE users
+        SET money = money + ?
+        WHERE user_id = ?
+    """, (amount, uid))
+
     conn.commit()
 
+
+# ─────────────────────────────
+# 💸 خصم فلوس
+# ─────────────────────────────
 def remove_money(uid, amount):
-    c.execute("UPDATE users SET money = money - ? WHERE user_id=?", (amount, uid))
+
+    ensure_user(uid)
+
+    c.execute("""
+        UPDATE users
+        SET money = money - ?
+        WHERE user_id = ?
+    """, (amount, uid))
+
     conn.commit()
 
-def set_title(uid, title):
-    c.execute("UPDATE users SET title=? WHERE user_id=?", (title, uid))
-    conn.commit()
 
+# ─────────────────────────────
+# 🔇 كتم
+# ─────────────────────────────
 def mute(uid):
-    c.execute("UPDATE users SET warns = warns + 1 WHERE user_id=?", (uid,))
+
+    ensure_user(uid)
+
+    c.execute("""
+        UPDATE users
+        SET muted = 1
+        WHERE user_id = ?
+    """, (uid,))
+
     conn.commit()
 
+
+# ─────────────────────────────
+# 🚫 حظر
+# ─────────────────────────────
 def ban(uid):
-    c.execute("UPDATE users SET banned=1 WHERE user_id=?", (uid,))
+
+    ensure_user(uid)
+
+    c.execute("""
+        UPDATE users
+        SET banned = 1
+        WHERE user_id = ?
+    """, (uid,))
+
     conn.commit()
 
+
+# ─────────────────────────────
+# 🔓 فك حظر
+# ─────────────────────────────
 def unban(uid):
-    c.execute("UPDATE users SET banned=0 WHERE user_id=?", (uid,))
+
+    ensure_user(uid)
+
+    c.execute("""
+        UPDATE users
+        SET banned = 0
+        WHERE user_id = ?
+    """, (uid,))
+
+    conn.commit()
+
+
+# ─────────────────────────────
+# 🏆 لقب
+# ─────────────────────────────
+def set_title(uid, title):
+
+    ensure_user(uid)
+
+    c.execute("""
+        UPDATE users
+        SET title = ?
+        WHERE user_id = ?
+    """, (title, uid))
+
     conn.commit()
