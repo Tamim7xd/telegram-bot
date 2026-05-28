@@ -1,152 +1,62 @@
-from telegram import (
-    InlineKeyboardButton,
-    InlineKeyboardMarkup
-)
+from telegram import Update
+from telegram.ext import ContextTypes
 
-from db import c, conn
+from config import ADMIN_ID, GROUP_ID
+from core.ui import admin_menu, users_page, user_panel
+from core.actions import *
+from core.users import get
 
-from core.users import (
-    get,
-    format_money,
-    get_title
-)
+async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
-# ================= USERS PAGE =================
-def users_page(page=0):
+    q = update.callback_query
+    await q.answer()
 
-    limit = 5
+    if q.from_user.id != ADMIN_ID:
+        return
 
-    offset = page * limit
+    data = q.data
 
-    c.execute("""
-    SELECT user_id,name
-    FROM users
-    ORDER BY messages DESC
-    LIMIT ?
-    OFFSET ?
-    """, (limit, offset))
+    # لوحة
+    if data == "home":
+        await q.edit_message_text("🛠 لوحة الأدمن", reply_markup=admin_menu())
 
-    rows = c.fetchall()
+    # صفحات
+    elif data.startswith("users:"):
+        page = int(data.split(":")[1])
+        await q.edit_message_text("👥 الأعضاء", reply_markup=users_page(page))
 
-    keyboard = []
+    # عضو
+    elif data.startswith("user:"):
+        uid = int(data.split(":")[1])
+        u = get(uid)
 
-    for uid, name in rows:
-
-        keyboard.append([
-            InlineKeyboardButton(
-                name,
-                callback_data=f"user_{uid}_{page}"
-            )
-        ])
-
-    nav = []
-
-    if page > 0:
-
-        nav.append(
-            InlineKeyboardButton(
-                "⬅ السابق",
-                callback_data=f"users_{page-1}"
-            )
+        await q.edit_message_text(
+f"""👤 {u[1]}
+💰 {u[3]}
+💬 {u[2]}
+🏆 {u[5]}
+⚠ {u[4]}""",
+            reply_markup=user_panel(uid)
         )
 
-    if len(rows) >= limit:
+    # فلوس
+    elif data.startswith("add:"):
+        uid = int(data.split(":")[1])
+        add_money(uid, 250)
+        await context.bot.send_message(GROUP_ID, f"💰 تم إضافة فلوس")
 
-        nav.append(
-            InlineKeyboardButton(
-                "➡ التالي",
-                callback_data=f"users_{page+1}"
-            )
-        )
+    elif data.startswith("rem:"):
+        uid = int(data.split(":")[1])
+        remove_money(uid, 250)
 
-    if nav:
-        keyboard.append(nav)
+    elif data.startswith("title:"):
+        set_title(int(data.split(":")[1]), "أسطورة")
 
-    keyboard.append([
-        InlineKeyboardButton(
-            "❌ إغلاق",
-            callback_data="close"
-        )
-    ])
+    elif data.startswith("mute:"):
+        mute(int(data.split(":")[1]))
 
-    return InlineKeyboardMarkup(keyboard)
+    elif data.startswith("ban:"):
+        ban(int(data.split(":")[1]))
 
-
-# ================= USER PANEL =================
-def user_panel(uid, page):
-
-    user = get(uid)
-
-    if not user:
-        return None, None
-
-    title = get_title(
-        user[2],
-        user[6],
-        user[7]
-    )
-
-    text = f"""
-👤 العضو:
-{user[1]}
-
-💰 الفلوس:
-{format_money(user[3])}
-
-🏆 اللقب:
-{title}
-
-💬 الرسائل:
-{user[2]}
-
-⚠️ التنبيهات:
-{user[4]}
-
-🎁 المكافآت:
-{user[5]}
-"""
-
-    kb = [
-
-        [
-            InlineKeyboardButton(
-                "💰 إضافة فلوس",
-                callback_data=f"addmoney_{uid}"
-            )
-        ],
-
-        [
-            InlineKeyboardButton(
-                "💸 خصم فلوس",
-                callback_data=f"removemoney_{uid}"
-            )
-        ],
-
-        [
-            InlineKeyboardButton(
-                "🏆 تعديل لقب",
-                callback_data=f"title_{uid}"
-            )
-        ],
-
-        [
-            InlineKeyboardButton(
-                "⚠️ إرسال تنبيه",
-                callback_data=f"warn_{uid}"
-            )
-        ],
-
-        [
-            InlineKeyboardButton(
-                "⬅ رجوع",
-                callback_data=f"users_{page}"
-            ),
-
-            InlineKeyboardButton(
-                "❌ إغلاق",
-                callback_data="close"
-            )
-        ]
-    ]
-
-    return text, InlineKeyboardMarkup(kb)
+    elif data.startswith("unban:"):
+        unban(int(data.split(":")[1]))
