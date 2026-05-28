@@ -85,7 +85,7 @@ def main():
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("info", info))
-    app.add_handler(CommandHandler("سؤال", ask))
+    app.add_handler(CommandHandler("gg", ask))
     app.add_handler(CommandHandler("broadcast", broadcast))
 
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle))
