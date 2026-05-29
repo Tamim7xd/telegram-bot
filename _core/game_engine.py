@@ -9,7 +9,6 @@ def load_all_games():
     games_data = {}
     if not os.path.exists(DATA_DIR):
         os.makedirs(DATA_DIR)
-        print(f"✅ تم إنشاء مجلد {DATA_DIR}")
         return
     for filename in os.listdir(DATA_DIR):
         if filename.endswith(".json"):
@@ -17,50 +16,54 @@ def load_all_games():
             try:
                 with open(os.path.join(DATA_DIR, filename), "r", encoding="utf-8") as f:
                     games_data[name] = json.load(f)
-                print(f"✅ تم تحميل {len(games_data[name])} سؤالاً من {filename}")
-            except Exception as e:
-                print(f"❌ خطأ في {filename}: {e}")
+            except:
                 games_data[name] = []
 
-async def get_random_game(prize: int):
+async def get_random_game(prize: int, game_type: str = None):
     if not games_data:
         load_all_games()
-    available = [t for t, items in games_data.items() if items]
+    type_map = {
+        "puzzles": "puzzles", "general": "general_qa", "mcq": "mcq",
+        "speed": "speed_words", "proverb": "proverbs", "luck": "luck_boxes"
+    }
+    if game_type and game_type in type_map:
+        target = type_map[game_type]
+        if games_data.get(target) and len(games_data[target]) > 0:
+            available = [target]
+        else:
+            return None
+    else:
+        available = [t for t, items in games_data.items() if items]
     if not available:
         return None
-    game_type = random.choice(available)
-    item = random.choice(games_data[game_type])
-    # بناء النص حسب النوع (اختصاراً، نفس الكود السابق لكن بدون Markdown معقد)
-    if game_type == "puzzles":
-        question = item["question"]
-        answer = item["answer"]
-        display = f"🧩 *لغز:* {question}\n⏳ لديك {GAME_TIME_LIMIT} ثانية.\n💰 الجائزة: {prize} دينار"
-    elif game_type == "general_qa":
-        question = item["question"]
-        answer = item["answer"]
-        display = f"❓ *سؤال:* {question}\n💰 الجائزة: {prize} دينار"
-    elif game_type == "mcq":
-        question = item["question"]
-        options = item["options"]
-        answer = item["correct"]
-        opts = "\n".join([f"{chr(1575+i)}. {opt}" for i, opt in enumerate(options)])
-        display = f"🔘 *اختر الإجابة:*\n{question}\n\n{opts}\n💰 الجائزة: {prize} دينار\nأرسل الحرف (أ، ب، ج، د)"
-    elif game_type == "speed_words":
-        word = item["word"]
-        answer = item["reversed"]
-        display = f"⚡ *اكتب معكوس:* {word}\n💰 الجائزة: {prize} دينار"
-    elif game_type == "proverbs":
-        partial = item["partial"]
-        answer = item["complete"]
-        display = f"📜 *أكمل المثل:* {partial}\n💰 الجائزة: {prize} دينار"
-    elif game_type == "luck_boxes":
+    chosen = random.choice(available)
+    item = random.choice(games_data[chosen])
+    # تصميم جذاب
+    border = "╭━━━━━━━━━━━━━━━╮\n┃"
+    if chosen == "puzzles":
+        display = f"{border} 🧠 لغز ┃\n╰━━━━━━━━━━━━━━━╯\n\n🧩 *{item['question']}*\n\n⏳ الوقت: {GAME_TIME_LIMIT} ثانية\n💰 الجائزة: {prize} دينار"
+        answer = item['answer']
+    elif chosen == "general_qa":
+        display = f"{border} ❓ سؤال عام ┃\n╰━━━━━━━━━━━━━━━╯\n\n❓ *{item['question']}*\n\n💰 الجائزة: {prize} دينار"
+        answer = item['answer']
+    elif chosen == "mcq":
+        opts = "\n".join([f"{chr(1575+i)}. {opt}" for i, opt in enumerate(item['options'])])
+        display = f"{border} 🔘 اختيار من متعدد ┃\n╰━━━━━━━━━━━━━━━╯\n\n🔘 *{item['question']}*\n\n{opts}\n\n💰 الجائزة: {prize} دينار\n📝 أرسل الحرف (أ، ب، ج، د)"
+        answer = item['correct']
+    elif chosen == "speed_words":
+        display = f"{border} ⚡ سرعة ┃\n╰━━━━━━━━━━━━━━━╯\n\n⚡ *اكتب معكوس:* `{item['word']}`\n\n💰 الجائزة: {prize} دينار"
+        answer = item['reversed']
+    elif chosen == "proverbs":
+        display = f"{border} 📜 مثل شعبي ┃\n╰━━━━━━━━━━━━━━━╯\n\n📜 *أكمل المثل:* {item['partial']}\n\n💰 الجائزة: {prize} دينار"
+        answer = item['complete']
+    elif chosen == "luck_boxes":
+        display = f"{border} 🎲 حظ ┃\n╰━━━━━━━━━━━━━━━╯\n\n🎁 *اختر صندوقاً 1-5*\n📦 1  📦 2  📦 3  📦 4  📦 5\n\n💰 الجائزة: عشوائية"
         answer = "box"
-        display = f"🎁 *صندوق الحظ:* اختر صندوقاً 1-5\n💰 الجائزة: عشوائية"
     else:
         return None
     return {
-        "type": game_type,
-        "question": question,
+        "type": chosen,
+        "question": item.get('question', ''),
         "answer": str(answer).strip().lower(),
         "display_text": display,
         "item": item,
@@ -84,13 +87,13 @@ async def check_answer(chat_id, message_id, user_answer):
     session = await get_game_session(chat_id, message_id)
     if not session or session['status'] != 'waiting':
         return None
-    # مقارنة بسيطة
     if session['game_type'] == "luck_boxes":
         try:
-            box_num = int(user_answer.strip())
-            if 1 <= box_num <= 5:
-                # جائزة عشوائية بين 10 و 200
-                prize = random.randint(10, 200)
+            box = int(user_answer.strip())
+            if 1 <= box <= 5:
+                prizes = {1: (10,50), 2: (50,100), 3: (100,200), 4: (200,350), 5: (350,500)}
+                mn, mx = prizes.get(box, (10,100))
+                prize = random.randint(mn, mx)
                 await update_game_session_status(chat_id, message_id, 'finished')
                 return prize
         except:
