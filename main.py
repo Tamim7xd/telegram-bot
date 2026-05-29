@@ -1,51 +1,44 @@
+import asyncio
 import logging
-from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters
-
-from config import BOT_TOKEN, ADMIN_ID
-from core.service import create_user, add_message, is_admin
-from core.bot_core import callback_handler
-from core.game_engine import check_answer, start_game
-
+from aiogram import Bot, Dispatcher
+from aiogram.types import BotCommand
+from config import BOT_TOKEN
+from db import db
+from _core.bot_core import setup_bot
+from _core.users import register_user_handlers
+from _core.xp import register_xp_handlers
+from _core.titles import register_titles_handlers
+from _core.games import register_games_handlers
+from _core.events import register_event_handlers
+from _core.callbacks import register_callback_handlers
+from _core.notify import register_notify_handlers
 
 logging.basicConfig(level=logging.INFO)
 
+async def set_commands(bot: Bot):
+    commands = [
+        BotCommand(command="start", description="بدء البوت"),
+        BotCommand(command="adminiq", description="لوحة الأدمن"),
+    ]
+    await bot.set_my_commands(commands)
 
-async def start(update, context):
-    user = update.message.from_user
-    create_user(user.id, user.first_name)
-    await update.message.reply_text("👋 أهلاً بك")
-
-
-async def handle_message(update, context):
-
-    user = update.message.from_user
-    create_user(user.id, user.first_name)
-    add_message(user.id)
-
-    await check_answer(context.bot, update.message)
-
-
-async def admin(update, context):
-
-    if update.message.from_user.id != ADMIN_ID:
-        return
-
-    await update.message.reply_text("🛠 لوحة الأدمن")
-
-
-def main():
-
-    app = Application.builder().token(BOT_TOKEN).build()
-
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("admin", admin))
-
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-    app.add_handler(CallbackQueryHandler(callback_handler))
-
-    print("BOT RUNNING")
-    app.run_polling()
-
+async def main():
+    await db.connect()
+    await db.init_tables()
+    bot = Bot(token=BOT_TOKEN)
+    dp = Dispatcher()
+    
+    setup_bot(dp)
+    register_user_handlers(dp)
+    register_xp_handlers(dp)
+    register_titles_handlers(dp)
+    register_games_handlers(dp)
+    register_event_handlers(dp)
+    register_callback_handlers(dp)
+    register_notify_handlers(dp)
+    
+    await set_commands(bot)
+    await dp.start_polling(bot)
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
