@@ -1,3 +1,5 @@
+import time
+from _core.notify import get_bot
 from _core.users import (
     get_user,
     update_user_money,
@@ -5,13 +7,13 @@ from _core.users import (
     get_user_role
 )
 
-from _core.notify import get_bot
-from db import db
-import time
+from config import XP_PER_MESSAGE
+from _core.xp import add_xp
 
 
 # 👤 أعضاء
 async def handle_member_commands(message):
+
     text = message.text
     user_id = message.from_user.id
 
@@ -20,23 +22,26 @@ async def handle_member_commands(message):
 
     if text in ["#ملفي", "#ملف", "#معلومات", "#معلوماتي"]:
         user = await get_user(user_id)
-        await message.reply(f"👤 {user['full_name']} | 💰 {user['money']}")
+
+        await message.reply(
+            f"👤 الملف الشخصي\n"
+            f"━━━━━━━━━━━━━━\n"
+            f"💰 {user['money']}\n"
+            f"⭐ {user['xp']}\n"
+            f"🏆 {user['level']}"
+        )
 
     elif text in ["#لعبة", "#العب", "#العاب"]:
         from _core.games import cmd_game
         await cmd_game(message)
 
 
-# 👮 إدارة
+# 👮 إدارة كاملة
 async def handle_admin_commands(message):
 
     text = message.text
-    role = await get_user_role(message.from_user.id)
 
     if not text:
-        return
-
-    if not text.startswith("$"):
         return
 
     if not message.reply_to_message:
@@ -52,28 +57,20 @@ async def handle_admin_commands(message):
     # 🔇 كتم
     if text.startswith("$كتم"):
         parts = text.split(maxsplit=2)
-        duration = parts[1] if len(parts) > 1 else "30m"
         reason = parts[2] if len(parts) > 2 else "لا يوجد سبب"
-
-        seconds = int(duration[:-1]) * 60 if duration.endswith("m") else 1800
 
         await message.chat.restrict_member(
             user_id=target_id,
             permissions={"can_send_messages": False}
         )
 
-        await bot.send_message(chat_id, f"🔇 تم كتم {target_name}")
+        await bot.send_message(chat_id, f"🔇 تم كتم {target_name}\n📝 {reason}")
 
     # ⚠️ تحذير
     elif text.startswith("$تحذير"):
         reason = text.replace("$تحذير", "").strip()
 
-        await db.execute("""
-            INSERT INTO warnings (user_id, admin_id, admin_name, reason)
-            VALUES ($1, $2, $3, $4)
-        """, target_id, message.from_user.id, message.from_user.full_name, reason)
-
-        await bot.send_message(chat_id, f"⚠️ تم تحذير {target_name}")
+        await bot.send_message(chat_id, f"⚠️ تم تحذير {target_name}\n📝 {reason}")
 
     # 🚫 حظر
     elif text.startswith("$حظر"):
@@ -89,18 +86,24 @@ async def handle_admin_commands(message):
 
         await update_user_money(target_id, -amount, reason, message.from_user.id)
 
-        await bot.send_message(chat_id, f"💰 تم خصم {amount} من {target_name}")
+        await bot.send_message(
+            chat_id,
+            f"💰 تم خصم {amount} من {target_name}"
+        )
 
 
-# ⭐ XP
+# ⭐ XP SYSTEM
 async def add_xp_on_message(message):
+
     if not message.text:
         return
 
     if message.text.startswith("#") or message.text.startswith("$"):
         return
 
-    from config import XP_PER_MESSAGE
-    from _core.xp import add_xp
-
-    await add_xp(message.from_user.id, XP_PER_MESSAGE, message.chat.id, message.from_user.full_name)
+    await add_xp(
+        message.from_user.id,
+        XP_PER_MESSAGE,
+        message.chat.id,
+        message.from_user.full_name
+    )
