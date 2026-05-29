@@ -15,6 +15,6 @@ async def admin_panel(message: Message):
     await message.reply("👑 *لوحة تحكم الأدمن*\nاختر أحد الخيارات:", reply_markup=keyboard, parse_mode="Markdown")
 
 def register_callback_handlers(dp: Dispatcher):
-    from _core.callbacks import admin_panel
+    from core.callbacks import admin_panel
     dp.message.register(admin_panel, Command("adminiq"))
     # هنا يمكن إضافة معالجات callback_query
