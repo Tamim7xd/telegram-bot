@@ -1,30 +1,34 @@
-from aiogram import Bot
+from aiogram import Bot, Dispatcher
+from config import CURRENCY_NAME, LEVELUP_BONUS_MONEY, LEVELUP_BONUS_XP
+from _core.xp import get_xp_progress
 
 bot = None
 
-
-def set_bot(b):
+def set_bot_instance(b: Bot):
     global bot
     bot = b
 
+async def send_levelup_notification(chat_id: int, user_id: int, new_level: int, user_name: str):
+    progress = await get_xp_progress(user_id)
+    text = f"""╭━━━━━━━━━━━━━━━━━━━━━━━━━━╮
+┃ 🎉 *تـهـنـئـة* 🎉
+╰━━━━━━━━━━━━━━━━━━━━━━━━━━╯
 
-def get_bot():
-    return bot
+✨ *مبروك يا {user_name}* ✨
 
+لقد وصلت إلى 🔥 *المستوى {new_level}* 🔥
 
-async def send_notify(uid, title, body, emoji="🔔"):
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+💰 *مكافأة الترقية:* {LEVELUP_BONUS_MONEY} {CURRENCY_NAME}
+⭐ *XP إضافي:* {LEVELUP_BONUS_XP} نقطة
+━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-    if not bot:
-        return
+📊 *شريط XP الجديد:*
+{progress['bar']} {progress['percent']}%
 
-    text = (
-        f"{emoji} {title}\n"
-        f"━━━━━━━━━━━━━━\n"
-        f"{body}\n"
-        f"━━━━━━━━━━━━━━"
-    )
+📌 *المتبقي للمستوى التالي:* {progress['remaining']} XP
+"""
+    await bot.send_message(chat_id, text, parse_mode="Markdown")
 
-    try:
-        await bot.send_message(uid, text)
-    except:
-        pass
+def register_notify_handlers(dp: Dispatcher):
+    pass
