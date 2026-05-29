@@ -1,12 +1,19 @@
 import asyncpg
-from config import DATABASE_URL, ADMIN_IDS
+from config import DATABASE_URL
 
 class Database:
     def __init__(self):
         self.pool = None
 
     async def connect(self):
-        self.pool = await asyncpg.create_pool(DATABASE_URL)
+        if not DATABASE_URL:
+            raise Exception("DATABASE_URL غير معرف. تأكد من إضافة قاعدة البيانات في Railway.")
+        try:
+            self.pool = await asyncpg.create_pool(DATABASE_URL)
+            print("✅ تم الاتصال بقاعدة البيانات بنجاح")
+        except Exception as e:
+            print(f"❌ فشل الاتصال بقاعدة البيانات: {e}")
+            raise
 
     async def execute(self, query, *args):
         async with self.pool.acquire() as conn:
@@ -21,7 +28,7 @@ class Database:
             return await conn.fetchrow(query, *args)
 
     async def init_tables(self):
-        # جدول المستخدمين
+        # نفس الجداول السابقة...
         await self.execute("""
             CREATE TABLE IF NOT EXISTS users (
                 telegram_id BIGINT PRIMARY KEY,
@@ -39,7 +46,6 @@ class Database:
                 created_at TIMESTAMP DEFAULT NOW()
             )
         """)
-        # جدول الأدمن
         await self.execute("""
             CREATE TABLE IF NOT EXISTS admins (
                 user_id BIGINT PRIMARY KEY,
@@ -47,7 +53,6 @@ class Database:
                 added_by BIGINT
             )
         """)
-        # إعدادات المجموعات
         await self.execute("""
             CREATE TABLE IF NOT EXISTS guild_settings (
                 chat_id BIGINT PRIMARY KEY,
@@ -58,7 +63,6 @@ class Database:
                 levelup_message TEXT
             )
         """)
-        # جلسات الألعاب النشطة
         await self.execute("""
             CREATE TABLE IF NOT EXISTS game_sessions (
                 chat_id BIGINT,
@@ -72,7 +76,6 @@ class Database:
                 PRIMARY KEY (chat_id, message_id)
             )
         """)
-        # سجل الاقتصاد
         await self.execute("""
             CREATE TABLE IF NOT EXISTS economy_log (
                 id SERIAL PRIMARY KEY,
@@ -83,11 +86,6 @@ class Database:
                 timestamp TIMESTAMP DEFAULT NOW()
             )
         """)
-        # إضافة الأدمن الموجودين في ADMIN_IDS تلقائياً
-        for admin_id in ADMIN_IDS:
-            await self.execute("""
-                INSERT INTO admins (user_id, permissions, added_by) VALUES ($1, 'all', 0)
-                ON CONFLICT (user_id) DO NOTHING
-            """, admin_id)
+        print("✅ تم إنشاء جميع الجداول بنجاح")
 
 db = Database()
