@@ -6,20 +6,20 @@ from _core.xp import add_xp, get_xp_progress
 from _core.games import cmd_game
 from _core.titles import set_user_title
 from db import db
-import re
 
-# ------------------- أوامر الأدمن بالرد ($) -------------------
 async def handle_admin_reply_commands(message: Message):
     if not message.reply_to_message:
         return
     if message.from_user.id not in ADMIN_IDS:
         return
     
+    # تأكيد استلام الأمر (يمكن إزالته لاحقاً)
+    await message.reply("⚙️ تم استلام أمر الإدارة، جاري التنفيذ...")
+    
     admin = message.from_user
     target = message.reply_to_message.from_user
     text = message.text.strip()
     
-    # $كتم 10m سبب
     if text.startswith("$كتم"):
         parts = text.split(maxsplit=2)
         duration = parts[1] if len(parts) >= 2 else "30m"
@@ -27,13 +27,11 @@ async def handle_admin_reply_commands(message: Message):
         await set_user_status(target.id, "muted")
         await message.reply(f"🔇 تم كتم {target.full_name} لمدة {duration}\n📝 السبب: {reason}")
     
-    # $حظر سبب
     elif text.startswith("$حظر"):
         reason = text[5:].strip() or "لا يوجد سبب"
         await set_user_status(target.id, "banned")
         await message.reply(f"🚫 تم حظر {target.full_name}\n📝 السبب: {reason}")
     
-    # $طرد سبب
     elif text.startswith("$طرد"):
         reason = text[5:].strip() or "لا يوجد سبب"
         await message.reply(f"👢 تم طرد {target.full_name}\n📝 السبب: {reason}")
@@ -43,7 +41,6 @@ async def handle_admin_reply_commands(message: Message):
         except:
             pass
     
-    # $خصم 50 سبب
     elif text.startswith("$خصم"):
         parts = text.split(maxsplit=2)
         if len(parts) >= 2 and parts[1].isdigit():
@@ -54,7 +51,6 @@ async def handle_admin_reply_commands(message: Message):
         else:
             await message.reply("❌ استخدم: $خصم 50 سبب مخالفة")
     
-    # $اعطاء 100 مكافأة
     elif text.startswith("$اعطاء") or text.startswith("$إعطاء"):
         parts = text.split(maxsplit=2)
         if len(parts) >= 2 and parts[1].isdigit():
@@ -65,7 +61,6 @@ async def handle_admin_reply_commands(message: Message):
         else:
             await message.reply("❌ استخدم: $اعطاء 100 مكافأة نشاط")
     
-    # $لقب بطل
     elif text.startswith("$لقب"):
         new_title = text[5:].strip()
         if new_title:
@@ -74,7 +69,6 @@ async def handle_admin_reply_commands(message: Message):
         else:
             await message.reply("❌ استخدم: $لقب بطل")
     
-    # $سجل (سجل عمليات الأدمن)
     elif text == "$سجل":
         rows = await db.fetch("SELECT * FROM economy_log WHERE admin_id = $1 ORDER BY timestamp DESC LIMIT 10", admin.id)
         if rows:
@@ -85,7 +79,6 @@ async def handle_admin_reply_commands(message: Message):
         else:
             await message.reply("📭 لا توجد عمليات مسجلة لك.")
 
-# ------------------- أوامر الأعضاء (#) -------------------
 async def handle_hashtag_commands(message: Message):
     text = message.text.strip()
     user_id = message.from_user.id
@@ -128,7 +121,6 @@ async def handle_hashtag_commands(message: Message):
         progress = await get_xp_progress(user_id)
         await message.reply(f"📊 *المستوى {user['level']}*\n{progress['bar']} {progress['percent']}%\n{progress['remaining']} XP للمستوى التالي", parse_mode="Markdown")
 
-# ------------------- إضافة XP عند كل رسالة -------------------
 async def add_xp_on_message(message: Message):
     if not message.text:
         return
