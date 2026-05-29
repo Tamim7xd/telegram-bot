@@ -13,13 +13,11 @@ async def cmd_adminiq(message: Message):
     await admin_panel(message)
 
 async def catch_all(message: Message):
-    # تسجيل العضو تلقائياً عند أي رسالة (حتى لو لم تبدأ بـ #)
     await get_or_create_user(message.from_user)
-    # ثم معالجة الأوامر التي تبدأ بـ #
     if message.text and message.text.startswith("#"):
         await handle_member_commands(message)
 
 def setup_bot(dp: Dispatcher):
     dp.message.register(cmd_start, CommandStart())
     dp.message.register(cmd_adminiq, Command("adminiq"))
-    dp.message.register(catch_all)  # هام: تسجيل المستخدم ومعالجة #
+    dp.message.register(catch_all)
