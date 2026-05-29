@@ -3,9 +3,8 @@ from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, C
 from aiogram.filters import Command
 from config import ADMIN_IDS, CURRENCY_NAME
 from db import db
-from _core.users import get_user
+from _core.users import get_user, update_user_money
 
-# لوحة الأدمن الرئيسية (أزرار)
 async def admin_panel(message: Message):
     if message.from_user.id not in ADMIN_IDS:
         await message.reply("⚠️ هذا الأمر للأدمن فقط.")
@@ -19,51 +18,57 @@ async def admin_panel(message: Message):
     ])
     await message.reply("👑 *لوحة تحكم الأدمن*\nاختر أحد الخيارات:", reply_markup=keyboard, parse_mode="Markdown")
 
-# معالج الضغط على الأزرار
 async def handle_callback_query(callback: CallbackQuery):
     user_id = callback.from_user.id
     if user_id not in ADMIN_IDS:
         await callback.answer("❌ غير مصرح لك", show_alert=True)
         return
+    
     data = callback.data
     if data == "admin_users":
-        # عرض قائمة بالأعضاء (آخر 5)
-        rows = await db.fetch("SELECT telegram_id, full_name, username, money FROM users ORDER BY created_at DESC LIMIT 5")
+        rows = await db.fetch("SELECT telegram_id, full_name, username, money, level FROM users ORDER BY created_at DESC LIMIT 10")
         if rows:
-            text = "📋 *آخر 5 أعضاء:*\n"
+            text = "📋 *آخر 10 أعضاء:*\n\n"
             for row in rows:
-                text += f"• {row['full_name']} (@{row['username'] or 'لا يوجد'}) - 💰 {row['money']} {CURRENCY_NAME}\n"
+                text += f"👤 {row['full_name']} (@{row['username'] or 'لا يوجد'})\n💰 {row['money']} {CURRENCY_NAME} | مستوى {row['level']}\n━━━━━━━━━━━━━━━\n"
             await callback.message.edit_text(text, parse_mode="Markdown")
         else:
             await callback.message.edit_text("لا يوجد أعضاء بعد.")
-        # إضافة زر رجوع
         back_btn = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="◀️ رجوع", callback_data="back_to_main")]])
         await callback.message.edit_reply_markup(reply_markup=back_btn)
+    
     elif data == "admin_economy":
         total_money = await db.fetchval("SELECT SUM(money) FROM users")
         total_users = await db.fetchval("SELECT COUNT(*) FROM users")
-        text = f"💰 *إحصائيات الاقتصاد*\nإجمالي الأموال: {total_money or 0} {CURRENCY_NAME}\nعدد المستخدمين: {total_users or 0}"
+        avg_money = total_money // total_users if total_users else 0
+        text = f"💰 *إحصائيات الاقتصاد*\n\nإجمالي الأموال المتداولة: {total_money or 0} {CURRENCY_NAME}\nعدد المستخدمين: {total_users or 0}\nمتوسط الرصيد لكل مستخدم: {avg_money} {CURRENCY_NAME}"
         await callback.message.edit_text(text, parse_mode="Markdown")
         back_btn = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="◀️ رجوع", callback_data="back_to_main")]])
         await callback.message.edit_reply_markup(reply_markup=back_btn)
+    
     elif data == "admin_games":
+        # يمكنك هنا إضافة إعدادات الألعاب لاحقاً
         await callback.message.edit_text("🎮 إعدادات الألعاب قيد التطوير...")
         back_btn = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="◀️ رجوع", callback_data="back_to_main")]])
         await callback.message.edit_reply_markup(reply_markup=back_btn)
+    
     elif data == "admin_announce":
         await callback.message.edit_text("📣 أرسل الإعلان كرسالة جديدة (غير مضمنة) وسيتم إرساله لجميع المستخدمين.\nلإلغاء الأمر، أرسل /cancel")
-        # هنا يمكن تفعيل حالة FSM لاستقبال الإعلان، لكن للتبسيط نكتفي برسالة
         back_btn = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="◀️ رجوع", callback_data="back_to_main")]])
         await callback.message.edit_reply_markup(reply_markup=back_btn)
+        # يمكن تفعيل FSM هنا، لكن سنكتفي بهذا
+    
     elif data == "admin_stats":
         total_msgs = await db.fetchval("SELECT SUM(messages_count) FROM users")
         total_wins = await db.fetchval("SELECT SUM(wins) FROM users")
-        text = f"📊 *إحصائيات البوت*\nإجمالي الرسائل: {total_msgs or 0}\nإجمالي الانتصارات في الألعاب: {total_wins or 0}"
+        top_user = await db.fetchrow("SELECT full_name, money FROM users ORDER BY money DESC LIMIT 1")
+        top_text = f"🏆 أغنى عضو: {top_user['full_name']} (💰 {top_user['money']} {CURRENCY_NAME})" if top_user else "لا يوجد أعضاء بعد"
+        text = f"📊 *إحصائيات البوت*\n\nإجمالي الرسائل: {total_msgs or 0}\nإجمالي الانتصارات في الألعاب: {total_wins or 0}\n{top_text}"
         await callback.message.edit_text(text, parse_mode="Markdown")
         back_btn = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="◀️ رجوع", callback_data="back_to_main")]])
         await callback.message.edit_reply_markup(reply_markup=back_btn)
+    
     elif data == "back_to_main":
-        # العودة للوحة الرئيسية
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="👤 إدارة الأعضاء", callback_data="admin_users")],
             [InlineKeyboardButton(text="💰 الاقتصاد", callback_data="admin_economy")],
@@ -72,6 +77,7 @@ async def handle_callback_query(callback: CallbackQuery):
             [InlineKeyboardButton(text="📊 إحصائيات", callback_data="admin_stats")]
         ])
         await callback.message.edit_text("👑 *لوحة تحكم الأدمن*\nاختر أحد الخيارات:", parse_mode="Markdown", reply_markup=keyboard)
+    
     await callback.answer()
 
 def register_callback_handlers(dp: Dispatcher):
