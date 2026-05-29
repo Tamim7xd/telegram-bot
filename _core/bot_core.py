@@ -6,7 +6,7 @@ from _core.events import handle_hashtag_commands
 
 async def cmd_start(message: Message):
     user = await get_or_create_user(message.from_user)
-    await message.answer(f"✨ أهلاً بك {user['full_name']} في البوت المتكامل!\nاكتب #ملفي لعرض بياناتك، أو #لعبة للبدء.")
+    await message.answer(f"✨ أهلاً بك {user['full_name']}!\nاكتب #ملفي لعرض بياناتك، أو #لعبة للبدء.")
 
 async def cmd_adminiq(message: Message):
     from _core.callbacks import admin_panel
