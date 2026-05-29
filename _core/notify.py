@@ -1,12 +1,30 @@
 from aiogram import Bot
 
-bot: Bot | None = None
+bot = None
 
-def set_bot_instance(instance: Bot):
+
+def set_bot(b):
     global bot
-    bot = instance
+    bot = b
 
-def get_bot() -> Bot:
-    if bot is None:
-        raise RuntimeError("Bot not initialized")
+
+def get_bot():
     return bot
+
+
+async def send_notify(uid, title, body, emoji="🔔"):
+
+    if not bot:
+        return
+
+    text = (
+        f"{emoji} {title}\n"
+        f"━━━━━━━━━━━━━━\n"
+        f"{body}\n"
+        f"━━━━━━━━━━━━━━"
+    )
+
+    try:
+        await bot.send_message(uid, text)
+    except:
+        pass
