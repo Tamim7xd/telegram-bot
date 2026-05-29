@@ -1,5 +1,5 @@
 from aiogram import Dispatcher
-from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
+from aiogram.types import Message
 from config import ADMIN_IDS, CURRENCY_NAME, XP_PER_MESSAGE
 from _core.users import update_user_money, get_user, set_user_status
 from _core.xp import add_xp, get_xp_progress
@@ -8,7 +8,6 @@ from _core.titles import set_user_title
 from _core.notify import bot
 from db import db
 from datetime import datetime, timedelta
-import asyncio
 
 # ========== دوال إحصائيات المستخدم ==========
 async def get_user_stats(user_id: int):
@@ -45,84 +44,6 @@ async def send_advanced_notification(chat_id: int, executor_name: str, executor_
 async def is_mod(user_id: int) -> bool:
     row = await db.fetchrow("SELECT 1 FROM mods WHERE user_id = $1", user_id)
     return row is not None
-
-# ========== السوق (المتجر) ==========
-async def show_shop_menu(message: Message, page: int = 0):
-    items = await db.fetch("SELECT id, name, price, rank_level FROM shop_items ORDER BY rank_level")
-    if not items:
-        await message.reply("🏪 السوق فارغ حالياً.")
-        return
-    per_page = 3
-    total_pages = (len(items) + per_page - 1) // per_page
-    start = page * per_page
-    end = start + per_page
-    page_items = items[start:end]
-    text = f"🏪 *السوق - الصفحة {page+1}/{total_pages}*\n\n"
-    for item in page_items:
-        text += f"✨ *{item['name']}*\n💰 السعر: {item['price']} {CURRENCY_NAME}\n📊 المستوى: {item['rank_level']}\n━━━━━━━━━━━━━━━\n"
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[])
-    row = []
-    for item in page_items:
-        row.append(InlineKeyboardButton(text=f"شراء {item['name']}", callback_data=f"buy_{item['id']}"))
-        if len(row) == 2:
-            keyboard.inline_keyboard.append(row)
-            row = []
-    if row:
-        keyboard.inline_keyboard.append(row)
-    nav = []
-    if page > 0:
-        nav.append(InlineKeyboardButton(text="◀️ السابق", callback_data=f"shop_page_{page-1}"))
-    if page < total_pages - 1:
-        nav.append(InlineKeyboardButton(text="التالي ▶️", callback_data=f"shop_page_{page+1}"))
-    if nav:
-        keyboard.inline_keyboard.append(nav)
-    keyboard.inline_keyboard.append([InlineKeyboardButton(text="🏷️ رتبي المشتراة", callback_data="my_ranks")])
-    keyboard.inline_keyboard.append([InlineKeyboardButton(text="❌ إغلاق", callback_data="close_shop")])
-    await message.reply(text, reply_markup=keyboard, parse_mode="Markdown")
-
-async def handle_shop_callback(callback: CallbackQuery):
-    data = callback.data
-    user_id = callback.from_user.id
-    if data.startswith("shop_page_"):
-        page = int(data.split("_")[-1])
-        await show_shop_menu(callback.message, page)
-        await callback.answer()
-        return
-    if data == "close_shop":
-        await callback.message.delete()
-        await callback.answer()
-        return
-    if data == "my_ranks":
-        purchases = await db.fetch("SELECT si.name, si.price, si.rank_level FROM user_purchases up JOIN shop_items si ON up.item_id = si.id WHERE up.user_id = $1", user_id)
-        if purchases:
-            text = "🏷️ *الرتب التي تمتلكها:*\n"
-            for p in purchases:
-                text += f"✨ {p['name']} (مستوى {p['rank_level']}, سعر {p['price']})\n"
-        else:
-            text = "⚠️ لم تشترِ أي رتبة بعد."
-        await callback.message.reply(text, parse_mode="Markdown")
-        await callback.answer()
-        return
-    if data.startswith("buy_"):
-        item_id = int(data.split("_")[1])
-        item = await db.fetchrow("SELECT * FROM shop_items WHERE id = $1", item_id)
-        if not item:
-            await callback.answer("البند غير موجود", show_alert=True)
-            return
-        user = await get_user(user_id)
-        if user['money'] >= item['price']:
-            # خصم المبلغ
-            await update_user_money(user_id, -item['price'], f"شراء {item['name']}", None)
-            # إضافة الشراء
-            await db.execute("INSERT INTO user_purchases (user_id, item_id) VALUES ($1, $2) ON CONFLICT DO NOTHING", user_id, item_id)
-            await callback.message.reply(f"✅ تم شراء رتبة *{item['name']}* بنجاح! تم خصم {item['price']} {CURRENCY_NAME}.")
-            # إشعار في المجموعة (اختياري)
-            await bot.send_message(callback.message.chat.id, f"🎉 *مبروك!* {callback.from_user.full_name} اشترى رتبة *{item['name']}*!")
-        else:
-            await callback.message.reply(f"❌ رصيدك غير كافٍ لشراء {item['name']} (تحتاج {item['price']} {CURRENCY_NAME}).")
-        await callback.answer()
-        return
-    await callback.answer()
 
 # ========== أوامر الأدمن والمشرفين ($) ==========
 async def handle_admin_commands(message: Message):
@@ -313,6 +234,7 @@ async def handle_member_commands(message: Message):
         progress = await get_xp_progress(user_id)
         await message.reply(f"📊 *المستوى {user['level']}*\n{progress['bar']} {progress['percent']}%\n{progress['remaining']} XP للمستوى التالي", parse_mode="Markdown")
     elif text in ["#شراء", "#محل", "#اسواق"]:
+        from _core.callbacks import show_shop_menu
         await show_shop_menu(message)
 
 # ========== إضافة XP عند كل رسالة ==========
@@ -330,4 +252,3 @@ def register_event_handlers(dp: Dispatcher):
     dp.message.register(handle_admin_commands, lambda msg: msg.text and msg.text.startswith("$"))
     dp.message.register(handle_member_commands, lambda msg: msg.text and msg.text.startswith("#"))
     dp.message.register(add_xp_on_message)
-    dp.callback_query.register(handle_shop_callback, lambda c: c.data and (c.data.startswith("shop_page_") or c.data.startswith("buy_") or c.data in ["close_shop", "my_ranks"]))
