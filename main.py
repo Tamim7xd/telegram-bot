@@ -1,12 +1,20 @@
 from aiogram import Bot, Dispatcher
 from config import BOT_TOKEN
 
-from _core.notify import set_bot_instance
 from _core.bot_core import setup_bot
+from _core.notify import set_bot_instance
 
-bot = Bot(token=BOT_TOKEN)
-dp = Dispatcher()
+import asyncio
 
-set_bot_instance(bot)
+async def main():
+    bot = Bot(token=BOT_TOKEN)
+    dp = Dispatcher()
 
-setup_bot(dp)
+    set_bot_instance(bot)
+
+    setup_bot(dp)
+
+    await dp.start_polling(bot)
+
+if __name__ == "__main__":
+    asyncio.run(main())
