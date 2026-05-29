@@ -17,7 +17,7 @@ logging.basicConfig(level=logging.INFO)
 
 async def set_commands(bot: Bot):
     await bot.set_my_commands([
-        BotCommand(command="start", description="بدء"),
+        BotCommand(command="start", description="بدء البوت"),
         BotCommand(command="adminiq", description="لوحة الأدمن")
     ])
 
@@ -27,6 +27,7 @@ async def main():
     bot = Bot(token=BOT_TOKEN)
     set_bot_instance(bot)
     dp = Dispatcher()
+    
     setup_bot(dp)
     register_user_handlers(dp)
     register_xp_handlers(dp)
@@ -35,8 +36,9 @@ async def main():
     register_event_handlers(dp)
     register_callback_handlers(dp)
     register_notify_handlers(dp)
+    
     await set_commands(bot)
-    print("✅ البوت يعمل")
+    print("✅ البوت يعمل الآن بكل الميزات")
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
