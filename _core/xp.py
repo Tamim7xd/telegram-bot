@@ -1,29 +1,41 @@
-from Core_.users import get_user
-from Core_.notify import send_notify
+from db import db
+from config import XP_PER_LEVEL, LEVELUP_BONUS_MONEY, LEVELUP_BONUS_XP
+from _core.users import update_user_money, update_user_xp, get_user
 
+async def get_xp_progress(telegram_id: int):
+    user = await get_user(telegram_id)
+    xp = user["xp"]
+    level = user["level"]
+    xp_in_level = xp - (level-1)*XP_PER_LEVEL
+    needed = XP_PER_LEVEL
+    percent = int((xp_in_level / needed) * 100) if needed > 0 else 0
+    bar_length = 20
+    filled = int(bar_length * xp_in_level / needed) if needed > 0 else 0
+    bar = "█" * filled + "░" * (bar_length - filled)
+    return {
+        "current_xp": xp_in_level,
+        "needed_xp": needed,
+        "percent": percent,
+        "bar": bar,
+        "level": level,
+        "remaining": needed - xp_in_level if needed > 0 else 0
+    }
 
-async def add_xp(uid, name):
+async def add_xp(telegram_id: int, amount: int, chat_id: int = None, user_name: str = ""):
+    await update_user_xp(telegram_id, amount)
+    user = await get_user(telegram_id)
+    level = user["level"]
+    xp = user["xp"]
+    new_level = 1 + (xp // XP_PER_LEVEL)
+    if new_level > level:
+        await db.execute("UPDATE users SET level = $1 WHERE telegram_id = $2", new_level, telegram_id)
+        await update_user_money(telegram_id, LEVELUP_BONUS_MONEY, "مكافأة ترقية مستوى", None)
+        await update_user_xp(telegram_id, LEVELUP_BONUS_XP)
+        if chat_id:
+            from _core.notify import send_levelup_notification
+            await send_levelup_notification(chat_id, telegram_id, new_level, user_name)
+        return new_level
+    return None
 
-    u = await get_user(uid)
-
-    u["xp"] += 5
-    u["money"] += 50
-
-    need = u["level"] * 100
-
-    leveled = False
-
-    if u["xp"] >= need:
-        u["xp"] -= need
-        u["level"] += 1
-        leveled = True
-
-    if leveled:
-        await send_notify(
-            uid,
-            "LEVEL UP",
-            f"🎉 وصلت مستوى {u['level']}\n💰 +50 مكافأة\n🏆 استمر!",
-            "🔥"
-        )
-
-    return leveled
+def register_xp_handlers(dp):
+    pass
