@@ -123,7 +123,7 @@ async def handle_admin_commands(message: Message):
         else:
             await message.reply("📭 لا توجد عمليات مسجلة لك.")
 
-# أوامر الأعضاء (#)
+# أوامر الأعضاء (#) - هذه هي الدالة التي تستوردها bot_core
 async def handle_member_commands(message: Message):
     text = message.text.strip()
     user_id = message.from_user.id
@@ -179,9 +179,6 @@ async def add_xp_on_message(message: Message):
     if message.from_user.id in ADMIN_IDS:
         return
     await add_xp(message.from_user.id, XP_PER_MESSAGE, message.chat.id, message.from_user.full_name)
-
-# اسم مستعار للتوافق مع bot_core.py
-handle_hashtag_commands = handle_member_commands
 
 def register_event_handlers(dp: Dispatcher):
     dp.message.register(handle_admin_commands, lambda msg: msg.text and msg.text.startswith("$"))
