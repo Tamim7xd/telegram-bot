@@ -10,6 +10,7 @@ from db import db
 from datetime import datetime, timedelta
 import asyncio
 
+# ========== إحصائيات المستخدم ==========
 async def get_user_stats(user_id: int):
     row = await db.fetchrow("SELECT * FROM user_stats WHERE user_id = $1", user_id)
     if not row:
@@ -24,11 +25,22 @@ async def update_user_stats(user_id: int, field: str, value=1, extra=None):
         amt, rsn = extra
         await db.execute("UPDATE user_stats SET last_deduction_amount = ?, last_deduction_reason = ?, last_deduction_at = CURRENT_TIMESTAMP WHERE user_id = ?", amt, rsn, user_id)
 
+# ========== إشعار إداري متطور ==========
 async def send_admin_notification(chat_id, admin_name, target_name, action, detail=""):
-    text = f"🔔 *{action}*\n👤 المشرف: {admin_name}\n👥 المستخدم: {target_name}\n📝 {detail}"
+    border = "╭━━━━━━━━━━━━━━━━━━━━━━━━━━╮"
+    text = f"""{border}
+┃ 🔔 *إشـارة إداريـة* 🔔
+╰━━━━━━━━━━━━━━━━━━━━━━━━━━╯
+
+👤 *المشرف:* {admin_name}
+👥 *المستخدم:* {target_name}
+⚙️ *الإجراء:* {action}
+📝 *التفاصيل:* {detail}
+🕒 *الوقت:* {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+━━━━━━━━━━━━━━━━━━━━━━━━━━"""
     await bot.send_message(chat_id, text, parse_mode="Markdown")
 
-# أوامر الأدمن ($)
+# ========== أوامر الأدمن ($) – تنفيذ حقيقي ==========
 async def handle_admin_commands(message: Message):
     if not message.reply_to_message:
         return
@@ -41,62 +53,127 @@ async def handle_admin_commands(message: Message):
     admin_name = message.from_user.full_name
     target_name = target.full_name
 
+    # خصم رصيد
     if text.startswith("$خصم"):
         parts = text.split(maxsplit=2)
         if len(parts) >= 2 and parts[1].isdigit():
             amt = int(parts[1])
             reason = parts[2] if len(parts) > 2 else "خصم"
             await update_user_money(target.id, -amt, reason, uid)
-            await message.reply(f"✅ خصم {amt} من {target_name}")
+            await message.reply(f"✅ تم خصم {amt} {CURRENCY_NAME} من {target_name}")
             await send_admin_notification(chat_id, admin_name, target_name, "💰 خصم رصيد", f"-{amt} {CURRENCY_NAME}\nالسبب: {reason}")
-    elif text.startswith("$اعطاء"):
+            await update_user_stats(target.id, 'total_deductions', 1, (amt, reason))
+        else:
+            await message.reply("❌ استخدم: $خصم 50 سبب")
+    # إضافة رصيد
+    elif text.startswith("$اعطاء") or text.startswith("$إعطاء"):
         parts = text.split(maxsplit=2)
         if len(parts) >= 2 and parts[1].isdigit():
             amt = int(parts[1])
             reason = parts[2] if len(parts) > 2 else "مكافأة"
             await update_user_money(target.id, amt, reason, uid)
-            await message.reply(f"✅ إضافة {amt} إلى {target_name}")
-            await send_admin_notification(chat_id, admin_name, target_name, "💰 إضافة رصيد", f"+{amt} {CURRENCY_NAME}")
+            await message.reply(f"✅ تم إضافة {amt} {CURRENCY_NAME} إلى {target_name}")
+            await send_admin_notification(chat_id, admin_name, target_name, "💰 إضافة رصيد", f"+{amt} {CURRENCY_NAME}\nالسبب: {reason}")
+        else:
+            await message.reply("❌ استخدم: $اعطاء 100 سبب")
+    # كتم (تغيير الحالة في قاعدة البيانات + محاولة كتم حقيقي عبر البوت)
     elif text.startswith("$كتم"):
+        parts = text.split(maxsplit=2)
+        duration_str = parts[1] if len(parts) >= 2 else "30m"
+        reason = parts[2] if len(parts) > 2 else "لا يوجد سبب"
+        # كتم عبر البوت (صلاحية administrator مطلوبة)
+        try:
+            permissions = await message.chat.get_member(bot.id)
+            if permissions.is_chat_admin():
+                await message.chat.restrict_member(target.id, permissions=permissions, until_date=datetime.now()+timedelta(minutes=30))
+                await message.reply(f"🔇 تم كتم {target_name} لمدة {duration_str}\nالسبب: {reason}")
+            else:
+                await message.reply("⚠️ البوت ليس مديراً في المجموعة، لا يمكن الكتم الفعلي.")
+        except Exception as e:
+            await message.reply(f"❌ فشل الكتم: {e}")
+        # تحديث الحالة في قاعدة البيانات
         await set_user_status(target.id, "muted")
-        await message.reply(f"🔇 تم كتم {target_name}")
-        await send_admin_notification(chat_id, admin_name, target_name, "🔇 كتم", "")
+        await send_admin_notification(chat_id, admin_name, target_name, "🔇 كتم", f"لمدة {duration_str}\nالسبب: {reason}")
+        await update_user_stats(target.id, 'total_mutes')
+        return
+    # فك الكتم
     elif text == "$فك كتم":
+        try:
+            await message.chat.restrict_member(target.id, can_send_messages=True, can_send_media_messages=True, can_send_other_messages=True)
+            await message.reply(f"🔈 تم فك الكتم عن {target_name}")
+        except:
+            await message.reply("⚠️ فشل فك الكتم، تأكد من صلاحيات البوت.")
         await set_user_status(target.id, "active")
-        await message.reply(f"🔈 فك الكتم عن {target_name}")
+        await send_admin_notification(chat_id, admin_name, target_name, "🔈 فك كتم", "")
+        return
+    # حظر
     elif text.startswith("$حظر"):
+        reason = text[5:].strip() or "لا يوجد سبب"
+        try:
+            await message.chat.ban_member(target.id)
+            await message.reply(f"🚫 تم حظر {target_name}\nالسبب: {reason}")
+            await send_admin_notification(chat_id, admin_name, target_name, "🚫 حظر", reason)
+            await update_user_stats(target.id, 'total_bans')
+        except Exception as e:
+            await message.reply(f"❌ فشل الحظر: {e}")
         await set_user_status(target.id, "banned")
-        await message.reply(f"🚫 حظر {target_name}")
+        return
+    # فك الحظر
     elif text == "$فك حظر":
+        try:
+            await message.chat.unban_member(target.id)
+            await message.reply(f"✅ تم فك الحظر عن {target_name}")
+        except:
+            await message.reply("⚠️ فشل فك الحظر")
         await set_user_status(target.id, "active")
-        await message.reply(f"✅ فك الحظر عن {target_name}")
+        await send_admin_notification(chat_id, admin_name, target_name, "✅ فك حظر", "")
+        return
+    # طرد
     elif text.startswith("$طرد"):
-        await message.reply(f"👢 طرد {target_name}")
+        reason = text[5:].strip() or "لا يوجد سبب"
         try:
             await message.chat.ban_member(target.id)
             await message.chat.unban_member(target.id)
-        except: pass
+            await message.reply(f"👢 تم طرد {target_name}\nالسبب: {reason}")
+            await send_admin_notification(chat_id, admin_name, target_name, "🗑️ طرد", reason)
+            await update_user_stats(target.id, 'total_kicks')
+        except Exception as e:
+            await message.reply(f"❌ فشل الطرد: {e}")
+        return
+    # تغيير اللقب
     elif text.startswith("$لقب"):
         new_title = text[5:].strip()
         if new_title:
-            await set_user_title(target.id, new_title)
-            await message.reply(f"🏷️ لقب {target_name} → {new_title}")
+            success = await set_user_title(target.id, new_title)
+            if success:
+                await message.reply(f"🏷️ تم منح اللقب '{new_title}' إلى {target_name}")
+                await send_admin_notification(chat_id, admin_name, target_name, "🏷️ تغيير لقب", f"اللقب الجديد: {new_title}")
+            else:
+                await message.reply("❌ اللقب غير موجود في القائمة")
+        else:
+            await message.reply("❌ استخدم: $لقب بطل")
+    # سجل الأدمن
     elif text == "$سجل":
         rows = await db.fetch("SELECT * FROM economy_log WHERE admin_id = ? ORDER BY timestamp DESC LIMIT 10", uid)
         if rows:
-            log = "📜 سجلك:\n" + "\n".join([f"{r['amount']} - {r['reason']}" for r in rows])
-            await message.reply(log)
+            log = "📜 *آخر عملياتك:*\n"
+            for r in rows:
+                log += f"• {r['amount']} {CURRENCY_NAME} - {r['reason']}\n"
+            await message.reply(log, parse_mode="Markdown")
+        else:
+            await message.reply("📭 لا توجد عمليات مسجلة لك.")
+    # معلومات المستخدم (تختفي بعد 3 ثوانٍ)
     elif text.startswith("$معلومات"):
         u = await get_user(target.id)
         if u:
-            await message.reply(f"📄 {u['full_name']}\n💰 {u['money']}\n⭐ XP: {u['xp']}\n📊 المستوى: {u['level']}")
-            # اختفاء بعد 3 ثوانٍ
+            msg = await message.reply(f"📄 *معلومات {u['full_name']}*\n💰 الرصيد: {u['money']}\n⭐ XP: {u['xp']}\n📊 المستوى: {u['level']}\n🏷️ اللقب: {u['title'] or 'لا يوجد'}")
             await asyncio.sleep(3)
+            await msg.delete()
             await message.delete()
         else:
             await message.reply("المستخدم غير موجود")
 
-# أوامر الأعضاء #
+# ========== أوامر الأعضاء (#) مع اختفاء المعلومات ==========
 async def handle_member_commands(message: Message):
     text = message.text.strip()
     uid = message.from_user.id
@@ -106,13 +183,19 @@ async def handle_member_commands(message: Message):
         user = await get_user(uid)
         stats = await get_user_stats(uid)
         progress = await get_xp_progress(uid)
-        reply = f"👤 {user['full_name']}\n💰 {user['money']}\n⭐ XP: {user['xp']}\n📊 المستوى: {user['level']}\n🏷️ اللقب: {user['title'] or 'لا يوجد'}\n📨 الرسائل: {stats['total_messages']}\n{progress['bar']} {progress['percent']}%"
-        msg = await message.reply(reply)
+        reply = f"👤 *{user['full_name']}*\n💰 {user['money']} {CURRENCY_NAME}\n⭐ XP: {user['xp']}\n📊 المستوى: {user['level']}\n🏷️ اللقب: {user['title'] or 'لا يوجد'}\n📨 الرسائل: {stats['total_messages']}\n⚠️ التحذيرات: {stats['total_warns']}\n📈 {progress['bar']} {progress['percent']}%"
+        msg = await message.reply(reply, parse_mode="Markdown")
         await asyncio.sleep(3)
         await msg.delete()
+        await message.delete()
     elif text in ["#فلوس", "#فلوسي"]:
         user = await get_user(uid)
-        msg = await message.reply(f"💰 رصيدك: {user['money']}")
+        msg = await message.reply(f"💰 رصيدك: {user['money']} {CURRENCY_NAME}")
+        await asyncio.sleep(3)
+        await msg.delete()
+    elif text in ["#لقب", "#لقبي"]:
+        user = await get_user(uid)
+        msg = await message.reply(f"🏷️ لقبك: {user['title'] or 'لا يوجد'}")
         await asyncio.sleep(3)
         await msg.delete()
     elif text in ["#لعبة", "#العب", "#العاب"]:
@@ -128,14 +211,35 @@ async def handle_member_commands(message: Message):
             txt = "🏪 *السوق*\n"
             for it in items:
                 txt += f"• {it['name']} - {it['price']} {CURRENCY_NAME}\n"
-            txt += "\nاستخدم #شراء <اسم الرتبة> لشرائها"
+            txt += "\nاستخدم `#شراء <اسم الرتبة>` لشرائها"
             await message.reply(txt, parse_mode="Markdown")
         else:
-            await message.reply("السوق فارغ")
+            await message.reply("السوق فارغ حالياً.")
+    # شراء رتبة
+    elif text.startswith("#شراء"):
+        parts = text.split(maxsplit=1)
+        if len(parts) < 2:
+            await message.reply("❌ استخدم: #شراء اسم الرتبة")
+            return
+        rank_name = parts[1]
+        item = await db.fetchrow("SELECT * FROM shop_items WHERE name = ?", rank_name)
+        if not item:
+            await message.reply("❌ الرتبة غير موجودة")
+            return
+        user = await get_user(uid)
+        if user['money'] >= item['price']:
+            await update_user_money(uid, -item['price'], f"شراء {rank_name}", None)
+            await db.execute("INSERT INTO user_purchases (user_id, item_id) VALUES (?, ?) ON CONFLICT DO NOTHING", uid, item['id'])
+            await message.reply(f"✅ تم شراء رتبة *{rank_name}* بنجاح!")
+        else:
+            await message.reply(f"❌ رصيدك غير كافٍ (تحتاج {item['price']} {CURRENCY_NAME})")
 
+# ========== إضافة XP عند أي رسالة عادية ==========
 async def add_xp_on_message(message: Message):
     await get_or_create_user(message.from_user)
     if not message.text or message.text.startswith(("#", "$")):
+        return
+    if message.from_user.id in ADMIN_IDS:
         return
     await add_xp(message.from_user.id, XP_PER_MESSAGE, message.chat.id, message.from_user.full_name)
     await update_user_stats(message.from_user.id, 'total_messages')
