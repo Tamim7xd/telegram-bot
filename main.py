@@ -4,14 +4,14 @@ from aiogram import Bot, Dispatcher
 from aiogram.types import BotCommand
 from config import BOT_TOKEN
 from db import db
-from _core.bot_core import setup_bot
-from _core.users import register_user_handlers
-from _core.xp import register_xp_handlers
-from _core.titles import register_titles_handlers
-from _core.games import register_games_handlers
-from _core.events import register_event_handlers
-from _core.callbacks import register_callback_handlers
-from _core.notify import register_notify_handlers
+from core.bot_core import setup_bot
+from core.users import register_user_handlers
+from core.xp import register_xp_handlers
+from core.titles import register_titles_handlers
+from core.games import register_games_handlers
+from core.events import register_event_handlers
+from core.callbacks import register_callback_handlers
+from core.notify import register_notify_handlers
 
 logging.basicConfig(level=logging.INFO)
 
