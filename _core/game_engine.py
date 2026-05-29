@@ -9,6 +9,7 @@ def load_all_games():
     games_data = {}
     if not os.path.exists(DATA_DIR):
         os.makedirs(DATA_DIR)
+        print(f"📁 تم إنشاء مجلد {DATA_DIR} - أضف ملفات JSON داخله")
         return
     for filename in os.listdir(DATA_DIR):
         if filename.endswith(".json"):
@@ -16,28 +17,21 @@ def load_all_games():
             try:
                 with open(os.path.join(DATA_DIR, filename), "r", encoding="utf-8") as f:
                     games_data[name] = json.load(f)
-                print(f"✅ Loaded {len(games_data[name])} from {filename}")
-            except:
+                print(f"✅ تم تحميل {len(games_data[name])} سؤالاً من {filename}")
+            except Exception as e:
+                print(f"❌ خطأ في {filename}: {e}")
                 games_data[name] = []
 
 async def get_random_game(prize: int, game_type: str = None):
     if not games_data:
         load_all_games()
-    type_map = {
-        "puzzles": "puzzles", "general": "general_qa", "mcq": "mcq",
-        "speed": "speed_words", "proverb": "proverbs", "luck": "luck_boxes"
-    }
-    if game_type and game_type in type_map:
-        target = type_map[game_type]
-        if games_data.get(target) and len(games_data[target]) > 0:
-            available = [target]
-        else:
-            return None
-    else:
-        available = [t for t, items in games_data.items() if items]
+    available = [t for t, items in games_data.items() if items]
     if not available:
         return None
-    chosen = random.choice(available)
+    if game_type and game_type in available:
+        chosen = game_type
+    else:
+        chosen = random.choice(available)
     item = random.choice(games_data[chosen])
     if chosen == "puzzles":
         answer = item["answer"]
