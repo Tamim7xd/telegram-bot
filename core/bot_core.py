@@ -1,60 +1,26 @@
-from telegram import InlineKeyboardMarkup, InlineKeyboardButton
-from db import c
-from core.service import get_user, is_admin
+from aiogram import Dispatcher, types
+from aiogram.filters import CommandStart, Command
+from aiogram.types import Message
+from _core.users import get_or_create_user
+from _core.xp import add_xp
+from _core.games import cmd_game  # for #لعبة
+from _core.events import handle_hashtag_commands
+import re
 
-ADMIN_ID = 1007010982
+async def cmd_start(message: Message):
+    user = await get_or_create_user(message.from_user)
+    await message.answer(f"✨ أهلاً بك {user['full_name']} في البوت المتكامل!\nاكتب #ملفي لعرض بياناتك، أو #لعبة للبدء.")
 
+async def cmd_adminiq(message: Message):
+    from _core.callbacks import admin_panel
+    await admin_panel(message)
 
-def admin_menu():
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton("👥 المستخدمين", callback_data="admin_users")],
-        [InlineKeyboardButton("📊 الإحصائيات", callback_data="admin_stats")],
-        [InlineKeyboardButton("🏆 الترتيب", callback_data="admin_top")]
-    ])
+async def handle_hashtag_root(message: Message):
+    text = message.text.strip()
+    if text.startswith("#"):
+        await handle_hashtag_commands(message)
 
-
-async def callback_handler(update, context):
-
-    query = update.callback_query
-    await query.answer()
-
-    data = query.data
-
-    if not is_admin(query.from_user.id):
-        return
-
-    if data == "admin":
-
-        await query.edit_message_text("🛠 لوحة الأدمن", reply_markup=admin_menu())
-
-    elif data == "admin_users":
-
-        c.execute("SELECT user_id, name FROM users LIMIT 20")
-        users = c.fetchall()
-
-        keyboard = [
-            [InlineKeyboardButton(u[1], callback_data=f"user:{u[0]}")]
-            for u in users
-        ]
-
-        await query.edit_message_text("👥 المستخدمين", reply_markup=InlineKeyboardMarkup(keyboard))
-
-    elif data.startswith("user:"):
-
-        uid = int(data.split(":")[1])
-        u = get_user(uid)
-
-        await query.edit_message_text(f"""
-👤 {u[1]}
-💰 {u[3]}
-⭐ {u[5]}
-🔥 {u[4]}
-🏆 {u[6]}
-""")
-
-    elif data == "admin_stats":
-
-        c.execute("SELECT COUNT(*) FROM users")
-        users = c.fetchone()[0]
-
-        await query.edit_message_text(f"👥 {users} مستخدم")
+def setup_bot(dp: Dispatcher):
+    dp.message.register(cmd_start, CommandStart())
+    dp.message.register(cmd_adminiq, Command("adminiq"))
+    dp.message.register(handle_hashtag_root)
