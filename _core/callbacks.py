@@ -4,7 +4,6 @@ from aiogram.filters import Command
 from config import ADMIN_IDS, CURRENCY_NAME
 from db import db
 
-# لوحة الأدمن الرئيسية
 async def admin_panel(message: Message):
     if message.from_user.id not in ADMIN_IDS:
         await message.reply("⚠️ هذا الأمر للأدمن فقط.")
@@ -18,15 +17,13 @@ async def admin_panel(message: Message):
     ])
     await message.reply("👑 *لوحة تحكم الأدمن*\nاختر أحد الخيارات:", reply_markup=keyboard, parse_mode="Markdown")
 
-# معالج الضغط على الأزرار (مع إصلاح المشكلة)
 async def handle_callback_query(callback: CallbackQuery):
     user_id = callback.from_user.id
     if user_id not in ADMIN_IDS:
         await callback.answer("❌ غير مصرح لك", show_alert=True)
         return
-    
     data = callback.data
-    await callback.answer("✅ جاري التنفيذ...")  # إشعار فوري للمستخدم
+    await callback.answer("✅ جاري التنفيذ...")
     
     if data == "admin_users":
         rows = await db.fetch("SELECT full_name, username, money, level FROM users ORDER BY created_at DESC LIMIT 10")
@@ -37,7 +34,6 @@ async def handle_callback_query(callback: CallbackQuery):
         else:
             text = "لا يوجد أعضاء بعد."
         await callback.message.edit_text(text, parse_mode="Markdown")
-        # زر رجوع
         back = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="◀️ رجوع", callback_data="back_to_main")]])
         await callback.message.edit_reply_markup(reply_markup=back)
     
@@ -51,7 +47,7 @@ async def handle_callback_query(callback: CallbackQuery):
         await callback.message.edit_reply_markup(reply_markup=back)
     
     elif data == "admin_games":
-        text = "🎮 *إعدادات الألعاب*\n\nيمكنك لاحقاً تفعيل/تعطيل أنواع الألعاب وتعديل الجوائز."
+        text = "🎮 *إعدادات الألعاب*\nيمكنك لاحقاً تفعيل/تعطيل أنواع الألعاب وتعديل الجوائز."
         await callback.message.edit_text(text, parse_mode="Markdown")
         back = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="◀️ رجوع", callback_data="back_to_main")]])
         await callback.message.edit_reply_markup(reply_markup=back)
@@ -73,7 +69,6 @@ async def handle_callback_query(callback: CallbackQuery):
         await callback.message.edit_reply_markup(reply_markup=back)
     
     elif data == "back_to_main":
-        # العودة للوحة الرئيسية
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="👤 إدارة الأعضاء", callback_data="admin_users")],
             [InlineKeyboardButton(text="💰 الاقتصاد", callback_data="admin_economy")],
@@ -83,7 +78,6 @@ async def handle_callback_query(callback: CallbackQuery):
         ])
         await callback.message.edit_text("👑 *لوحة تحكم الأدمن*\nاختر أحد الخيارات:", parse_mode="Markdown", reply_markup=keyboard)
 
-# تسجيل المعالجات
 def register_callback_handlers(dp: Dispatcher):
     dp.message.register(admin_panel, Command("adminiq"))
     dp.callback_query.register(handle_callback_query)
