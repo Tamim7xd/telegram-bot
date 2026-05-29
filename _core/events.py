@@ -12,10 +12,6 @@ async def handle_admin_reply_commands(message: Message):
         return
     if message.from_user.id not in ADMIN_IDS:
         return
-    
-    # تأكيد استلام الأمر (يمكن إزالته لاحقاً)
-    await message.reply("⚙️ تم استلام أمر الإدارة، جاري التنفيذ...")
-    
     admin = message.from_user
     target = message.reply_to_message.from_user
     text = message.text.strip()
@@ -26,12 +22,10 @@ async def handle_admin_reply_commands(message: Message):
         reason = parts[2] if len(parts) > 2 else "لا يوجد سبب"
         await set_user_status(target.id, "muted")
         await message.reply(f"🔇 تم كتم {target.full_name} لمدة {duration}\n📝 السبب: {reason}")
-    
     elif text.startswith("$حظر"):
         reason = text[5:].strip() or "لا يوجد سبب"
         await set_user_status(target.id, "banned")
         await message.reply(f"🚫 تم حظر {target.full_name}\n📝 السبب: {reason}")
-    
     elif text.startswith("$طرد"):
         reason = text[5:].strip() or "لا يوجد سبب"
         await message.reply(f"👢 تم طرد {target.full_name}\n📝 السبب: {reason}")
@@ -40,7 +34,6 @@ async def handle_admin_reply_commands(message: Message):
             await message.chat.unban_member(target.id)
         except:
             pass
-    
     elif text.startswith("$خصم"):
         parts = text.split(maxsplit=2)
         if len(parts) >= 2 and parts[1].isdigit():
@@ -49,8 +42,7 @@ async def handle_admin_reply_commands(message: Message):
             await update_user_money(target.id, -amount, reason, admin.id)
             await message.reply(f"✅ تم خصم {amount} {CURRENCY_NAME} من {target.full_name}\n📝 السبب: {reason}")
         else:
-            await message.reply("❌ استخدم: $خصم 50 سبب مخالفة")
-    
+            await message.reply("❌ استخدم: $خصم 50 سبب")
     elif text.startswith("$اعطاء") or text.startswith("$إعطاء"):
         parts = text.split(maxsplit=2)
         if len(parts) >= 2 and parts[1].isdigit():
@@ -59,8 +51,7 @@ async def handle_admin_reply_commands(message: Message):
             await update_user_money(target.id, amount, reason, admin.id)
             await message.reply(f"✅ تم إضافة {amount} {CURRENCY_NAME} إلى {target.full_name}\n🎁 السبب: {reason}")
         else:
-            await message.reply("❌ استخدم: $اعطاء 100 مكافأة نشاط")
-    
+            await message.reply("❌ استخدم: $اعطاء 100 مكافأة")
     elif text.startswith("$لقب"):
         new_title = text[5:].strip()
         if new_title:
@@ -68,7 +59,6 @@ async def handle_admin_reply_commands(message: Message):
             await message.reply(f"🏷️ تم منح اللقب '{new_title}' إلى {target.full_name}")
         else:
             await message.reply("❌ استخدم: $لقب بطل")
-    
     elif text == "$سجل":
         rows = await db.fetch("SELECT * FROM economy_log WHERE admin_id = $1 ORDER BY timestamp DESC LIMIT 10", admin.id)
         if rows:
@@ -82,7 +72,6 @@ async def handle_admin_reply_commands(message: Message):
 async def handle_hashtag_commands(message: Message):
     text = message.text.strip()
     user_id = message.from_user.id
-    
     if text in ["#ملفي", "#حسابي", "#معلوماتي", "#معلومات", "#ملف"]:
         user = await get_user(user_id)
         progress = await get_xp_progress(user_id)
@@ -108,14 +97,11 @@ async def handle_hashtag_commands(message: Message):
 🎮 *نقاط الألعاب:* {user['game_points']}
 🏅 *الفوز في الألعاب:* {user['wins']}"""
         await message.reply(reply, parse_mode="Markdown")
-    
     elif text in ["#فلوس", "#فلوسي", "#رصيدي"]:
         user = await get_user(user_id)
         await message.reply(f"💰 رصيدك الحالي: {user['money']} {CURRENCY_NAME}")
-    
     elif text in ["#لعبة", "#العب", "#العاب"]:
         await cmd_game(message)
-    
     elif text in ["#مستواي", "#لـيفلي", "#نقاطي"]:
         user = await get_user(user_id)
         progress = await get_xp_progress(user_id)
