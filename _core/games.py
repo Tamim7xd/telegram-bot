@@ -5,7 +5,7 @@ from _core.game_engine import get_random_game, save_game_session, check_answer, 
 from _core.users import update_user_money
 from _core.xp import add_xp
 from _core.notify import bot
-from config import GAME_TIME_LIMIT, DEFAULT_GAME_PRIZE_MIN, DEFAULT_GAME_PRIZE_MAX
+from config import GAME_TIME_LIMIT, DEFAULT_GAME_PRIZE_MIN, DEFAULT_GAME_PRIZE_MAX, CURRENCY_NAME
 
 async def show_game_menu(message: Message):
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
@@ -13,8 +13,8 @@ async def show_game_menu(message: Message):
          InlineKeyboardButton(text="❓ سؤال عام", callback_data="game_general")],
         [InlineKeyboardButton(text="🔘 اختيار من متعدد", callback_data="game_mcq"),
          InlineKeyboardButton(text="⚡ سرعة", callback_data="game_speed")],
-        [InlineKeyboardButton(text="🎲 حظ (صندوق)", callback_data="game_luck"),
-         InlineKeyboardButton(text="📜 مثل شعبي", callback_data="game_proverb")],
+        [InlineKeyboardButton(text="🎲 حظ", callback_data="game_luck"),
+         InlineKeyboardButton(text="📜 مثل", callback_data="game_proverb")],
         [InlineKeyboardButton(text="🎲 عشوائي", callback_data="game_random")]
     ])
     await message.reply("🎮 *اختر نوع اللعبة:*", reply_markup=keyboard, parse_mode="Markdown")
