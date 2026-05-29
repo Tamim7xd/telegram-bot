@@ -1,5 +1,5 @@
 import asyncpg
-from config import DATABASE_URL
+from config import DATABASE_URL, ADMIN_IDS
 
 class Database:
     def __init__(self):
@@ -7,12 +7,12 @@ class Database:
 
     async def connect(self):
         if not DATABASE_URL:
-            raise Exception("DATABASE_URL غير معرف. تأكد من إضافة قاعدة البيانات في Railway.")
+            raise Exception("DATABASE_URL غير معرف")
         try:
             self.pool = await asyncpg.create_pool(DATABASE_URL)
-            print("✅ تم الاتصال بقاعدة البيانات بنجاح")
+            print("✅ تم الاتصال بقاعدة البيانات")
         except Exception as e:
-            print(f"❌ فشل الاتصال بقاعدة البيانات: {e}")
+            print(f"❌ خطأ في الاتصال: {e}")
             raise
 
     async def execute(self, query, *args):
@@ -27,8 +27,12 @@ class Database:
         async with self.pool.acquire() as conn:
             return await conn.fetchrow(query, *args)
 
+    # ✅ هذه الدالة كانت مفقودة وأضفناها
+    async def fetchval(self, query, *args):
+        async with self.pool.acquire() as conn:
+            return await conn.fetchval(query, *args)
+
     async def init_tables(self):
-        # نفس الجداول السابقة...
         await self.execute("""
             CREATE TABLE IF NOT EXISTS users (
                 telegram_id BIGINT PRIMARY KEY,
@@ -86,6 +90,11 @@ class Database:
                 timestamp TIMESTAMP DEFAULT NOW()
             )
         """)
-        print("✅ تم إنشاء جميع الجداول بنجاح")
+        for admin_id in ADMIN_IDS:
+            await self.execute("""
+                INSERT INTO admins (user_id, permissions, added_by) VALUES ($1, 'all', 0)
+                ON CONFLICT (user_id) DO NOTHING
+            """, admin_id)
+        print("✅ تم إنشاء جميع الجداول")
 
 db = Database()
