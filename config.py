@@ -4,15 +4,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-
-# محاولة الحصول على رابط قاعدة البيانات من أي اسم متغير ممكن في Railway
-DATABASE_URL = (
-    os.getenv("DATABASE_URL") or
-    os.getenv("DATABASE_PUBLIC_URL") or
-    os.getenv("POSTGRES_URL")
-)
-
 ADMIN_IDS = list(map(int, os.getenv("ADMIN_IDS", "").split(","))) if os.getenv("ADMIN_IDS") else []
+GROUP_ID = int(os.getenv("GROUP_ID", 0)) if os.getenv("GROUP_ID") else None
 
 # XP settings
 XP_PER_MESSAGE = 5
@@ -39,5 +32,6 @@ SOUNDS_PATH = "sounds/"
 DATA_DIR = "data"
 
 print(f"✅ BOT_TOKEN موجود: {bool(BOT_TOKEN)}")
-print(f"✅ DATABASE_URL موجود: {bool(DATABASE_URL)}")
 print(f"✅ ADMIN_IDS: {ADMIN_IDS}")
+if GROUP_ID:
+    print(f"✅ GROUP_ID: {GROUP_ID}")
