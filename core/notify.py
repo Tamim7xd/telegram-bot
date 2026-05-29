@@ -1,58 +1,48 @@
-from telegram import Bot
+from aiogram import Bot, Dispatcher
+from config import BOT_TOKEN, SOUNDS_ENABLED, CURRENCY_NAME
+from _core.xp import get_xp_progress
 
+bot = Bot(token=BOT_TOKEN, default=None)  # سيتم تعيينه لاحقاً من main
 
-# =========================
-# إشعار مستخدم
-# =========================
-async def notify_user(bot: Bot, uid: int, text: str):
-    try:
-        await bot.send_message(chat_id=uid, text=text, parse_mode="HTML")
-    except:
-        pass
+def set_bot_instance(b):
+    global bot
+    bot = b
 
+async def send_levelup_notification(chat_id: int, user_id: int, new_level: int, user_name: str):
+    progress = await get_xp_progress(user_id)
+    text = f"""╭━━━━━━━━━━━━━━━╮
+┃ 🎉  تـهـنـئـة  🎉
+╰━━━━━━━━━━━━━━━╯
 
-# =========================
-# إشعار مجموعة
-# =========================
-async def notify_group(bot: Bot, gid: int, text: str):
-    try:
-        await bot.send_message(chat_id=gid, text=text, parse_mode="HTML")
-    except:
-        pass
+✨ *مبروك يا {user_name}* ✨
 
+لقد وصلت إلى 🔥 *المستوى {new_level}* 🔥
 
-# =========================
-# ترقية مستوى
-# =========================
-async def notify_levelup(bot: Bot, uid: int, level: int, title: str):
-    await notify_user(bot, uid, f"""
-🎉 <b>ترقية جديدة!</b>
+━━━━━━━━━━━━━━━
+💰 *مكافأة الترقية:* {LEVELUP_BONUS_MONEY} {CURRENCY_NAME}
+⭐ *XP إضافي:* {LEVELUP_BONUS_XP} نقطة
+━━━━━━━━━━━━━━━
 
-⭐ المستوى: {level}
-🏆 اللقب: {title}
+📊 *شريط XP الجديد:*
+{progress['bar']} {progress['percent']}%
 
-🔥 استمر في اللعب!
-""")
+📌 *المتبقي للمستوى التالي:* {progress['remaining']} XP
+"""
+    await bot.send_message(chat_id, text, parse_mode="Markdown")
 
+async def send_money_notification(user_id: int, amount: int, reason: str, admin_name: str):
+    text = f"""╭━━━━━━━━━━━━━━━╮
+┃ 💰  إيـداع  💰
+╰━━━━━━━━━━━━━━━╯
 
-# =========================
-# فوز لعبة
-# =========================
-async def notify_game_win(bot: Bot, uid: int, reward: int):
-    await notify_user(bot, uid, f"""
-🏆 <b>فزت في اللعبة!</b>
+تم إضافة 💵 *{amount} {CURRENCY_NAME}* إلى رصيدك.
 
-💰 المكافأة: {reward}
-🔥 تم إضافتها لحسابك
-""")
+📝 *السبب:* {reason}
 
+━ ━ ━ ━ ━ ━ ━ ━ ━
+👤 بواسطة: {admin_name}
+"""
+    await bot.send_message(user_id, text, parse_mode="Markdown")
 
-# =========================
-# تعديل إداري
-# =========================
-async def notify_admin(bot: Bot, text: str, gid: int):
-    await notify_group(bot, gid, f"""
-🛠 <b>إجراء إداري</b>
-
-{text}
-""")
+def register_notify_handlers(dp: Dispatcher):
+    pass
