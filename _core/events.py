@@ -8,8 +8,8 @@ from _core.titles import set_user_title
 from _core.notify import bot
 from db import db
 from datetime import datetime, timedelta
+import asyncio
 
-# دوال إحصائيات بسيطة
 async def get_user_stats(user_id: int):
     row = await db.fetchrow("SELECT * FROM user_stats WHERE user_id = $1", user_id)
     if not row:
@@ -21,15 +21,14 @@ async def update_user_stats(user_id: int, field: str, value=1, extra=None):
     if field in ["total_messages", "total_warns", "total_mutes", "total_bans", "total_kicks", "total_deductions"]:
         await db.execute(f"UPDATE user_stats SET {field} = {field} + ? WHERE user_id = ?", value, user_id)
     elif field == "last_deduction" and extra:
-        amount, reason = extra
-        await db.execute("UPDATE user_stats SET last_deduction_amount = ?, last_deduction_reason = ?, last_deduction_at = CURRENT_TIMESTAMP WHERE user_id = ?", amount, reason, user_id)
+        amt, rsn = extra
+        await db.execute("UPDATE user_stats SET last_deduction_amount = ?, last_deduction_reason = ?, last_deduction_at = CURRENT_TIMESTAMP WHERE user_id = ?", amt, rsn, user_id)
 
-# إشعارات
 async def send_admin_notification(chat_id, admin_name, target_name, action, detail=""):
     text = f"🔔 *{action}*\n👤 المشرف: {admin_name}\n👥 المستخدم: {target_name}\n📝 {detail}"
     await bot.send_message(chat_id, text, parse_mode="Markdown")
 
-# أوامر $ (الأدمن)
+# أوامر الأدمن ($)
 async def handle_admin_commands(message: Message):
     if not message.reply_to_message:
         return
@@ -43,21 +42,21 @@ async def handle_admin_commands(message: Message):
     target_name = target.full_name
 
     if text.startswith("$خصم"):
-        parts = text.split()
+        parts = text.split(maxsplit=2)
         if len(parts) >= 2 and parts[1].isdigit():
-            amount = int(parts[1])
+            amt = int(parts[1])
             reason = parts[2] if len(parts) > 2 else "خصم"
-            await update_user_money(target.id, -amount, reason, uid)
-            await message.reply(f"✅ خصم {amount} من {target_name}")
-            await send_admin_notification(chat_id, admin_name, target_name, "💰 خصم", f"{amount} {CURRENCY_NAME}\nالسبب: {reason}")
+            await update_user_money(target.id, -amt, reason, uid)
+            await message.reply(f"✅ خصم {amt} من {target_name}")
+            await send_admin_notification(chat_id, admin_name, target_name, "💰 خصم رصيد", f"-{amt} {CURRENCY_NAME}\nالسبب: {reason}")
     elif text.startswith("$اعطاء"):
-        parts = text.split()
+        parts = text.split(maxsplit=2)
         if len(parts) >= 2 and parts[1].isdigit():
-            amount = int(parts[1])
+            amt = int(parts[1])
             reason = parts[2] if len(parts) > 2 else "مكافأة"
-            await update_user_money(target.id, amount, reason, uid)
-            await message.reply(f"✅ إضافة {amount} إلى {target_name}")
-            await send_admin_notification(chat_id, admin_name, target_name, "💰 إضافة", f"+{amount} {CURRENCY_NAME}")
+            await update_user_money(target.id, amt, reason, uid)
+            await message.reply(f"✅ إضافة {amt} إلى {target_name}")
+            await send_admin_notification(chat_id, admin_name, target_name, "💰 إضافة رصيد", f"+{amt} {CURRENCY_NAME}")
     elif text.startswith("$كتم"):
         await set_user_status(target.id, "muted")
         await message.reply(f"🔇 تم كتم {target_name}")
@@ -87,12 +86,20 @@ async def handle_admin_commands(message: Message):
         if rows:
             log = "📜 سجلك:\n" + "\n".join([f"{r['amount']} - {r['reason']}" for r in rows])
             await message.reply(log)
+    elif text.startswith("$معلومات"):
+        u = await get_user(target.id)
+        if u:
+            await message.reply(f"📄 {u['full_name']}\n💰 {u['money']}\n⭐ XP: {u['xp']}\n📊 المستوى: {u['level']}")
+            # اختفاء بعد 3 ثوانٍ
+            await asyncio.sleep(3)
+            await message.delete()
+        else:
+            await message.reply("المستخدم غير موجود")
 
-# أوامر #
+# أوامر الأعضاء #
 async def handle_member_commands(message: Message):
     text = message.text.strip()
     uid = message.from_user.id
-    # تأكد من وجود المستخدم في قاعدة البيانات
     await get_or_create_user(message.from_user)
 
     if text in ["#ملفي", "#حسابي", "#معلوماتي"]:
@@ -100,17 +107,22 @@ async def handle_member_commands(message: Message):
         stats = await get_user_stats(uid)
         progress = await get_xp_progress(uid)
         reply = f"👤 {user['full_name']}\n💰 {user['money']}\n⭐ XP: {user['xp']}\n📊 المستوى: {user['level']}\n🏷️ اللقب: {user['title'] or 'لا يوجد'}\n📨 الرسائل: {stats['total_messages']}\n{progress['bar']} {progress['percent']}%"
-        await message.reply(reply)
+        msg = await message.reply(reply)
+        await asyncio.sleep(3)
+        await msg.delete()
     elif text in ["#فلوس", "#فلوسي"]:
         user = await get_user(uid)
-        await message.reply(f"💰 رصيدك: {user['money']}")
+        msg = await message.reply(f"💰 رصيدك: {user['money']}")
+        await asyncio.sleep(3)
+        await msg.delete()
     elif text in ["#لعبة", "#العب", "#العاب"]:
         await cmd_game(message)
     elif text in ["#مستواي", "#نقاطي"]:
         progress = await get_xp_progress(uid)
-        await message.reply(f"📊 المستوى {progress['level']}\n{progress['bar']} {progress['percent']}%")
+        msg = await message.reply(f"📊 المستوى {progress['level']}\n{progress['bar']} {progress['percent']}%")
+        await asyncio.sleep(3)
+        await msg.delete()
     elif text in ["#شراء", "#محل", "#سوق"]:
-        # قائمة بسيطة بالرتب
         items = await db.fetch("SELECT name, price FROM shop_items ORDER BY rank_level")
         if items:
             txt = "🏪 *السوق*\n"
@@ -119,11 +131,10 @@ async def handle_member_commands(message: Message):
             txt += "\nاستخدم #شراء <اسم الرتبة> لشرائها"
             await message.reply(txt, parse_mode="Markdown")
         else:
-            await message.reply("السوق فارغ حالياً.")
+            await message.reply("السوق فارغ")
 
-# إضافة XP
 async def add_xp_on_message(message: Message):
-    await get_or_create_user(message.from_user)  # تسجيل تلقائي
+    await get_or_create_user(message.from_user)
     if not message.text or message.text.startswith(("#", "$")):
         return
     await add_xp(message.from_user.id, XP_PER_MESSAGE, message.chat.id, message.from_user.full_name)
