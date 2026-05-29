@@ -30,19 +30,5 @@ async def send_levelup_notification(chat_id: int, user_id: int, new_level: int, 
 """
     await bot.send_message(chat_id, text, parse_mode="Markdown")
 
-async def send_money_notification(user_id: int, amount: int, reason: str, admin_name: str):
-    text = f"""╭━━━━━━━━━━━━━━━╮
-┃ 💰  إيـداع  💰
-╰━━━━━━━━━━━━━━━╯
-
-تم إضافة 💵 *{amount} {CURRENCY_NAME}* إلى رصيدك.
-
-📝 *السبب:* {reason}
-
-━ ━ ━ ━ ━ ━ ━ ━ ━
-👤 بواسطة: {admin_name}
-"""
-    await bot.send_message(user_id, text, parse_mode="Markdown")
-
 def register_notify_handlers(dp: Dispatcher):
     pass
