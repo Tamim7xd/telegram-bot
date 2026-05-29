@@ -1,26 +1,46 @@
-from Core_.users import users
+from Core_.games import start_game, check_answer, game_menu_ui
+from Core_.xp import add_xp
+from Core_.callbacks import panel, games_menu
 
 
-def profile(uid):
+async def handle_message(message):
 
-    u = users[uid]
+    await check_answer(message)
 
-    win_rate = 0
-    if u["games"] > 0:
-        win_rate = round((u["wins"] / u["games"]) * 100, 1)
+    if not message.text:
+        return
 
-    return (
-        f"👤 PROFILE\n"
-        f"━━━━━━━━━━━━━━\n"
-        f"🆔 ID: {u['id']}\n"
-        f"👤 Name: {u['name']}\n"
-        f"💰 Money: {u['money']}\n"
-        f"⭐ XP: {u['xp']}\n"
-        f"🏆 Level: {u['level']}\n"
-        f"🎖 Title: {u['title']}\n"
-        f"🎮 Games: {u['games']}\n"
-        f"🏅 Wins: {u['wins']}\n"
-        f"💀 Losses: {u['losses']}\n"
-        f"📊 WinRate: {win_rate}%\n"
-        f"━━━━━━━━━━━━━━"
-    )
+    text = message.text
+
+
+    await add_xp(message.from_user.id, message.from_user.full_name)
+
+
+    if text == "#لوحة":
+        await message.answer("🎛 لوحة التحكم", reply_markup=panel())
+
+
+    elif text == "#لعبة":
+        await message.answer(game_menu_ui(), reply_markup=games_menu())
+
+
+async def handle_callbacks(call):
+
+    data = call.data
+
+
+    if data.startswith("game_"):
+        await start_game(call.message, data.replace("game_", ""))
+
+
+    elif data == "games":
+        await call.message.answer(game_menu_ui(), reply_markup=games_menu())
+
+
+    elif data == "reward_all":
+        from Core_.users import users
+
+        for u in users.values():
+            u["money"] += 100
+
+        await call.message.answer("💰 تم توزيع المكافآت")
