@@ -1,148 +1,126 @@
-import asyncpg
-from config import DATABASE_URL, ADMIN_IDS
+import sqlite3
+import os
+from config import ADMIN_IDS
 
-class Database:
-    def __init__(self):
-        self.pool = None
+DATABASE_FILE = "bot_data.db"
 
-    async def connect(self):
-        if not DATABASE_URL:
-            raise Exception("DATABASE_URL غير معرف")
-        try:
-            self.pool = await asyncpg.create_pool(DATABASE_URL)
-            print("✅ تم الاتصال بقاعدة البيانات")
-        except Exception as e:
-            print(f"❌ خطأ في الاتصال: {e}")
-            raise
+def get_connection():
+    return sqlite3.connect(DATABASE_FILE)
 
-    async def execute(self, query, *args):
-        async with self.pool.acquire() as conn:
-            return await conn.execute(query, *args)
-
-    async def fetch(self, query, *args):
-        async with self.pool.acquire() as conn:
-            return await conn.fetch(query, *args)
-
-    async def fetchrow(self, query, *args):
-        async with self.pool.acquire() as conn:
-            return await conn.fetchrow(query, *args)
-
-    async def fetchval(self, query, *args):
-        async with self.pool.acquire() as conn:
-            return await conn.fetchval(query, *args)
-
-    async def init_tables(self):
-        await self.execute("""
+async def init_db():
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
             CREATE TABLE IF NOT EXISTS users (
-                telegram_id BIGINT PRIMARY KEY,
+                telegram_id INTEGER PRIMARY KEY,
                 username TEXT,
                 full_name TEXT,
-                messages_count INT DEFAULT 0,
-                money INT DEFAULT 100,
-                xp INT DEFAULT 0,
-                level INT DEFAULT 1,
+                messages_count INTEGER DEFAULT 0,
+                money INTEGER DEFAULT 100,
+                xp INTEGER DEFAULT 0,
+                level INTEGER DEFAULT 1,
                 title TEXT DEFAULT '',
-                warnings INT DEFAULT 0,
+                warnings INTEGER DEFAULT 0,
                 status TEXT DEFAULT 'active',
-                game_points INT DEFAULT 0,
-                wins INT DEFAULT 0,
-                created_at TIMESTAMP DEFAULT NOW()
+                game_points INTEGER DEFAULT 0,
+                wins INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
-        """)
-        await self.execute("""
+        ''')
+        cursor.execute('''
             CREATE TABLE IF NOT EXISTS admins (
-                user_id BIGINT PRIMARY KEY,
+                user_id INTEGER PRIMARY KEY,
                 permissions TEXT DEFAULT 'all',
-                added_by BIGINT
+                added_by INTEGER
             )
-        """)
-        await self.execute("""
+        ''')
+        cursor.execute('''
             CREATE TABLE IF NOT EXISTS mods (
-                user_id BIGINT PRIMARY KEY,
-                added_by BIGINT,
+                user_id INTEGER PRIMARY KEY,
+                added_by INTEGER,
                 permissions TEXT DEFAULT 'mute,unmute,info,warn',
-                created_at TIMESTAMP DEFAULT NOW()
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
-        """)
-        await self.execute("""
+        ''')
+        cursor.execute('''
             CREATE TABLE IF NOT EXISTS temp_bans (
-                user_id BIGINT,
-                chat_id BIGINT,
+                user_id INTEGER,
+                chat_id INTEGER,
                 until TIMESTAMP,
                 reason TEXT,
                 PRIMARY KEY (user_id, chat_id)
             )
-        """)
-        await self.execute("""
+        ''')
+        cursor.execute('''
             CREATE TABLE IF NOT EXISTS shop_items (
-                id SERIAL PRIMARY KEY,
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT UNIQUE,
-                price INT,
-                rank_level INT,
+                price INTEGER,
+                rank_level INTEGER,
                 description TEXT
             )
-        """)
-        await self.execute("""
+        ''')
+        cursor.execute('''
             CREATE TABLE IF NOT EXISTS user_purchases (
-                user_id BIGINT,
-                item_id INT,
-                purchased_at TIMESTAMP DEFAULT NOW(),
+                user_id INTEGER,
+                item_id INTEGER,
+                purchased_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 PRIMARY KEY (user_id, item_id)
             )
-        """)
-        await self.execute("""
+        ''')
+        cursor.execute('''
             CREATE TABLE IF NOT EXISTS user_stats (
-                user_id BIGINT PRIMARY KEY,
-                total_messages INT DEFAULT 0,
-                total_warns INT DEFAULT 0,
-                total_mutes INT DEFAULT 0,
-                total_bans INT DEFAULT 0,
-                total_kicks INT DEFAULT 0,
-                total_deductions INT DEFAULT 0,
-                last_deduction_amount INT DEFAULT 0,
+                user_id INTEGER PRIMARY KEY,
+                total_messages INTEGER DEFAULT 0,
+                total_warns INTEGER DEFAULT 0,
+                total_mutes INTEGER DEFAULT 0,
+                total_bans INTEGER DEFAULT 0,
+                total_kicks INTEGER DEFAULT 0,
+                total_deductions INTEGER DEFAULT 0,
+                last_deduction_amount INTEGER DEFAULT 0,
                 last_deduction_reason TEXT DEFAULT '',
                 last_deduction_at TIMESTAMP
             )
-        """)
-        await self.execute("""
+        ''')
+        cursor.execute('''
             CREATE TABLE IF NOT EXISTS guild_settings (
-                chat_id BIGINT PRIMARY KEY,
+                chat_id INTEGER PRIMARY KEY,
                 welcome_message TEXT,
-                enable_games INT DEFAULT 1,
-                game_cooldown INT DEFAULT 30,
-                sound_enabled INT DEFAULT 1,
+                enable_games INTEGER DEFAULT 1,
+                game_cooldown INTEGER DEFAULT 30,
+                sound_enabled INTEGER DEFAULT 1,
                 levelup_message TEXT
             )
-        """)
-        await self.execute("""
+        ''')
+        cursor.execute('''
             CREATE TABLE IF NOT EXISTS game_sessions (
-                chat_id BIGINT,
-                message_id INT,
+                chat_id INTEGER,
+                message_id INTEGER,
                 game_type TEXT,
                 question TEXT,
                 answer TEXT,
-                prize_money INT,
-                started_at TIMESTAMP DEFAULT NOW(),
+                prize_money INTEGER,
+                started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 status TEXT DEFAULT 'waiting',
                 PRIMARY KEY (chat_id, message_id)
             )
-        """)
-        await self.execute("""
+        ''')
+        cursor.execute('''
             CREATE TABLE IF NOT EXISTS economy_log (
-                id SERIAL PRIMARY KEY,
-                user_id BIGINT,
-                amount INT,
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER,
+                amount INTEGER,
                 reason TEXT,
-                admin_id BIGINT,
-                timestamp TIMESTAMP DEFAULT NOW()
+                admin_id INTEGER,
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
-        """)
-        await self.execute("""
+        ''')
+        cursor.execute('''
             CREATE TABLE IF NOT EXISTS titles (
-                id SERIAL PRIMARY KEY,
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
                 title TEXT UNIQUE
             )
-        """)
+        ''')
         # إضافة الألقاب الافتراضية
         default_titles = [
             "عضو", "متدرب", "مقاتل", "محارب", "فارس", "بطل", "أسطورة", "خرافي", "لا يقهر",
@@ -152,7 +130,7 @@ class Database:
             "كوكب", "قمر", "شمس", "مجد", "عزة", "كرامة", "إخلاص", "وفاء", "صبر", "حكمة"
         ]
         for title in default_titles:
-            await self.execute("INSERT INTO titles (title) VALUES ($1) ON CONFLICT (title) DO NOTHING", title)
+            cursor.execute("INSERT OR IGNORE INTO titles (title) VALUES (?)", (title,))
         # إضافة الرتب الافتراضية للمتجر
         default_ranks = [
             ("عضو جديد", 1000, 1, "الرتبة الأساسية"),
@@ -167,13 +145,75 @@ class Database:
             ("أسطورة", 50000, 10, "خرافي")
         ]
         for name, price, level, desc in default_ranks:
-            await self.execute("""
-                INSERT INTO shop_items (name, price, rank_level, description)
-                VALUES ($1, $2, $3, $4) ON CONFLICT (name) DO NOTHING
-            """, name, price, level, desc)
+            cursor.execute("INSERT OR IGNORE INTO shop_items (name, price, rank_level, description) VALUES (?, ?, ?, ?)", (name, price, level, desc))
         # إضافة الأدمن من الإعدادات
         for admin_id in ADMIN_IDS:
-            await self.execute("INSERT INTO admins (user_id, permissions, added_by) VALUES ($1, 'all', 0) ON CONFLICT (user_id) DO NOTHING", admin_id)
-        print("✅ تم إنشاء جميع الجداول")
+            cursor.execute("INSERT OR IGNORE INTO admins (user_id, permissions, added_by) VALUES (?, 'all', 0)", (admin_id,))
+        conn.commit()
+        print("✅ تم إنشاء قاعدة بيانات SQLite وجميع الجداول")
+
+# دوال مساعدة غير متزامنة (لكننا سنحولها إلى متزامنة بسيطة)
+def execute_query(query, params=()):
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(query, params)
+        conn.commit()
+        return cursor
+
+def fetch_all(query, params=()):
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(query, params)
+        return cursor.fetchall()
+
+def fetch_one(query, params=()):
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(query, params)
+        return cursor.fetchone()
+
+# دوال async متوافقة مع البوت
+async def async_execute(query, *args):
+    execute_query(query, args)
+    return None
+
+async def async_fetch(query, *args):
+    rows = fetch_all(query, args)
+    # تحويل الصفوف إلى قاموس
+    result = []
+    for row in rows:
+        result.append(dict(zip([desc[0] for desc in cursor.description], row))) if 'cursor' in locals() else result.append(row)
+    return result
+
+async def async_fetchrow(query, *args):
+    row = fetch_one(query, args)
+    if row:
+        # نحتاج لأسماء الأعمدة
+        with get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, args)
+            col_names = [desc[0] for desc in cursor.description]
+            return dict(zip(col_names, row))
+    return None
+
+async def async_fetchval(query, *args):
+    row = fetch_one(query, args)
+    return row[0] if row else None
+
+# قاعدة بيانات افتراضية متوافقة مع الكود القديم
+class Database:
+    async def execute(self, query, *args):
+        return await async_execute(query, *args)
+    async def fetch(self, query, *args):
+        return await async_fetch(query, *args)
+    async def fetchrow(self, query, *args):
+        return await async_fetchrow(query, *args)
+    async def fetchval(self, query, *args):
+        return await async_fetchval(query, *args)
+    async def connect(self):
+        await init_db()
+    async def init_tables(self):
+        await init_db()
+        print("✅ قاعدة البيانات جاهزة")
 
 db = Database()
