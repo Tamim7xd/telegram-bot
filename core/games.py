@@ -1,19 +1,30 @@
 import random
+from aiogram import Dispatcher, types
+from aiogram.types import Message
+from _core.game_engine import get_random_game, check_answer, save_game_session, get_game_session
+from _core.users import update_user_money, update_user_xp, get_user
+from _core.xp import add_xp
+from _core.notify import bot
+from config import GAME_TIME_LIMIT, DEFAULT_GAME_PRIZE_MIN, DEFAULT_GAME_PRIZE_MAX
 
-def random_game():
-    games = [
-        "سؤال ذكاء 🧠",
-        "لغز ⚡",
-        "خمن الرقم 🎲",
-        "أسرع إجابة 🏃",
-        "كلمة عشوائية ❓"
-    ]
-    return random.choice(games)
+async def cmd_game(message: Message):
+    chat_id = message.chat.id
+    # التحقق من عدم وجود لعبة نشطة (يمكن تحسينه لاحقاً)
+    game = await get_random_game()
+    prize = random.randint(DEFAULT_GAME_PRIZE_MIN, DEFAULT_GAME_PRIZE_MAX)
+    # إرسال رسالة اللعبة
+    sent = await message.reply(game['display_text'])
+    # حفظ الجلسة
+    await save_game_session(chat_id, sent.message_id, game['type'], game['question'], game['answer'], prize)
+    # جدولة انتهاء المهلة بعد GAME_TIME_LIMIT ثانية
+    import asyncio
+    asyncio.create_task(end_game_timeout(chat_id, sent.message_id))
 
+async def end_game_timeout(chat_id, message_id):
+    await asyncio.sleep(GAME_TIME_LIMIT)
+    session = await get_game_session(chat_id, message_id)
+    if session and session['status'] == 'waiting':
+        await bot.send_message(chat_id, f"⏰ انتهت المهلة! الإجابة الصحيحة: {session['answer']}")
 
-def game_reward():
-    return {
-        "xp": 100,
-        "money": random.randint(50, 200)
-    }
-
+def register_games_handlers(dp: Dispatcher):
+    dp.message.register(cmd_game, lambda msg: msg.text in ["#لعبة", "#العب", "#العاب"])
