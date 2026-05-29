@@ -1,10 +1,10 @@
 from aiogram import Dispatcher, types
 from aiogram.filters import CommandStart, Command
 from aiogram.types import Message
-from _core.users import get_or_create_user
-from _core.xp import add_xp
-from _core.games import cmd_game  # for #لعبة
-from _core.events import handle_hashtag_commands
+from core.users import get_or_create_user
+from core.xp import add_xp
+from core.games import cmd_game  # for #لعبة
+from core.events import handle_hashtag_commands
 import re
 
 async def cmd_start(message: Message):
