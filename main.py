@@ -36,7 +36,7 @@ async def main():
     register_titles_handlers(dp)
     register_games_handlers(dp)
     register_event_handlers(dp)
-    register_callback_handlers(dp)
+    register_callback_handlers(dp)   # تأكد من وجود هذا السطر
     register_notify_handlers(dp)
     
     await set_commands(bot)
