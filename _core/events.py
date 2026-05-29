@@ -1,4 +1,6 @@
 import time
+from aiogram.types import ChatPermissions
+
 from _core.notify import get_bot
 from _core.users import (
     get_user,
@@ -36,7 +38,7 @@ async def handle_member_commands(message):
         await cmd_game(message)
 
 
-# 👮 إدارة كاملة
+# 👮 إدارة كاملة (FIXED)
 async def handle_admin_commands(message):
 
     text = message.text
@@ -44,8 +46,9 @@ async def handle_admin_commands(message):
     if not text:
         return
 
+    # ❗ إصلاح مهم: لازم رد
     if not message.reply_to_message:
-        return await message.reply("❌ لازم رد على المستخدم")
+        return await message.reply("❌ لازم ترد على رسالة المستخدم")
 
     target = message.reply_to_message.from_user
     target_id = target.id
@@ -54,45 +57,81 @@ async def handle_admin_commands(message):
     bot = get_bot()
     chat_id = message.chat.id
 
-    # 🔇 كتم
+    # 🔇 كتم (FIXED)
     if text.startswith("$كتم"):
+
         parts = text.split(maxsplit=2)
         reason = parts[2] if len(parts) > 2 else "لا يوجد سبب"
 
-        await message.chat.restrict_member(
-            user_id=target_id,
-            permissions={"can_send_messages": False}
-        )
+        try:
+            await message.chat.restrict(
+                target_id,
+                ChatPermissions(can_send_messages=False)
+            )
+        except:
+            await message.bot.restrict_chat_member(
+                chat_id,
+                target_id,
+                permissions=ChatPermissions(can_send_messages=False)
+            )
 
-        await bot.send_message(chat_id, f"🔇 تم كتم {target_name}\n📝 {reason}")
+        await bot.send_message(
+            chat_id,
+            f"🔇 تم كتم {target_name}\n📝 السبب: {reason}"
+        )
 
     # ⚠️ تحذير
     elif text.startswith("$تحذير"):
         reason = text.replace("$تحذير", "").strip()
 
-        await bot.send_message(chat_id, f"⚠️ تم تحذير {target_name}\n📝 {reason}")
+        await bot.send_message(
+            chat_id,
+            f"⚠️ تم تحذير {target_name}\n📝 السبب: {reason}"
+        )
 
     # 🚫 حظر
     elif text.startswith("$حظر"):
         await set_user_status(target_id, "banned")
-        await bot.send_message(chat_id, f"🚫 تم حظر {target_name}")
 
-    # 💰 خصم
-    elif text.startswith("$خصم"):
-        parts = text.split(maxsplit=2)
-
-        amount = int(parts[1]) if len(parts) > 1 else 0
-        reason = parts[2] if len(parts) > 2 else "لا يوجد سبب"
-
-        await update_user_money(target_id, -amount, reason, message.from_user.id)
+        try:
+            await message.chat.ban_member(target_id)
+        except:
+            await message.bot.ban_chat_member(chat_id, target_id)
 
         await bot.send_message(
             chat_id,
-            f"💰 تم خصم {amount} من {target_name}"
+            f"🚫 تم حظر {target_name}"
+        )
+
+    # 💰 خصم
+    elif text.startswith("$خصم"):
+
+        parts = text.split(maxsplit=2)
+
+        if len(parts) < 2:
+            return await message.reply("❌ استخدم: $خصم 100 سبب")
+
+        try:
+            amount = int(parts[1])
+        except:
+            return await message.reply("❌ المبلغ غير صحيح")
+
+        reason = parts[2] if len(parts) > 2 else "لا يوجد سبب"
+
+        await update_user_money(
+            target_id,
+            -amount,
+            reason,
+            message.from_user.id
+        )
+
+        await bot.send_message(
+            chat_id,
+            f"💰 تم خصم {amount} من {target_name}\n📝 السبب: {reason}"
         )
 
 
-# ⭐ XP SYSTEM
+# ⭐ XP SYSTEM (FIXED)
 async def add_xp_on_message(message):
 
     if not message.text:
