@@ -15,7 +15,10 @@ from _core.notify import register_notify_handlers, set_bot_instance
 logging.basicConfig(level=logging.INFO)
 
 async def set_commands(bot: Bot):
-    await bot.set_my_commands([BotCommand(command="start", description="بدء"), BotCommand(command="adminiq", description="لوحة الأدمن")])
+    await bot.set_my_commands([
+        BotCommand(command="start", description="بدء البوت"),
+        BotCommand(command="adminiq", description="لوحة الأدمن")
+    ])
 
 async def main():
     await db.connect()
@@ -29,7 +32,7 @@ async def main():
     register_titles_handlers(dp)
     register_games_handlers(dp)
     register_event_handlers(dp)
-    register_callback_handlers(dp)   # هام
+    register_callback_handlers(dp)
     register_notify_handlers(dp)
     await set_commands(bot)
     await dp.start_polling(bot)
