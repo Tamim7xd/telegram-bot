@@ -2,7 +2,7 @@ from aiogram import Dispatcher
 from aiogram.filters import CommandStart, Command
 from aiogram.types import Message
 from _core.users import get_or_create_user
-from _core.events import handle_hashtag_commands
+from _core.events import handle_member_commands   # استيراد الدالة الصحيحة مباشرة
 
 async def cmd_start(message: Message):
     user = await get_or_create_user(message.from_user)
@@ -14,7 +14,7 @@ async def cmd_adminiq(message: Message):
 
 async def handle_hashtag_root(message: Message):
     if message.text and message.text.startswith("#"):
-        await handle_hashtag_commands(message)
+        await handle_member_commands(message)   # استخدام الدالة الصحيحة
 
 def setup_bot(dp: Dispatcher):
     dp.message.register(cmd_start, CommandStart())
