@@ -13,13 +13,10 @@ async def start_game(message, cat):
 
     q = random.choice(data)
 
-    active[message.chat.id] = {
-        "answer": str(q["a"]).lower(),
-        "question": q["q"]
-    }
+    active[message.chat.id] = str(q["a"]).lower()
 
     await message.answer(
-        f"🎮 QUESTION\n"
+        f"🎮 GAME\n"
         f"━━━━━━━━━━━━━━\n"
         f"❓ {q['q']}\n"
         f"━━━━━━━━━━━━━━"
@@ -34,11 +31,7 @@ async def check_answer(message):
     if not message.text:
         return
 
-    game = active[message.chat.id]
-
-    user_answer = message.text.lower().strip()
-
-    if user_answer == game["answer"]:
+    if message.text.lower().strip() == active[message.chat.id]:
 
         del active[message.chat.id]
 
@@ -50,7 +43,19 @@ async def check_answer(message):
 
         return True
 
-    else:
+    return False
 
-        await message.reply("❌ خطأ حاول مرة أخرى")
-        return False
+
+# 🎮 UI
+def game_menu_ui():
+
+    return (
+        "🎮 GAME CENTER\n"
+        "━━━━━━━━━━━━━━\n"
+        "❓ أسئلة\n"
+        "🧩 ألغاز\n"
+        "📖 حكم\n"
+        "⚡ سرعة\n"
+        "🎁 حظ\n"
+        "━━━━━━━━━━━━━━"
+    )
