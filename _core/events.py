@@ -1,5 +1,5 @@
 from aiogram import Dispatcher
-from aiogram.types import Message
+from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 from config import ADMIN_IDS, CURRENCY_NAME, XP_PER_MESSAGE
 from _core.users import update_user_money, get_user, set_user_status
 from _core.xp import add_xp, get_xp_progress
@@ -8,8 +8,24 @@ from _core.titles import set_user_title
 from _core.notify import bot
 from db import db
 from datetime import datetime, timedelta
+import asyncio
 
-# ========== دالة الإشعار المتطورة ==========
+# ========== دوال إحصائيات المستخدم ==========
+async def get_user_stats(user_id: int):
+    row = await db.fetchrow("SELECT * FROM user_stats WHERE user_id = $1", user_id)
+    if not row:
+        await db.execute("INSERT INTO user_stats (user_id) VALUES ($1) ON CONFLICT DO NOTHING", user_id)
+        row = await db.fetchrow("SELECT * FROM user_stats WHERE user_id = $1", user_id)
+    return dict(row)
+
+async def update_user_stats(user_id: int, field: str, value=1, extra=None):
+    if field in ["total_messages", "total_warns", "total_mutes", "total_bans", "total_kicks", "total_deductions"]:
+        await db.execute(f"UPDATE user_stats SET {field} = {field} + $1 WHERE user_id = $2", value, user_id)
+    elif field == "last_deduction" and extra:
+        amount, reason = extra
+        await db.execute("UPDATE user_stats SET last_deduction_amount = $1, last_deduction_reason = $2, last_deduction_at = NOW() WHERE user_id = $3", amount, reason, user_id)
+
+# ========== إشعار متطور ==========
 async def send_advanced_notification(chat_id: int, executor_name: str, executor_role: str, target_name: str, action: str, detail: str = "", duration: str = ""):
     border = "╭━━━━━━━━━━━━━━━━━━━━━━━━━━╮"
     text = f"""{border}
@@ -25,11 +41,90 @@ async def send_advanced_notification(chat_id: int, executor_name: str, executor_
 ━━━━━━━━━━━━━━━━━━━━━━━━━━"""
     await bot.send_message(chat_id, text, parse_mode="Markdown")
 
-# ========== أوامر الأدمن ($) والمشرفين ==========
+# ========== التحقق من المشرف ==========
 async def is_mod(user_id: int) -> bool:
     row = await db.fetchrow("SELECT 1 FROM mods WHERE user_id = $1", user_id)
     return row is not None
 
+# ========== السوق (المتجر) ==========
+async def show_shop_menu(message: Message, page: int = 0):
+    items = await db.fetch("SELECT id, name, price, rank_level FROM shop_items ORDER BY rank_level")
+    if not items:
+        await message.reply("🏪 السوق فارغ حالياً.")
+        return
+    per_page = 3
+    total_pages = (len(items) + per_page - 1) // per_page
+    start = page * per_page
+    end = start + per_page
+    page_items = items[start:end]
+    text = f"🏪 *السوق - الصفحة {page+1}/{total_pages}*\n\n"
+    for item in page_items:
+        text += f"✨ *{item['name']}*\n💰 السعر: {item['price']} {CURRENCY_NAME}\n📊 المستوى: {item['rank_level']}\n━━━━━━━━━━━━━━━\n"
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[])
+    row = []
+    for item in page_items:
+        row.append(InlineKeyboardButton(text=f"شراء {item['name']}", callback_data=f"buy_{item['id']}"))
+        if len(row) == 2:
+            keyboard.inline_keyboard.append(row)
+            row = []
+    if row:
+        keyboard.inline_keyboard.append(row)
+    nav = []
+    if page > 0:
+        nav.append(InlineKeyboardButton(text="◀️ السابق", callback_data=f"shop_page_{page-1}"))
+    if page < total_pages - 1:
+        nav.append(InlineKeyboardButton(text="التالي ▶️", callback_data=f"shop_page_{page+1}"))
+    if nav:
+        keyboard.inline_keyboard.append(nav)
+    keyboard.inline_keyboard.append([InlineKeyboardButton(text="🏷️ رتبي المشتراة", callback_data="my_ranks")])
+    keyboard.inline_keyboard.append([InlineKeyboardButton(text="❌ إغلاق", callback_data="close_shop")])
+    await message.reply(text, reply_markup=keyboard, parse_mode="Markdown")
+
+async def handle_shop_callback(callback: CallbackQuery):
+    data = callback.data
+    user_id = callback.from_user.id
+    if data.startswith("shop_page_"):
+        page = int(data.split("_")[-1])
+        await show_shop_menu(callback.message, page)
+        await callback.answer()
+        return
+    if data == "close_shop":
+        await callback.message.delete()
+        await callback.answer()
+        return
+    if data == "my_ranks":
+        purchases = await db.fetch("SELECT si.name, si.price, si.rank_level FROM user_purchases up JOIN shop_items si ON up.item_id = si.id WHERE up.user_id = $1", user_id)
+        if purchases:
+            text = "🏷️ *الرتب التي تمتلكها:*\n"
+            for p in purchases:
+                text += f"✨ {p['name']} (مستوى {p['rank_level']}, سعر {p['price']})\n"
+        else:
+            text = "⚠️ لم تشترِ أي رتبة بعد."
+        await callback.message.reply(text, parse_mode="Markdown")
+        await callback.answer()
+        return
+    if data.startswith("buy_"):
+        item_id = int(data.split("_")[1])
+        item = await db.fetchrow("SELECT * FROM shop_items WHERE id = $1", item_id)
+        if not item:
+            await callback.answer("البند غير موجود", show_alert=True)
+            return
+        user = await get_user(user_id)
+        if user['money'] >= item['price']:
+            # خصم المبلغ
+            await update_user_money(user_id, -item['price'], f"شراء {item['name']}", None)
+            # إضافة الشراء
+            await db.execute("INSERT INTO user_purchases (user_id, item_id) VALUES ($1, $2) ON CONFLICT DO NOTHING", user_id, item_id)
+            await callback.message.reply(f"✅ تم شراء رتبة *{item['name']}* بنجاح! تم خصم {item['price']} {CURRENCY_NAME}.")
+            # إشعار في المجموعة (اختياري)
+            await bot.send_message(callback.message.chat.id, f"🎉 *مبروك!* {callback.from_user.full_name} اشترى رتبة *{item['name']}*!")
+        else:
+            await callback.message.reply(f"❌ رصيدك غير كافٍ لشراء {item['name']} (تحتاج {item['price']} {CURRENCY_NAME}).")
+        await callback.answer()
+        return
+    await callback.answer()
+
+# ========== أوامر الأدمن والمشرفين ($) ==========
 async def handle_admin_commands(message: Message):
     if not message.reply_to_message:
         return
@@ -45,32 +140,23 @@ async def handle_admin_commands(message: Message):
     target_name = target.full_name
     executor_role = "👑 أدمن" if is_admin else "🛡️ مشرف"
 
-    # الأوامر المتاحة للمشرفين (معلومات، كتم، فك كتم، تنبيه)
+    # أوامر مشتركة
     if text.startswith("$معلومات"):
-        if not (is_admin or is_moderator):
-            return
         user_data = await get_user(target.id)
         stats = await get_user_stats(target.id)
         info = f"📄 *معلومات {target_name}*\n💰 الرصيد: {user_data['money']}\n⭐ XP: {user_data['xp']}\n📊 المستوى: {user_data['level']}\n🏷️ اللقب: {user_data['title'] or 'لا يوجد'}\n📨 الرسائل: {stats.get('total_messages',0)}\n⚠️ التحذيرات: {stats.get('total_warns',0)}\n🔇 عدد الكتم: {stats.get('total_mutes',0)}\n🚫 عدد الحظر: {stats.get('total_bans',0)}\n🗑️ عدد الطرد: {stats.get('total_kicks',0)}"
         await message.reply(info, parse_mode="Markdown")
         return
     elif text.startswith("$تنبيه"):
-        if not (is_admin or is_moderator):
-            return
         reason = text[8:].strip() or "لا يوجد سبب"
         await message.reply(f"⚠️ تم تنبيه {target_name}\nالسبب: {reason}")
         await send_advanced_notification(chat_id, executor_name, executor_role, target_name, "⚠️ تنبيه", reason)
-        # تحديث إحصائيات التحذيرات
         await update_user_stats(target.id, 'total_warns')
         return
     elif text.startswith("$كتم"):
-        if not (is_admin or is_moderator):
-            return
-        # صيغة: $كتم 10m سبب (المدة أولاً ثم السبب)
         parts = text.split(maxsplit=2)
         duration_str = parts[1] if len(parts) >= 2 else "30m"
         reason = parts[2] if len(parts) > 2 else "لا يوجد سبب"
-        # تحويل المدة إلى دقائق (مثال: 10m, 1h, 1d)
         duration_minutes = 0
         if duration_str.endswith('m'):
             duration_minutes = int(duration_str[:-1])
@@ -88,15 +174,13 @@ async def handle_admin_commands(message: Message):
         await update_user_stats(target.id, 'total_mutes')
         return
     elif text == "$فك كتم":
-        if not (is_admin or is_moderator):
-            return
         await db.execute("DELETE FROM temp_bans WHERE user_id=$1 AND chat_id=$2", target.id, chat_id)
         await set_user_status(target.id, "active")
         await message.reply(f"🔈 تم فك الكتم عن {target_name}")
         await send_advanced_notification(chat_id, executor_name, executor_role, target_name, "🔈 فك كتم", "")
         return
 
-    # الأوامر المخصصة للأدمن فقط
+    # الأوامر الخاصة بالأدمن فقط
     if not is_admin:
         return
 
@@ -108,7 +192,7 @@ async def handle_admin_commands(message: Message):
             await update_user_money(target.id, -amount, reason, user_id)
             await message.reply(f"✅ تم خصم {amount} {CURRENCY_NAME} من {target_name}")
             await send_advanced_notification(chat_id, executor_name, executor_role, target_name, "💰 خصم رصيد", f"-{amount} {CURRENCY_NAME}\nالسبب: {reason}")
-            await update_user_stats(target.id, 'total_deductions', amount, reason)  # سنضيف هذه الدالة لاحقاً
+            await update_user_stats(target.id, 'total_deductions', 1, (amount, reason))
         else:
             await message.reply("❌ استخدم: $خصم 50 سبب")
     elif text.startswith("$اعطاء") or text.startswith("$إعطاء"):
@@ -174,22 +258,7 @@ async def handle_admin_commands(message: Message):
         else:
             await message.reply("📭 لا توجد عمليات مسجلة لك.")
 
-# ========== دوال إحصائيات المستخدم ==========
-async def get_user_stats(user_id: int):
-    row = await db.fetchrow("SELECT * FROM user_stats WHERE user_id = $1", user_id)
-    if not row:
-        await db.execute("INSERT INTO user_stats (user_id) VALUES ($1) ON CONFLICT (user_id) DO NOTHING", user_id)
-        row = await db.fetchrow("SELECT * FROM user_stats WHERE user_id = $1", user_id)
-    return dict(row)
-
-async def update_user_stats(user_id: int, field: str, value=1, extra=None):
-    if field in ["total_messages", "total_warns", "total_mutes", "total_bans", "total_kicks", "total_deductions"]:
-        await db.execute(f"UPDATE user_stats SET {field} = {field} + $1 WHERE user_id = $2", value, user_id)
-    elif field == "last_deduction" and extra:
-        amount, reason = extra
-        await db.execute("UPDATE user_stats SET last_deduction_amount = $1, last_deduction_reason = $2, last_deduction_at = NOW() WHERE user_id = $3", amount, reason, user_id)
-
-# ========== أوامر الأعضاء (#) مع إحصائيات متقدمة ==========
+# ========== أوامر الأعضاء (#) ==========
 async def handle_member_commands(message: Message):
     text = message.text.strip()
     user_id = message.from_user.id
@@ -198,7 +267,6 @@ async def handle_member_commands(message: Message):
         user = await get_user(user_id)
         progress = await get_xp_progress(user_id)
         stats = await get_user_stats(user_id)
-        # تنسيق الأرقام
         money_formatted = f"{user['money']:,}".replace(",", ".")
         reply = f"""╭━━━━━━━━━━━━━━━━━━━━━━╮
 ┃ 👤 *الملف الشخصي* 👤
@@ -244,11 +312,8 @@ async def handle_member_commands(message: Message):
         user = await get_user(user_id)
         progress = await get_xp_progress(user_id)
         await message.reply(f"📊 *المستوى {user['level']}*\n{progress['bar']} {progress['percent']}%\n{progress['remaining']} XP للمستوى التالي", parse_mode="Markdown")
-    elif text == "#شراء":
-        # سنضيف نظام المتجر هنا (يمكن إضافته لاحقاً)
-        await message.reply("🏪 *المتجر*\nقريباً سيتوفر شراء الرتب والألقاب.")
-    elif text == "#محل" or text == "#اسواق":
-        await message.reply("🏪 *السوق*\nقريباً سيتم تفعيل السوق بالكامل.")
+    elif text in ["#شراء", "#محل", "#اسواق"]:
+        await show_shop_menu(message)
 
 # ========== إضافة XP عند كل رسالة ==========
 async def add_xp_on_message(message: Message):
@@ -265,3 +330,4 @@ def register_event_handlers(dp: Dispatcher):
     dp.message.register(handle_admin_commands, lambda msg: msg.text and msg.text.startswith("$"))
     dp.message.register(handle_member_commands, lambda msg: msg.text and msg.text.startswith("#"))
     dp.message.register(add_xp_on_message)
+    dp.callback_query.register(handle_shop_callback, lambda c: c.data and (c.data.startswith("shop_page_") or c.data.startswith("buy_") or c.data in ["close_shop", "my_ranks"]))
