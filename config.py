@@ -4,7 +4,10 @@ from dotenv import load_dotenv
 load_dotenv()
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-DATABASE_URL = os.getenv("DATABASE_URL")
+
+# محاولة الحصول على رابط قاعدة البيانات من عدة مصادر ممكنة
+DATABASE_URL = os.getenv("DATABASE_URL") or os.getenv("POSTGRES_URL") or os.getenv("DATABASE_PUBLIC_URL")
+
 ADMIN_IDS = list(map(int, os.getenv("ADMIN_IDS", "").split(","))) if os.getenv("ADMIN_IDS") else []
 
 # XP settings
@@ -30,3 +33,9 @@ SOUNDS_PATH = "sounds/"
 
 # Data files
 DATA_DIR = "data"
+
+# طباعة للتأكد (يمكنك إزالة هذا السطر لاحقاً)
+if DATABASE_URL:
+    print("✅ تم العثور على قاعدة البيانات")
+else:
+    print("❌ لم يتم العثور على DATABASE_URL")
