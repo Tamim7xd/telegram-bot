@@ -1,26 +1,13 @@
-from aiogram import Dispatcher, Bot
-from aiogram.filters import CommandStart, Command
+from aiogram import Bot
 
-from _core.events import (
-    handle_admin_commands,
-    handle_member_commands,
-    add_xp_on_message
-)
+bot: Bot | None = None
 
-from _core.commands import cmd_start, cmd_adminiq
+def set_bot_instance(instance: Bot):
+    global bot
+    bot = instance
 
 
-def setup_bot(dp: Dispatcher):
-
-    # أوامر أساسية
-    dp.message.register(cmd_start, CommandStart())
-    dp.message.register(cmd_adminiq, Command("adminiq"))
-
-    # أوامر الإدارة
-    dp.message.register(handle_admin_commands, lambda m: m.text and m.text.startswith("$"))
-
-    # أوامر الأعضاء
-    dp.message.register(handle_member_commands, lambda m: m.text and m.text.startswith("#"))
-
-    # XP system
-    dp.message.register(add_xp_on_message)
+def get_bot() -> Bot:
+    if not bot:
+        raise RuntimeError("Bot not initialized")
+    return bot
