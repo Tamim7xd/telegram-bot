@@ -37,7 +37,6 @@ async def handle_admin_commands(message: Message):
     admin_name = admin.full_name
     target_name = target.full_name
     
-    # $خصم 50 سبب
     if text.startswith("$خصم"):
         parts = text.split(maxsplit=2)
         if len(parts) >= 2 and parts[1].isdigit():
@@ -49,7 +48,6 @@ async def handle_admin_commands(message: Message):
         else:
             await message.reply("❌ استخدم: $خصم 50 سبب")
     
-    # $اعطاء 100 مكافأة
     elif text.startswith("$اعطاء") or text.startswith("$إعطاء"):
         parts = text.split(maxsplit=2)
         if len(parts) >= 2 and parts[1].isdigit():
@@ -61,7 +59,6 @@ async def handle_admin_commands(message: Message):
         else:
             await message.reply("❌ استخدم: $اعطاء 100 سبب")
     
-    # $تحذير سبب
     elif text.startswith("$تحذير"):
         reason = text[8:].strip() or "لا يوجد سبب"
         user = await get_user(target.id)
@@ -73,7 +70,6 @@ async def handle_admin_commands(message: Message):
             await set_user_status(target.id, "banned")
             await message.reply(f"🚫 تم حظر {target_name} تلقائياً بسبب 3 تحذيرات")
     
-    # $كتم 10m سبب
     elif text.startswith("$كتم"):
         parts = text.split(maxsplit=2)
         duration = parts[1] if len(parts) >= 2 else "30m"
@@ -82,26 +78,22 @@ async def handle_admin_commands(message: Message):
         await message.reply(f"🔇 تم كتم {target_name} لمدة {duration}")
         await send_admin_notification(chat_id, admin_name, target_name, "🔇 كتم", f"لمدة {duration}\nالسبب: {reason}")
     
-    # $فك كتم
     elif text == "$فك كتم":
         await set_user_status(target.id, "active")
         await message.reply(f"🔈 تم فك الكتم عن {target_name}")
         await send_admin_notification(chat_id, admin_name, target_name, "🔈 فك كتم", "تم فك الكتم")
     
-    # $حظر سبب
     elif text.startswith("$حظر"):
         reason = text[5:].strip() or "لا يوجد سبب"
         await set_user_status(target.id, "banned")
         await message.reply(f"🚫 تم حظر {target_name}")
         await send_admin_notification(chat_id, admin_name, target_name, "🚫 حظر", f"السبب: {reason}")
     
-    # $فك حظر
     elif text == "$فك حظر":
         await set_user_status(target.id, "active")
         await message.reply(f"✅ تم فك الحظر عن {target_name}")
         await send_admin_notification(chat_id, admin_name, target_name, "✅ فك حظر", "")
     
-    # $طرد سبب
     elif text.startswith("$طرد"):
         reason = text[5:].strip() or "لا يوجد سبب"
         await message.reply(f"👢 تم طرد {target_name}")
@@ -112,7 +104,6 @@ async def handle_admin_commands(message: Message):
         except:
             pass
     
-    # $لقب اسم
     elif text.startswith("$لقب"):
         new_title = text[5:].strip()
         if new_title:
@@ -122,7 +113,6 @@ async def handle_admin_commands(message: Message):
         else:
             await message.reply("❌ استخدم: $لقب بطل")
     
-    # $سجل
     elif text == "$سجل":
         rows = await db.fetch("SELECT * FROM economy_log WHERE admin_id = $1 ORDER BY timestamp DESC LIMIT 10", admin.id)
         if rows:
@@ -138,7 +128,6 @@ async def handle_member_commands(message: Message):
     text = message.text.strip()
     user_id = message.from_user.id
     
-    # #ملفي, #حسابي, #معلوماتي, #ملف
     if text in ["#ملفي", "#حسابي", "#معلوماتي", "#معلومات", "#ملف"]:
         user = await get_user(user_id)
         progress = await get_xp_progress(user_id)
@@ -165,28 +154,23 @@ async def handle_member_commands(message: Message):
 🏅 *الفوز في الألعاب:* {user['wins']}"""
         await message.reply(reply, parse_mode="Markdown")
     
-    # #فلوس, #فلوسي, #رصيدي
     elif text in ["#فلوس", "#فلوسي", "#رصيدي"]:
         user = await get_user(user_id)
         await message.reply(f"💰 رصيدك الحالي: {user['money']} {CURRENCY_NAME}")
     
-    # #لقب, #لقبي, #اللقب
     elif text in ["#لقب", "#لقبي", "#اللقب"]:
         user = await get_user(user_id)
         title = user['title'] or "لا يوجد"
         await message.reply(f"🏷️ لقبك: {title}")
     
-    # #لعبة, #العب, #العاب
     elif text in ["#لعبة", "#العب", "#العاب"]:
         await cmd_game(message)
     
-    # #مستواي, #لـيفلي, #نقاطي
     elif text in ["#مستواي", "#لـيفلي", "#نقاطي"]:
         user = await get_user(user_id)
         progress = await get_xp_progress(user_id)
         await message.reply(f"📊 *المستوى {user['level']}*\n{progress['bar']} {progress['percent']}%\n{progress['remaining']} XP للمستوى التالي", parse_mode="Markdown")
 
-# إضافة XP عند كل رسالة عادية
 async def add_xp_on_message(message: Message):
     if not message.text:
         return
@@ -195,6 +179,9 @@ async def add_xp_on_message(message: Message):
     if message.from_user.id in ADMIN_IDS:
         return
     await add_xp(message.from_user.id, XP_PER_MESSAGE, message.chat.id, message.from_user.full_name)
+
+# اسم مستعار للتوافق مع bot_core.py
+handle_hashtag_commands = handle_member_commands
 
 def register_event_handlers(dp: Dispatcher):
     dp.message.register(handle_admin_commands, lambda msg: msg.text and msg.text.startswith("$"))
