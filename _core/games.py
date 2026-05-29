@@ -19,7 +19,7 @@ async def show_game_menu(message: Message):
          InlineKeyboardButton(text="📜 مثل شعبي", callback_data="game_proverb")],
         [InlineKeyboardButton(text="🎲 عشوائي", callback_data="game_random")]
     ])
-    await message.reply("🎮 *اختر نوع اللعبة التي تريدها:*", reply_markup=keyboard, parse_mode="Markdown")
+    await message.reply("🎮 *اختر نوع اللعبة:*", reply_markup=keyboard, parse_mode="Markdown")
 
 async def start_game(chat_id, message_id, game_type, prize):
     game = await get_random_game(prize, game_type)
@@ -36,7 +36,7 @@ async def end_game_timeout(chat_id, message_id, correct_answer):
     session = await get_game_session(chat_id, message_id)
     if session and session['status'] == 'waiting':
         await update_game_session_status(chat_id, message_id, 'finished')
-        await bot.send_message(chat_id, f"⏰ *انتهت المهلة!* ⏰\nالإجابة الصحيحة: `{correct_answer}`", parse_mode="Markdown")
+        await bot.send_message(chat_id, f"⏰ *انتهت المهلة!*\nالإجابة الصحيحة: `{correct_answer}`", parse_mode="Markdown")
 
 async def handle_game_answer(message: Message):
     if not message.reply_to_message:
@@ -49,9 +49,9 @@ async def handle_game_answer(message: Message):
     if prize > 0:
         await update_user_money(message.from_user.id, prize, "فوز بلعبة", None)
         await add_xp(message.from_user.id, 25, chat_id, message.from_user.full_name)
-        await message.reply(f"🎉 *إجابة صحيحة!* 🎉\n💰 ربحت {prize} دينار\n⭐ +25 XP")
+        await message.reply(f"🎉 *إجابة صحيحة!*\n💰 ربحت {prize} دينار\n⭐ +25 XP", parse_mode="Markdown")
     elif prize == 0:
-        await message.reply("❌ *إجابة خاطئة!* ❌\nحظاً أفضل في المرة القادمة.", parse_mode="Markdown")
+        await message.reply("❌ *إجابة خاطئة!*\nحظاً أفضل المرة القادمة.", parse_mode="Markdown")
 
 async def handle_game_callback(callback: CallbackQuery):
     chat_id = callback.message.chat.id
@@ -62,11 +62,11 @@ async def handle_game_callback(callback: CallbackQuery):
         if game_type == "random":
             game_type = None
         prize = random.randint(DEFAULT_GAME_PRIZE_MIN, DEFAULT_GAME_PRIZE_MAX)
+        # حذف رسالة الأزرار لتبدأ اللعبة
+        await callback.message.delete()
         success = await start_game(chat_id, callback.message.message_id, game_type, prize)
-        if success:
-            await callback.message.delete()
-        else:
-            await callback.message.edit_text("⚠️ هذا النوع من الألعاب لا يحتوي على أسئلة حالياً. جرب نوعاً آخر.")
+        if not success:
+            await bot.send_message(chat_id, "⚠️ هذا النوع من الألعاب لا يحتوي على أسئلة حالياً. جرب نوعاً آخر.")
 
 async def cmd_game(message: Message):
     await show_game_menu(message)
