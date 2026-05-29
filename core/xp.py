@@ -1,7 +1,7 @@
 from db import db
 from config import XP_PER_LEVEL, XP_PER_MESSAGE, LEVELUP_BONUS_MONEY, LEVELUP_BONUS_XP
-from _core.users import update_user_money, update_user_xp, get_user
-from _core.notify import send_levelup_notification
+from core.users import update_user_money, update_user_xp, get_user
+from core.notify import send_levelup_notification
 
 async def add_xp(telegram_id: int, amount: int, chat_id: int = None, user_name: str = ""):
     await update_user_xp(telegram_id, amount)
