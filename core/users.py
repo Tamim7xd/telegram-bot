@@ -1,28 +1,27 @@
-from db import c, conn
-from core.titles import TITLES
+from db import db
+from aiogram.types import User
+from config import STARTING_MONEY, STARTING_XP
 
+async def get_or_create_user(tg_user: User):
+    row = await db.fetchrow("SELECT * FROM users WHERE telegram_id = $1", tg_user.id)
+    if row:
+        return dict(row)
+    else:
+        await db.execute(
+            "INSERT INTO users (telegram_id, username, full_name, money, xp) VALUES ($1, $2, $3, $4, $5)",
+            tg_user.id, tg_user.username, tg_user.full_name, STARTING_MONEY, STARTING_XP
+        )
+        return dict(await db.fetchrow("SELECT * FROM users WHERE telegram_id = $1", tg_user.id))
 
-def add_xp(uid: int, amount: int):
-    c.execute("SELECT xp, level FROM users WHERE user_id=?", (uid,))
-    row = c.fetchone()
+async def update_user_money(telegram_id: int, delta: int, reason: str = "", admin_id: int = None):
+    await db.execute("UPDATE users SET money = money + $1 WHERE telegram_id = $2", delta, telegram_id)
+    if admin_id:
+        await db.execute("INSERT INTO economy_log (user_id, amount, reason, admin_id) VALUES ($1, $2, $3, $4)",
+                         telegram_id, delta, reason, admin_id)
+    return True
 
-    if not row:
-        return
+async def update_user_xp(telegram_id: int, delta: int):
+    await db.execute("UPDATE users SET xp = xp + $1 WHERE telegram_id = $2", delta, telegram_id)
 
-    xp, level = row
-    xp += amount
-
-    # الترقية
-    while xp >= level * 200:
-        xp -= level * 200
-        level += 1
-
-    title = TITLES[min(level - 1, len(TITLES) - 1)]
-
-    c.execute("""
-        UPDATE users
-        SET xp=?, level=?, title=?
-        WHERE user_id=?
-    """, (xp, level, title, uid))
-
-    conn.commit()
+async def get_user(telegram_id: int):
+    return await db.fetchrow("SELECT * FROM users WHERE telegram_id = $1", telegram_id)
