@@ -10,18 +10,18 @@ def set_bot_instance(b: Bot):
 
 async def send_levelup_notification(chat_id: int, user_id: int, new_level: int, user_name: str):
     progress = await get_xp_progress(user_id)
-    text = f"""╭━━━━━━━━━━━━━━━╮
-┃ 🎉  تـهـنـئـة  🎉
-╰━━━━━━━━━━━━━━━╯
+    text = f"""╭━━━━━━━━━━━━━━━━━━━━━━━━━━╮
+┃ 🎉 *تـهـنـئـة* 🎉
+╰━━━━━━━━━━━━━━━━━━━━━━━━━━╯
 
 ✨ *مبروك يا {user_name}* ✨
 
 لقد وصلت إلى 🔥 *المستوى {new_level}* 🔥
 
-━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━━━━━━━━━
 💰 *مكافأة الترقية:* {LEVELUP_BONUS_MONEY} {CURRENCY_NAME}
 ⭐ *XP إضافي:* {LEVELUP_BONUS_XP} نقطة
-━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 📊 *شريط XP الجديد:*
 {progress['bar']} {progress['percent']}%
