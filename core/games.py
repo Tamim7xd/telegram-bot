@@ -1,10 +1,10 @@
 import random
 from aiogram import Dispatcher, types
 from aiogram.types import Message
-from _core.game_engine import get_random_game, check_answer, save_game_session, get_game_session
-from _core.users import update_user_money, update_user_xp, get_user
-from _core.xp import add_xp
-from _core.notify import bot
+from core.game_engine import get_random_game, check_answer, save_game_session, get_game_session
+from core.users import update_user_money, update_user_xp, get_user
+from core.xp import add_xp
+from core.notify import bot
 from config import GAME_TIME_LIMIT, DEFAULT_GAME_PRIZE_MIN, DEFAULT_GAME_PRIZE_MAX
 
 async def cmd_game(message: Message):
