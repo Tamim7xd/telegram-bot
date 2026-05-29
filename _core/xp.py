@@ -8,9 +8,9 @@ async def get_xp_progress(telegram_id: int):
     level = user["level"]
     xp_in_level = xp - (level-1)*XP_PER_LEVEL
     needed = XP_PER_LEVEL
-    percent = int((xp_in_level / needed) * 100)
+    percent = int((xp_in_level / needed) * 100) if needed > 0 else 0
     bar_length = 20
-    filled = int(bar_length * xp_in_level / needed)
+    filled = int(bar_length * xp_in_level / needed) if needed > 0 else 0
     bar = "█" * filled + "░" * (bar_length - filled)
     return {
         "current_xp": xp_in_level,
@@ -18,7 +18,7 @@ async def get_xp_progress(telegram_id: int):
         "percent": percent,
         "bar": bar,
         "level": level,
-        "remaining": needed - xp_in_level
+        "remaining": needed - xp_in_level if needed > 0 else 0
     }
 
 async def add_xp(telegram_id: int, amount: int, chat_id: int = None, user_name: str = ""):
