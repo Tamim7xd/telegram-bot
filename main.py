@@ -11,7 +11,7 @@ from _core.titles import register_titles_handlers
 from _core.games import register_games_handlers
 from _core.events import register_event_handlers
 from _core.callbacks import register_callback_handlers
-from _core.notify import register_notify_handlers, set_bot_instance, bot
+from _core.notify import register_notify_handlers, set_bot_instance
 
 logging.basicConfig(level=logging.INFO)
 
@@ -25,12 +25,17 @@ async def on_user_join(event: ChatMemberUpdated):
     if event.new_chat_member.status == "member" and event.old_chat_member.status != "member":
         user = event.new_chat_member.user
         await get_or_create_user(user)
+        from _core.notify import bot
         await bot.send_message(event.chat.id, f"✨ مرحباً {user.full_name}!\nاستخدم #ملفي لعرض معلوماتك.")
 
 async def main():
+    # تأكد من عدم وجود webhook قديم
+    bot_obj = Bot(token=BOT_TOKEN)
+    await bot_obj.delete_webhook(drop_pending_updates=True)   # 🔥 حل التعارض
+    await asyncio.sleep(0.5)
+
     await db.connect()
     await db.init_tables()
-    bot_obj = Bot(token=BOT_TOKEN)
     set_bot_instance(bot_obj)
     dp = Dispatcher()
 
