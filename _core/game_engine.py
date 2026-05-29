@@ -16,6 +16,7 @@ def load_all_games():
             try:
                 with open(os.path.join(DATA_DIR, filename), "r", encoding="utf-8") as f:
                     games_data[name] = json.load(f)
+                print(f"✅ Loaded {len(games_data[name])} from {filename}")
             except:
                 games_data[name] = []
 
@@ -38,27 +39,25 @@ async def get_random_game(prize: int, game_type: str = None):
         return None
     chosen = random.choice(available)
     item = random.choice(games_data[chosen])
-    # تصميم جذاب
-    border = "╭━━━━━━━━━━━━━━━╮\n┃"
     if chosen == "puzzles":
-        display = f"{border} 🧠 لغز ┃\n╰━━━━━━━━━━━━━━━╯\n\n🧩 *{item['question']}*\n\n⏳ الوقت: {GAME_TIME_LIMIT} ثانية\n💰 الجائزة: {prize} دينار"
-        answer = item['answer']
+        answer = item["answer"]
+        display = f"🧩 *لغز:* {item['question']}\n⏳ {GAME_TIME_LIMIT} ثانية\n💰 الجائزة: {prize} دينار"
     elif chosen == "general_qa":
-        display = f"{border} ❓ سؤال عام ┃\n╰━━━━━━━━━━━━━━━╯\n\n❓ *{item['question']}*\n\n💰 الجائزة: {prize} دينار"
-        answer = item['answer']
+        answer = item["answer"]
+        display = f"❓ *سؤال:* {item['question']}\n💰 الجائزة: {prize} دينار"
     elif chosen == "mcq":
         opts = "\n".join([f"{chr(1575+i)}. {opt}" for i, opt in enumerate(item['options'])])
-        display = f"{border} 🔘 اختيار من متعدد ┃\n╰━━━━━━━━━━━━━━━╯\n\n🔘 *{item['question']}*\n\n{opts}\n\n💰 الجائزة: {prize} دينار\n📝 أرسل الحرف (أ، ب، ج، د)"
         answer = item['correct']
+        display = f"🔘 *اختر الإجابة:*\n{item['question']}\n\n{opts}\n💰 الجائزة: {prize} دينار\nأرسل الحرف (أ، ب، ج، د)"
     elif chosen == "speed_words":
-        display = f"{border} ⚡ سرعة ┃\n╰━━━━━━━━━━━━━━━╯\n\n⚡ *اكتب معكوس:* `{item['word']}`\n\n💰 الجائزة: {prize} دينار"
         answer = item['reversed']
+        display = f"⚡ *اكتب معكوس:* {item['word']}\n💰 الجائزة: {prize} دينار"
     elif chosen == "proverbs":
-        display = f"{border} 📜 مثل شعبي ┃\n╰━━━━━━━━━━━━━━━╯\n\n📜 *أكمل المثل:* {item['partial']}\n\n💰 الجائزة: {prize} دينار"
         answer = item['complete']
+        display = f"📜 *أكمل المثل:* {item['partial']}\n💰 الجائزة: {prize} دينار"
     elif chosen == "luck_boxes":
-        display = f"{border} 🎲 حظ ┃\n╰━━━━━━━━━━━━━━━╯\n\n🎁 *اختر صندوقاً 1-5*\n📦 1  📦 2  📦 3  📦 4  📦 5\n\n💰 الجائزة: عشوائية"
         answer = "box"
+        display = f"🎁 *اختر صندوقاً (1-5)*\n💰 الجائزة: عشوائية"
     else:
         return None
     return {
@@ -66,7 +65,6 @@ async def get_random_game(prize: int, game_type: str = None):
         "question": item.get('question', ''),
         "answer": str(answer).strip().lower(),
         "display_text": display,
-        "item": item,
         "prize": prize
     }
 
@@ -91,15 +89,12 @@ async def check_answer(chat_id, message_id, user_answer):
         try:
             box = int(user_answer.strip())
             if 1 <= box <= 5:
-                prizes = {1: (10,50), 2: (50,100), 3: (100,200), 4: (200,350), 5: (350,500)}
-                mn, mx = prizes.get(box, (10,100))
-                prize = random.randint(mn, mx)
+                prize = random.randint(10, 200)
                 await update_game_session_status(chat_id, message_id, 'finished')
                 return prize
         except:
             return 0
-    correct = user_answer.strip().lower() == session['answer']
-    if correct:
+    if user_answer.strip().lower() == session['answer']:
         await update_game_session_status(chat_id, message_id, 'finished')
         return session['prize_money']
     return 0
