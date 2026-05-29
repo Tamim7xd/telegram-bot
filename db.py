@@ -27,7 +27,6 @@ class Database:
         async with self.pool.acquire() as conn:
             return await conn.fetchrow(query, *args)
 
-    # ✅ هذه الدالة كانت مفقودة وأضفناها
     async def fetchval(self, query, *args):
         async with self.pool.acquire() as conn:
             return await conn.fetchval(query, *args)
