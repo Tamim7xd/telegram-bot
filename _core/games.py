@@ -10,15 +10,19 @@ from config import GAME_TIME_LIMIT, DEFAULT_GAME_PRIZE_MIN, DEFAULT_GAME_PRIZE_M
 async def show_game_menu(message: Message):
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🧠 لغز", callback_data="game_puzzles")],
+        [InlineKeyboardButton(text="❓ سؤال عام", callback_data="game_general")],
+        [InlineKeyboardButton(text="🔘 اختيار من متعدد", callback_data="game_mcq")],
+        [InlineKeyboardButton(text="⚡ سرعة", callback_data="game_speed")],
         [InlineKeyboardButton(text="🎲 حظ", callback_data="game_luck")],
+        [InlineKeyboardButton(text="📜 مثل", callback_data="game_proverb")],
         [InlineKeyboardButton(text="🎲 عشوائي", callback_data="game_random")]
     ])
-    await message.reply("🎮 اختر نوع اللعبة:", reply_markup=keyboard)
+    await message.reply("🎮 *اختر نوع اللعبة:*", reply_markup=keyboard, parse_mode="Markdown")
 
 async def start_game(chat_id, game_type, prize):
     game = await get_random_game(prize, game_type)
     if not game:
-        await bot.send_message(chat_id, "⚠️ لا توجد أسئلة لهذا النوع حالياً.")
+        await bot.send_message(chat_id, "⚠️ هذا النوع لا يحتوي على أسئلة حالياً. جرب نوعاً آخر.")
         return False
     sent = await bot.send_message(chat_id, game['display_text'], parse_mode="Markdown")
     await save_game_session(chat_id, sent.message_id, game['type'], game['question'], game['answer'], prize)
@@ -27,7 +31,7 @@ async def start_game(chat_id, game_type, prize):
 
 async def end_game_timeout(chat_id, msg_id, correct):
     await asyncio.sleep(GAME_TIME_LIMIT)
-    await bot.send_message(chat_id, f"⏰ انتهت المهلة! الإجابة: {correct}")
+    await bot.send_message(chat_id, f"⏰ *انتهت المهلة!*\nالإجابة الصحيحة: `{correct}`", parse_mode="Markdown")
 
 async def handle_game_answer(message: Message):
     if not message.reply_to_message:
@@ -36,15 +40,14 @@ async def handle_game_answer(message: Message):
     if prize is None:
         return
     if prize > 0:
-        await update_user_money(message.from_user.id, prize, "فوز", None)
+        await update_user_money(message.from_user.id, prize, "فوز بلعبة", None)
         await add_xp(message.from_user.id, 25, message.chat.id, message.from_user.full_name)
-        await message.reply(f"🎉 صحيح! +{prize} {CURRENCY_NAME} و +25 XP")
+        await message.reply(f"🎉 *إجابة صحيحة!*\n💰 +{prize} {CURRENCY_NAME}\n⭐ +25 XP", parse_mode="Markdown")
     elif prize == 0:
-        await message.reply("❌ خطأ")
+        await message.reply("❌ *إجابة خاطئة!*", parse_mode="Markdown")
 
 async def game_callback(callback: CallbackQuery):
-    print(f"[DEBUG] Game callback: {callback.data}")
-    await callback.answer("جاري التحضير...")
+    await callback.answer("جاري تحضير اللعبة...")
     game_type = callback.data.replace("game_", "")
     if game_type == "random":
         game_type = None
