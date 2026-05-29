@@ -1,91 +1,32 @@
-import asyncpg
-from config import DATABASE_URL
+import os
+from dotenv import load_dotenv
 
-class Database:
-    def __init__(self):
-        self.pool = None
+load_dotenv()
 
-    async def connect(self):
-        if not DATABASE_URL:
-            raise Exception("DATABASE_URL غير معرف. تأكد من إضافة قاعدة البيانات في Railway.")
-        try:
-            self.pool = await asyncpg.create_pool(DATABASE_URL)
-            print("✅ تم الاتصال بقاعدة البيانات بنجاح")
-        except Exception as e:
-            print(f"❌ فشل الاتصال بقاعدة البيانات: {e}")
-            raise
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+DATABASE_URL = os.getenv("DATABASE_URL")
+ADMIN_IDS = list(map(int, os.getenv("ADMIN_IDS", "").split(","))) if os.getenv("ADMIN_IDS") else []
 
-    async def execute(self, query, *args):
-        async with self.pool.acquire() as conn:
-            return await conn.execute(query, *args)
+# XP settings
+XP_PER_MESSAGE = 5
+XP_PER_LEVEL = 250
+LEVELUP_BONUS_MONEY = 500
+LEVELUP_BONUS_XP = 100
 
-    async def fetch(self, query, *args):
-        async with self.pool.acquire() as conn:
-            return await conn.fetch(query, *args)
+# Economy
+CURRENCY_NAME = "دينار"
+STARTING_MONEY = 100
+STARTING_XP = 0
 
-    async def fetchrow(self, query, *args):
-        async with self.pool.acquire() as conn:
-            return await conn.fetchrow(query, *args)
+# Games
+GAME_COOLDOWN = 30
+DEFAULT_GAME_PRIZE_MIN = 50
+DEFAULT_GAME_PRIZE_MAX = 300
+GAME_TIME_LIMIT = 20
 
-    async def init_tables(self):
-        # نفس الجداول السابقة...
-        await self.execute("""
-            CREATE TABLE IF NOT EXISTS users (
-                telegram_id BIGINT PRIMARY KEY,
-                username TEXT,
-                full_name TEXT,
-                messages_count INT DEFAULT 0,
-                money INT DEFAULT 100,
-                xp INT DEFAULT 0,
-                level INT DEFAULT 1,
-                title TEXT DEFAULT '',
-                warnings INT DEFAULT 0,
-                status TEXT DEFAULT 'active',
-                game_points INT DEFAULT 0,
-                wins INT DEFAULT 0,
-                created_at TIMESTAMP DEFAULT NOW()
-            )
-        """)
-        await self.execute("""
-            CREATE TABLE IF NOT EXISTS admins (
-                user_id BIGINT PRIMARY KEY,
-                permissions TEXT DEFAULT 'all',
-                added_by BIGINT
-            )
-        """)
-        await self.execute("""
-            CREATE TABLE IF NOT EXISTS guild_settings (
-                chat_id BIGINT PRIMARY KEY,
-                welcome_message TEXT,
-                enable_games INT DEFAULT 1,
-                game_cooldown INT DEFAULT 30,
-                sound_enabled INT DEFAULT 1,
-                levelup_message TEXT
-            )
-        """)
-        await self.execute("""
-            CREATE TABLE IF NOT EXISTS game_sessions (
-                chat_id BIGINT,
-                message_id INT,
-                game_type TEXT,
-                question TEXT,
-                answer TEXT,
-                prize_money INT,
-                started_at TIMESTAMP DEFAULT NOW(),
-                status TEXT DEFAULT 'waiting',
-                PRIMARY KEY (chat_id, message_id)
-            )
-        """)
-        await self.execute("""
-            CREATE TABLE IF NOT EXISTS economy_log (
-                id SERIAL PRIMARY KEY,
-                user_id BIGINT,
-                amount INT,
-                reason TEXT,
-                admin_id BIGINT,
-                timestamp TIMESTAMP DEFAULT NOW()
-            )
-        """)
-        print("✅ تم إنشاء جميع الجداول بنجاح")
+# Sounds
+SOUNDS_ENABLED = True
+SOUNDS_PATH = "sounds/"
 
-db = Database()
+# Data files
+DATA_DIR = "data"
