@@ -1,6 +1,6 @@
 from aiogram import Bot, Dispatcher
 from config import BOT_TOKEN, SOUNDS_ENABLED, CURRENCY_NAME
-from _core.xp import get_xp_progress
+from core.xp import get_xp_progress
 
 bot = Bot(token=BOT_TOKEN, default=None)  # سيتم تعيينه لاحقاً من main
 
