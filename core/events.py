@@ -1,10 +1,10 @@
 from aiogram import Dispatcher, types
 from aiogram.types import Message
 from config import ADMIN_IDS, CURRENCY_NAME
-from _core.users import update_user_money, get_user
-from _core.xp import add_xp, get_xp_progress
-from _core.games import cmd_game
-from _core.titles import set_user_title, remove_user_title
+from core.users import update_user_money, get_user
+from core.xp import add_xp, get_xp_progress
+from core.games import cmd_game
+from core.titles import set_user_title, remove_user_title
 import re
 
 async def handle_reply_actions(message: Message):
