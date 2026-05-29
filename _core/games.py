@@ -1,4 +1,5 @@
-import random, asyncio
+import random
+import asyncio
 from aiogram import Dispatcher
 from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 from _core.game_engine import get_random_game, save_game_session, check_answer
@@ -7,31 +8,41 @@ from _core.xp import add_xp
 from _core.notify import bot
 from config import GAME_TIME_LIMIT, DEFAULT_GAME_PRIZE_MIN, DEFAULT_GAME_PRIZE_MAX, CURRENCY_NAME
 
+GAME_TYPES = {
+    "puzzles": "🧠 لغز",
+    "general_qa": "❓ سؤال عام",
+    "mcq": "🔘 اختيار من متعدد",
+    "speed_words": "⚡ سرعة",
+    "proverbs": "📜 مثل شعبي",
+    "luck_boxes": "🎲 حظ (صندوق)"
+}
+
 async def show_game_menu(message: Message):
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🧠 لغز", callback_data="game_puzzles")],
-        [InlineKeyboardButton(text="❓ سؤال عام", callback_data="game_general")],
-        [InlineKeyboardButton(text="🔘 اختيار من متعدد", callback_data="game_mcq")],
-        [InlineKeyboardButton(text="⚡ سرعة", callback_data="game_speed")],
-        [InlineKeyboardButton(text="🎲 حظ", callback_data="game_luck")],
-        [InlineKeyboardButton(text="📜 مثل", callback_data="game_proverb")],
-        [InlineKeyboardButton(text="🎲 عشوائي", callback_data="game_random")]
-    ])
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[])
+    row = []
+    for key, name in GAME_TYPES.items():
+        row.append(InlineKeyboardButton(text=name, callback_data=f"game_{key}"))
+        if len(row) == 2:
+            keyboard.inline_keyboard.append(row)
+            row = []
+    if row:
+        keyboard.inline_keyboard.append(row)
+    keyboard.inline_keyboard.append([InlineKeyboardButton(text="🎲 عشوائي", callback_data="game_random")])
     await message.reply("🎮 *اختر نوع اللعبة:*", reply_markup=keyboard, parse_mode="Markdown")
 
-async def start_game(chat_id, game_type, prize):
+async def start_game(chat_id: int, game_type: str, prize: int):
     game = await get_random_game(prize, game_type)
     if not game:
-        await bot.send_message(chat_id, "⚠️ هذا النوع لا يحتوي على أسئلة حالياً. جرب نوعاً آخر.")
+        await bot.send_message(chat_id, f"⚠️ لا توجد أسئلة لنوع '{game_type}' حالياً. أضف أسئلة في ملف data/{game_type}.json")
         return False
-    sent = await bot.send_message(chat_id, game['display_text'], parse_mode="Markdown")
-    await save_game_session(chat_id, sent.message_id, game['type'], game['question'], game['answer'], prize)
-    asyncio.create_task(end_game_timeout(chat_id, sent.message_id, game['answer']))
+    sent_msg = await bot.send_message(chat_id, game['display_text'], parse_mode="Markdown")
+    await save_game_session(chat_id, sent_msg.message_id, game['type'], game['question'], game['answer'], prize)
+    asyncio.create_task(end_game_timeout(chat_id, sent_msg.message_id, game['answer']))
     return True
 
-async def end_game_timeout(chat_id, msg_id, correct):
+async def end_game_timeout(chat_id: int, msg_id: int, correct_answer: str):
     await asyncio.sleep(GAME_TIME_LIMIT)
-    await bot.send_message(chat_id, f"⏰ *انتهت المهلة!*\nالإجابة الصحيحة: `{correct}`", parse_mode="Markdown")
+    await bot.send_message(chat_id, f"⏰ *انتهت المهلة!*\nالإجابة الصحيحة: `{correct_answer}`", parse_mode="Markdown")
 
 async def handle_game_answer(message: Message):
     if not message.reply_to_message:
