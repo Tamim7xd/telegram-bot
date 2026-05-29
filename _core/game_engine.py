@@ -33,23 +33,23 @@ async def get_random_game(prize: int, game_type: str = None):
     item = random.choice(games_data[chosen])
     if chosen == "puzzles":
         answer = item["answer"]
-        display = f"🧩 *لغز:* {item['question']}\n⏳ {GAME_TIME_LIMIT} ثانية\n💰 الجائزة: 10 دينار"
+        display = f"🧩 *لغز:* {item['question']}\n⏳ {GAME_TIME_LIMIT} ثانية\n💰 الجائزة: {prize} دينار"
     elif chosen == "general_qa":
         answer = item["answer"]
-        display = f"❓ *سؤال:* {item['question']}\n💰 الجائزة: 10 دينار"
+        display = f"❓ *سؤال:* {item['question']}\n💰 الجائزة: {prize} دينار"
     elif chosen == "mcq":
         opts = "\n".join([f"{chr(1575+i)}. {opt}" for i, opt in enumerate(item['options'])])
         answer = item['correct']
-        display = f"🔘 *اختر الإجابة:*\n{item['question']}\n\n{opts}\n💰 الجائزة: 10 دينار\nأرسل الحرف (أ، ب، ج، د)"
+        display = f"🔘 *اختر الإجابة:*\n{item['question']}\n\n{opts}\n💰 الجائزة: {prize} دينار\nأرسل الحرف (أ، ب، ج، د)"
     elif chosen == "speed_words":
         answer = item['reversed']
-        display = f"⚡ *اكتب معكوس:* {item['word']}\n💰 الجائزة: 10 دينار"
+        display = f"⚡ *اكتب معكوس:* {item['word']}\n💰 الجائزة: {prize} دينار"
     elif chosen == "proverbs":
         answer = item['complete']
-        display = f"📜 *أكمل المثل:* {item['partial']}\n💰 الجائزة: 10 دينار"
+        display = f"📜 *أكمل المثل:* {item['partial']}\n💰 الجائزة: {prize} دينار"
     elif chosen == "luck_boxes":
         answer = "box"
-        display = f"🎁 *اختر صندوقاً (1-5)*\n💰 الجائزة: 10-200 دينار"
+        display = f"🎁 *اختر صندوقاً (1-5)*\n💰 الجائزة: تصل إلى {prize*2} دينار"
     else:
         return None
     return {
