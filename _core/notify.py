@@ -6,8 +6,7 @@ def set_bot_instance(instance: Bot):
     global bot
     bot = instance
 
-
 def get_bot() -> Bot:
-    if not bot:
+    if bot is None:
         raise RuntimeError("Bot not initialized")
     return bot
