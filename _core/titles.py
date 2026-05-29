@@ -1,6 +1,5 @@
 from db import db
 
-# 50 لقبًا افتراضيًا (قابل للتوسع عبر الإضافة من لوحة التحكم)
 DEFAULT_TITLES = [
     "عضو", "متدرب", "مقاتل", "محارب", "فارس", "بطل", "أسطورة", "خرافي", "لا يقهر",
     "حكيم", "قائد", "ملك", "إمبراطور", "قدوة", "نجم", "سيف", "رمح", "درع", "صقر",
@@ -16,7 +15,6 @@ async def init_titles_table():
             title TEXT UNIQUE
         )
     """)
-    # إضافة الألقاب الافتراضية إذا لم تكن موجودة
     for title in DEFAULT_TITLES:
         await db.execute("INSERT INTO titles (title) VALUES ($1) ON CONFLICT (title) DO NOTHING", title)
 
@@ -28,7 +26,6 @@ async def add_custom_title(title: str):
     await db.execute("INSERT INTO titles (title) VALUES ($1) ON CONFLICT (title) DO NOTHING", title)
 
 async def set_user_title(telegram_id: int, title: str):
-    # التحقق من أن اللقب موجود في قائمة الألقاب المسموحة
     title_exists = await db.fetchval("SELECT 1 FROM titles WHERE title = $1", title)
     if not title_exists:
         return False
