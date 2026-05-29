@@ -26,5 +26,13 @@ async def update_user_xp(telegram_id: int, delta: int):
 async def get_user(telegram_id: int):
     return await db.fetchrow("SELECT * FROM users WHERE telegram_id = $1", telegram_id)
 
+# ✅ الدوال الجديدة (في نهاية الملف، خارج أي دالة أخرى)
+async def set_user_status(telegram_id: int, status: str):
+    await db.execute("UPDATE users SET status = $1 WHERE telegram_id = $2", status, telegram_id)
+
+async def get_user_status(telegram_id: int):
+    row = await db.fetchrow("SELECT status FROM users WHERE telegram_id = $1", telegram_id)
+    return row["status"] if row else "active"
+
 def register_user_handlers(dp):
     pass
