@@ -57,6 +57,54 @@ class Database:
             )
         """)
         await self.execute("""
+            CREATE TABLE IF NOT EXISTS mods (
+                user_id BIGINT PRIMARY KEY,
+                added_by BIGINT,
+                permissions TEXT DEFAULT 'mute,unmute,info,warn',
+                created_at TIMESTAMP DEFAULT NOW()
+            )
+        """)
+        await self.execute("""
+            CREATE TABLE IF NOT EXISTS temp_bans (
+                user_id BIGINT,
+                chat_id BIGINT,
+                until TIMESTAMP,
+                reason TEXT,
+                PRIMARY KEY (user_id, chat_id)
+            )
+        """)
+        await self.execute("""
+            CREATE TABLE IF NOT EXISTS shop_items (
+                id SERIAL PRIMARY KEY,
+                name TEXT UNIQUE,
+                price INT,
+                rank_level INT,
+                description TEXT
+            )
+        """)
+        await self.execute("""
+            CREATE TABLE IF NOT EXISTS user_purchases (
+                user_id BIGINT,
+                item_id INT,
+                purchased_at TIMESTAMP DEFAULT NOW(),
+                PRIMARY KEY (user_id, item_id)
+            )
+        """)
+        await self.execute("""
+            CREATE TABLE IF NOT EXISTS user_stats (
+                user_id BIGINT PRIMARY KEY,
+                total_messages INT DEFAULT 0,
+                total_warns INT DEFAULT 0,
+                total_mutes INT DEFAULT 0,
+                total_bans INT DEFAULT 0,
+                total_kicks INT DEFAULT 0,
+                total_deductions INT DEFAULT 0,
+                last_deduction_amount INT DEFAULT 0,
+                last_deduction_reason TEXT DEFAULT '',
+                last_deduction_at TIMESTAMP
+            )
+        """)
+        await self.execute("""
             CREATE TABLE IF NOT EXISTS guild_settings (
                 chat_id BIGINT PRIMARY KEY,
                 welcome_message TEXT,
@@ -89,11 +137,43 @@ class Database:
                 timestamp TIMESTAMP DEFAULT NOW()
             )
         """)
-        for admin_id in ADMIN_IDS:
+        await self.execute("""
+            CREATE TABLE IF NOT EXISTS titles (
+                id SERIAL PRIMARY KEY,
+                title TEXT UNIQUE
+            )
+        """)
+        # إضافة الألقاب الافتراضية
+        default_titles = [
+            "عضو", "متدرب", "مقاتل", "محارب", "فارس", "بطل", "أسطورة", "خرافي", "لا يقهر",
+            "حكيم", "قائد", "ملك", "إمبراطور", "قدوة", "نجم", "سيف", "رمح", "درع", "صقر",
+            "أسد", "ذئب", "نمر", "ثعلب", "غزال", "نسر", "باز", "صاعقة", "زلزال", "برق",
+            "نور", "ظل", "نار", "ثلج", "ريح", "بحر", "جبل", "وادي", "قمة", "نجمة",
+            "كوكب", "قمر", "شمس", "مجد", "عزة", "كرامة", "إخلاص", "وفاء", "صبر", "حكمة"
+        ]
+        for title in default_titles:
+            await self.execute("INSERT INTO titles (title) VALUES ($1) ON CONFLICT (title) DO NOTHING", title)
+        # إضافة الرتب الافتراضية للمتجر
+        default_ranks = [
+            ("عضو جديد", 1000, 1, "الرتبة الأساسية"),
+            ("متدرب", 2000, 2, "بداية الطريق"),
+            ("مقاتل", 3500, 3, "شجاع"),
+            ("محارب", 5000, 4, "قوي"),
+            ("فارس", 7500, 5, "محترف"),
+            ("بطل", 10000, 6, "أسطوري"),
+            ("قائد", 15000, 7, "قائد الفريق"),
+            ("ملك", 20000, 8, "حاكم"),
+            ("إمبراطور", 30000, 9, "عظيم"),
+            ("أسطورة", 50000, 10, "خرافي")
+        ]
+        for name, price, level, desc in default_ranks:
             await self.execute("""
-                INSERT INTO admins (user_id, permissions, added_by) VALUES ($1, 'all', 0)
-                ON CONFLICT (user_id) DO NOTHING
-            """, admin_id)
+                INSERT INTO shop_items (name, price, rank_level, description)
+                VALUES ($1, $2, $3, $4) ON CONFLICT (name) DO NOTHING
+            """, name, price, level, desc)
+        # إضافة الأدمن من الإعدادات
+        for admin_id in ADMIN_IDS:
+            await self.execute("INSERT INTO admins (user_id, permissions, added_by) VALUES ($1, 'all', 0) ON CONFLICT (user_id) DO NOTHING", admin_id)
         print("✅ تم إنشاء جميع الجداول")
 
 db = Database()
