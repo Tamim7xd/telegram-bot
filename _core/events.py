@@ -1,13 +1,13 @@
 from aiogram import Dispatcher
 from aiogram.types import Message
-from config import ADMIN_IDS, CURRENCY_NAME
-from _core.users import update_user_money, get_user
+from config import ADMIN_IDS, CURRENCY_NAME, XP_PER_MESSAGE
+from _core.users import update_user_money, get_user, set_user_status
 from _core.xp import add_xp, get_xp_progress
 from _core.games import cmd_game
-from _core.titles import set_user_title, remove_user_title
-import re
+from _core.titles import set_user_title
+from db import db
 
-# ------------------- أوامر الأدمن بالرد -------------------
+# ------------------- أوامر الأدمن بالرد ($) -------------------
 async def handle_admin_reply_commands(message: Message):
     if not message.reply_to_message:
         return
@@ -18,37 +18,27 @@ async def handle_admin_reply_commands(message: Message):
     target = message.reply_to_message.from_user
     text = message.text.strip()
     
-    # كتم المستخدم (تغيير حالة المستخدم في قاعدة البيانات)
     if text.startswith("$كتم"):
         parts = text.split(maxsplit=2)
-        if len(parts) >= 2:
-            duration = parts[1]  # مثلاً 10m, 1h, 1d
-            reason = parts[2] if len(parts) > 2 else "لا يوجد سبب"
-            # تحويل المدة إلى دقائق (يمكنك تطويرها)
-            await message.reply(f"🔇 تم كتم {target.full_name} لمدة {duration}. السبب: {reason}")
-            # هنا يمكن تحديث حالة المستخدم في قاعدة البيانات
-        else:
-            await message.reply("❌ استخدم: $كتم 10m سبب الاختيار")
+        duration = parts[1] if len(parts) >= 2 else "30m"
+        reason = parts[2] if len(parts) > 2 else "لا يوجد سبب"
+        await set_user_status(target.id, "muted")
+        await message.reply(f"🔇 تم كتم {target.full_name} لمدة {duration}. السبب: {reason}")
     
-    # حظر المستخدم
     elif text.startswith("$حظر"):
-        parts = text.split(maxsplit=1)
-        reason = parts[1] if len(parts) > 1 else "لا يوجد سبب"
+        reason = text[5:].strip() or "لا يوجد سبب"
+        await set_user_status(target.id, "banned")
         await message.reply(f"🚫 تم حظر {target.full_name}. السبب: {reason}")
-        # تحديث حالة المستخدم إلى banned
     
-    # طرد المستخدم (يتطلب صلاحية البوت لطرد الأعضاء)
     elif text.startswith("$طرد"):
         reason = text[5:].strip() or "لا يوجد سبب"
         await message.reply(f"👢 تم طرد {target.full_name}. السبب: {reason}")
-        # محاولة طرد العضو من المجموعة
         try:
             await message.chat.ban_member(target.id)
             await message.chat.unban_member(target.id)
         except:
             pass
     
-    # خصم رصيد
     elif text.startswith("$خصم"):
         parts = text.split(maxsplit=2)
         if len(parts) >= 2 and parts[1].isdigit():
@@ -59,7 +49,6 @@ async def handle_admin_reply_commands(message: Message):
         else:
             await message.reply("❌ استخدم: $خصم 50 سبب مخالفة")
     
-    # إعطاء رصيد (مكافأة)
     elif text.startswith("$اعطاء") or text.startswith("$إعطاء"):
         parts = text.split(maxsplit=2)
         if len(parts) >= 2 and parts[1].isdigit():
@@ -70,7 +59,6 @@ async def handle_admin_reply_commands(message: Message):
         else:
             await message.reply("❌ استخدم: $اعطاء 100 مكافأة نشاط")
     
-    # تغيير اللقب
     elif text.startswith("$لقب"):
         new_title = text[5:].strip()
         if new_title:
@@ -79,9 +67,7 @@ async def handle_admin_reply_commands(message: Message):
         else:
             await message.reply("❌ استخدم: $لقب بطل")
     
-    # سجل الأدمن (آخر 10 عمليات)
     elif text == "$سجل":
-        from db import db
         rows = await db.fetch("SELECT * FROM economy_log WHERE admin_id = $1 ORDER BY timestamp DESC LIMIT 10", admin.id)
         if rows:
             log_text = "📜 *آخر عملياتك:*\n"
@@ -100,29 +86,29 @@ async def handle_hashtag_commands(message: Message):
     if text in ["#ملفي", "#حسابي", "#معلوماتي", "#معلومات", "#ملف"]:
         user = await get_user(user_id)
         progress = await get_xp_progress(user_id)
+        # استخدام نص عادي بدلاً من Markdown لتجنب الأخطاء
         reply = f"""╭━━━━━━━━━━━━━━━╮
-┃ 👤 *الملف الشخصي* 👤
+┃ 👤 الملف الشخصي 👤
 ╰━━━━━━━━━━━━━━━╯
 
-✨ *الاسم:* {user['full_name']}
-🆔 *المعرف:* @{user['username'] or 'لا يوجد'}
+✨ الاسم: {user['full_name']}
+🆔 المعرف: @{user['username'] or 'لا يوجد'}
 
 ━━━━━━━━━━━━━━━
-💰 *الرصيد:* {user['money']} {CURRENCY_NAME}
-🏆 *اللقب:* {user['title'] or 'لا يوجد'}
-⭐ *النقاط (XP):* {user['xp']}
-📊 *المستوى:* {user['level']}
+💰 الرصيد: {user['money']} {CURRENCY_NAME}
+🏆 اللقب: {user['title'] or 'لا يوجد'}
+⭐ النقاط (XP): {user['xp']}
+📊 المستوى: {user['level']}
 
-📈 *شريط التقدم:*
+📈 شريط التقدم:
 {progress['bar']} {progress['percent']}%
 
-⏳ *المتبقي للمستوى التالي:* {progress['remaining']} XP
+⏳ المتبقي للمستوى التالي: {progress['remaining']} XP
 
 ━━━━━━━━━━━━━━━
-🎮 *نقاط الألعاب:* {user['game_points']}
-🏅 *الفوز في الألعاب:* {user['wins']}
-"""
-        await message.reply(reply, parse_mode="Markdown")
+🎮 نقاط الألعاب: {user['game_points']}
+🏅 الفوز في الألعاب: {user['wins']}"""
+        await message.reply(reply)  # بدون parse_mode
     
     # عرض الرصيد فقط
     elif text in ["#فلوس", "#فلوسي", "#رصيدي"]:
@@ -137,11 +123,20 @@ async def handle_hashtag_commands(message: Message):
     elif text in ["#مستواي", "#لـيفلي", "#نقاطي"]:
         user = await get_user(user_id)
         progress = await get_xp_progress(user_id)
-        await message.reply(f"📊 *المستوى {user['level']}*\n{progress['bar']} {progress['percent']}%\n{progress['remaining']} XP للمستوى التالي", parse_mode="Markdown")
+        await message.reply(f"📊 المستوى {user['level']}\n{progress['bar']} {progress['percent']}%\n{progress['remaining']} XP للمستوى التالي")
+
+# ------------------- إضافة XP عند كل رسالة -------------------
+async def add_xp_on_message(message: Message):
+    if not message.text:
+        return
+    if message.text.startswith("#") or message.text.startswith("$"):
+        return
+    if message.from_user.id in ADMIN_IDS:
+        return
+    await add_xp(message.from_user.id, XP_PER_MESSAGE, message.chat.id, message.from_user.full_name)
 
 # ------------------- تسجيل المعالجات -------------------
 def register_event_handlers(dp: Dispatcher):
-    # أوامر الأدمن بالرد (تبدأ بـ $)
     dp.message.register(handle_admin_reply_commands, lambda msg: msg.text and msg.text.startswith("$"))
-    # أوامر الأعضاء بعلامة #
     dp.message.register(handle_hashtag_commands, lambda msg: msg.text and msg.text.startswith("#"))
+    dp.message.register(add_xp_on_message)
