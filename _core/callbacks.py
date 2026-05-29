@@ -7,6 +7,7 @@ from _core.users import get_user, update_user_money, set_user_status
 from _core.titles import set_user_title
 from _core.notify import bot
 
+# دالة إرسال إشعار إداري للمجموعة
 async def send_admin_notification(chat_id: int, admin_name: str, target_name: str, action: str, detail: str = ""):
     text = f"""╭━━━━━━━━━━━━━━━━━━━━━━━━━━╮
 ┃ 🔔 *إشـارة إداريـة* 🔔
@@ -21,7 +22,7 @@ async def send_admin_notification(chat_id: int, admin_name: str, target_name: st
 ━━━━━━━━━━━━━━━━━━━━━━━━━━"""
     await bot.send_message(chat_id, text, parse_mode="Markdown")
 
-# لوحة الأدمن الرئيسية
+# ---------- لوحة الأدمن الرئيسية ----------
 async def admin_panel(message: Message):
     if message.from_user.id not in ADMIN_IDS:
         await message.reply("⚠️ هذا الأمر للأدمن فقط.")
@@ -34,7 +35,7 @@ async def admin_panel(message: Message):
     ])
     await message.reply("👑 *لوحة تحكم الأدمن*", reply_markup=keyboard, parse_mode="Markdown")
 
-# عرض قائمة الأعضاء
+# ---------- عرض قائمة الأعضاء (أسماء قابلة للنقر) ----------
 async def show_users_list(callback: CallbackQuery, page=1):
     limit = 10
     offset = (page - 1) * limit
@@ -59,7 +60,7 @@ async def show_users_list(callback: CallbackQuery, page=1):
     keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
     await callback.message.edit_text("👥 *اختر عضواً:*", parse_mode="Markdown", reply_markup=keyboard)
 
-# عرض تفاصيل العضو وأزرار التحكم
+# ---------- عرض تفاصيل العضو وأزرار التحكم ----------
 async def show_user_controls(callback: CallbackQuery, user_id: int):
     user = await get_user(user_id)
     if not user:
@@ -90,7 +91,7 @@ async def show_user_controls(callback: CallbackQuery, user_id: int):
     ])
     await callback.message.edit_text(text, parse_mode="Markdown", reply_markup=keyboard)
 
-# المعالج الرئيسي للأزرار
+# ---------- المعالج الرئيسي لجميع الأزرار ----------
 async def process_callback(callback: CallbackQuery):
     await callback.answer()
     data = callback.data
@@ -155,7 +156,7 @@ async def process_callback(callback: CallbackQuery):
         await show_users_list(callback, 1)
         return
 
-    # إجراءات التحكم
+    # إجراءات التحكم (تتم هنا)
     target_id = None
     if data.startswith("add_"):
         parts = data.split("_")
@@ -209,8 +210,8 @@ async def process_callback(callback: CallbackQuery):
             pass
     elif data.startswith("title_"):
         target_id = int(data.split("_")[1])
-        await callback.message.answer(f"أرسل اللقب الجديد للمستخدم (ID: {target_id})")
-        # هنا يمكن استخدام FSM، لكن سنكتفي بهذا وسيتم استقبال اللقب في حدث منفصل
+        await callback.message.answer(f"أرسل اللقب الجديد للمستخدم (ID: {target_id}) في رسالة منفردة.")
+        # يمكن تفعيل FSM هنا
         return
 
     if target_id:
