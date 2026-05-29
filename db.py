@@ -97,21 +97,21 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             title TEXT UNIQUE
         )''')
-        # إضافة الألقاب الافتراضية
-        default_titles = ['عضو', 'متدرب', 'مقاتل', 'محارب', 'فارس', 'بطل', 'أسطورة']
-        for t in default_titles:
+        # الألقاب الافتراضية
+        for t in ["عضو", "متدرب", "مقاتل", "محارب", "فارس", "بطل", "أسطورة"]:
             c.execute("INSERT OR IGNORE INTO titles (title) VALUES (?)", (t,))
-        # إضافة الرتب
-        default_ranks = [("عضو جديد", 1000, 1), ("متدرب", 2000, 2), ("مقاتل", 3500, 3), ("محارب", 5000, 4), ("فارس", 7500, 5), ("بطل", 10000, 6)]
-        for name, price, level in default_ranks:
+        # رتب السوق
+        ranks = [("عضو جديد", 1000, 1), ("متدرب", 2000, 2), ("مقاتل", 3500, 3),
+                 ("محارب", 5000, 4), ("فارس", 7500, 5), ("بطل", 10000, 6),
+                 ("قائد", 15000, 7), ("ملك", 20000, 8), ("إمبراطور", 30000, 9),
+                 ("أسطورة", 50000, 10)]
+        for name, price, level in ranks:
             c.execute("INSERT OR IGNORE INTO shop_items (name, price, rank_level, description) VALUES (?, ?, ?, ?)", (name, price, level, "رتبة"))
-        # إضافة الأدمن
         for aid in ADMIN_IDS:
             c.execute("INSERT OR IGNORE INTO admins (user_id, permissions, added_by) VALUES (?, 'all', 0)", (aid,))
         conn.commit()
-        print("✅ قاعدة البيانات SQLite جاهزة")
+        print("✅ قاعدة بيانات SQLite جاهزة")
 
-# دوال مساعدة غير متزامنة (متوافقة مع async)
 async def execute(query, *args):
     with get_conn() as conn:
         c = conn.cursor()
@@ -123,9 +123,8 @@ async def fetch(query, *args):
         c = conn.cursor()
         c.execute(query, args)
         rows = c.fetchall()
-        # إرجاع قائمة من القواميس (للتشابه مع asyncpg)
-        col_names = [d[0] for d in c.description]
-        return [dict(zip(col_names, row)) for row in rows]
+        col = [d[0] for d in c.description]
+        return [dict(zip(col, r)) for r in rows]
 
 async def fetchrow(query, *args):
     with get_conn() as conn:
@@ -133,29 +132,29 @@ async def fetchrow(query, *args):
         c.execute(query, args)
         row = c.fetchone()
         if row:
-            col_names = [d[0] for d in c.description]
-            return dict(zip(col_names, row))
+            col = [d[0] for d in c.description]
+            return dict(zip(col, row))
         return None
 
 async def fetchval(query, *args):
     with get_conn() as conn:
         c = conn.cursor()
         c.execute(query, args)
-        row = c.fetchone()
-        return row[0] if row else None
+        r = c.fetchone()
+        return r[0] if r else None
 
 class Database:
     async def connect(self):
         init_db()
     async def init_tables(self):
         init_db()
-    async def execute(self, query, *args):
-        return await execute(query, *args)
-    async def fetch(self, query, *args):
-        return await fetch(query, *args)
-    async def fetchrow(self, query, *args):
-        return await fetchrow(query, *args)
-    async def fetchval(self, query, *args):
-        return await fetchval(query, *args)
+    async def execute(self, q, *a):
+        return await execute(q, *a)
+    async def fetch(self, q, *a):
+        return await fetch(q, *a)
+    async def fetchrow(self, q, *a):
+        return await fetchrow(q, *a)
+    async def fetchval(self, q, *a):
+        return await fetchval(q, *a)
 
 db = Database()
