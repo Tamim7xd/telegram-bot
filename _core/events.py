@@ -1,7 +1,7 @@
 from aiogram import Dispatcher
 from aiogram.types import Message
 from config import ADMIN_IDS, CURRENCY_NAME, XP_PER_MESSAGE
-from _core.users import update_user_money, get_user, set_user_status
+from _core.users import get_or_create_user, update_user_money, get_user, set_user_status
 from _core.xp import add_xp, get_xp_progress
 from _core.games import cmd_game
 from _core.titles import set_user_title
@@ -237,8 +237,10 @@ async def handle_member_commands(message: Message):
         from _core.callbacks import show_shop_menu
         await show_shop_menu(message)
 
-# ========== إضافة XP عند كل رسالة ==========
+# ========== إضافة XP وإنشاء المستخدم تلقائياً عند كل رسالة عادية ==========
 async def add_xp_on_message(message: Message):
+    # تأكد من وجود المستخدم في قاعدة البيانات
+    await get_or_create_user(message.from_user)
     if not message.text:
         return
     if message.text.startswith(("#", "$")):
