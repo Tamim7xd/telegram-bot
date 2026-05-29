@@ -12,7 +12,7 @@ async def cmd_start(message: Message):
     await message.answer(f"✨ أهلاً بك {user['full_name']} في البوت المتكامل!\nاكتب #ملفي لعرض بياناتك، أو #لعبة للبدء.")
 
 async def cmd_adminiq(message: Message):
-    from _core.callbacks import admin_panel
+    from core.callbacks import admin_panel
     await admin_panel(message)
 
 async def handle_hashtag_root(message: Message):
