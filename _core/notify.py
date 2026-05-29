@@ -1,41 +1,26 @@
-from aiogram import Bot, Dispatcher
-from config import BOT_TOKEN, CURRENCY_NAME, LEVELUP_BONUS_MONEY, LEVELUP_BONUS_XP
-from _core.xp import get_xp_progress
+from aiogram import Dispatcher, Bot
+from aiogram.filters import CommandStart, Command
 
-# bot instance (صحيح)
-bot = Bot(token=BOT_TOKEN)
+from _core.events import (
+    handle_admin_commands,
+    handle_member_commands,
+    add_xp_on_message
+)
 
-# setter لو تستخدمه بمكان آخر (نخليه كما هو بدون ضرر)
-def set_bot_instance(b: Bot):
-    global bot
-    # فقط نبدل القيمة بدون كسر النظام
-    globals()["bot"] = b
+from _core.commands import cmd_start, cmd_adminiq
 
 
-async def send_levelup_notification(chat_id: int, user_id: int, new_level: int, user_name: str):
-    progress = await get_xp_progress(user_id)
+def setup_bot(dp: Dispatcher):
 
-    text = f"""╭━━━━━━━━━━━━━━━━━━━━━━━━━━╮
-┃ 🎉 *تـهـنـئـة* 🎉
-╰━━━━━━━━━━━━━━━━━━━━━━━━━━╯
+    # أوامر أساسية
+    dp.message.register(cmd_start, CommandStart())
+    dp.message.register(cmd_adminiq, Command("adminiq"))
 
-✨ *مبروك يا {user_name}* ✨
+    # أوامر الإدارة
+    dp.message.register(handle_admin_commands, lambda m: m.text and m.text.startswith("$"))
 
-لقد وصلت إلى 🔥 *المستوى {new_level}* 🔥
+    # أوامر الأعضاء
+    dp.message.register(handle_member_commands, lambda m: m.text and m.text.startswith("#"))
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━
-💰 *مكافأة الترقية:* {LEVELUP_BONUS_MONEY} {CURRENCY_NAME}
-⭐ *XP إضافي:* {LEVELUP_BONUS_XP} نقطة
-━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-📊 *شريط XP الجديد:*
-{progress['bar']} {progress['percent']}%
-
-📌 *المتبقي للمستوى التالي:* {progress['remaining']} XP
-"""
-
-    await bot.send_message(chat_id, text, parse_mode="Markdown")
-
-
-def register_notify_handlers(dp: Dispatcher):
-    pass
+    # XP system
+    dp.message.register(add_xp_on_message)
