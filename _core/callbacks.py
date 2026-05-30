@@ -1,5 +1,5 @@
 from aiogram import Dispatcher
-from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
+from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, ChatPermissions
 from aiogram.filters import Command
 from config import ADMIN_IDS, CURRENCY_NAME, GROUP_ID
 from db import db
