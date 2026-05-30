@@ -1,5 +1,5 @@
 from aiogram import Bot, Dispatcher
-from config import CURRENCY_NAME, LEVELUP_BONUS_MONEY, LEVELUP_BONUS_XP
+from config import CURRENCY_NAME, LEVELUP_BONUS_MONEY, LEVELUP_BONUS_XP, GROUP_ID
 from _core.xp import get_xp_progress
 import asyncio
 from datetime import datetime
@@ -42,7 +42,11 @@ async def send_levelup_notification(chat_id: int, user_id: int, new_level: int, 
 📌 *المتبقي للمستوى التالي:* {progress['remaining']} XP"""
     await send_auto_delete(chat_id, text)
 
-async def send_admin_notification(chat_id: int, executor_name: str, target_name: str, action: str, detail: str = ""):
+async def send_admin_notification(executor_name: str, target_name: str, action: str, detail: str = ""):
+    """إرسال إشعار إلى المجموعة المحددة في GROUP_ID (تتجاهل chat_id القديم)"""
+    if not GROUP_ID:
+        print("⚠️ لم يتم تعيين GROUP_ID، لن يتم إرسال الإشعار")
+        return
     border = "╭━━━━━━━━━━━━━━━━━━━━━━━━━━╮"
     text = f"""{border}
 ┃ 🔔 *إشـارة إداريـة* 🔔
@@ -54,7 +58,7 @@ async def send_admin_notification(chat_id: int, executor_name: str, target_name:
 📝 *التفاصيل:* {detail}
 🕒 *الوقت:* {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━"""
-    await send_auto_delete(chat_id, text)
+    await send_auto_delete(GROUP_ID, text)
 
 def register_notify_handlers(dp: Dispatcher):
     pass
