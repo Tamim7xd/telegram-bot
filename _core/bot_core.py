@@ -19,7 +19,7 @@ async def cmd_admin(message: Message):
 
 
 # =========================
-# FIXED: منع circular import نهائياً
+# FIX فقط: منع circular import بدون حذف feature
 # =========================
 def get_handle_member_commands():
     from _core.events import handle_member_commands
@@ -37,6 +37,4 @@ async def catch_all(message: Message):
 def setup_bot(dp: Dispatcher):
     dp.message.register(cmd_start, CommandStart())
     dp.message.register(cmd_admin, Command("adminiq"))
-
-    # مهم: هذا يعالج كل رسائل #
     dp.message.register(catch_all)
