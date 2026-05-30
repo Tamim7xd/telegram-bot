@@ -21,7 +21,7 @@ async def get_user(telegram_id: int):
 
 
 # =====================
-# CREATE OR GET USER (FIXED)
+# CREATE OR GET USER
 # =====================
 async def get_or_create_user(tg_user: User):
     user = await get_user(tg_user.id)
@@ -41,21 +41,11 @@ async def get_or_create_user(tg_user: User):
         STARTING_XP
     )
 
-    # ⚡ الأفضل: نعيد نفس البيانات مباشرة بدون إعادة استعلام
-    return {
-        "telegram_id": tg_user.id,
-        "username": tg_user.username,
-        "full_name": tg_user.full_name,
-        "money": STARTING_MONEY,
-        "xp": STARTING_XP,
-        "level": 1,
-        "title": "",
-        "status": "active"
-    }
+    return await get_user(tg_user.id)
 
 
 # =====================
-# MONEY SYSTEM
+# MONEY
 # =====================
 async def update_user_money(user_id: int, amount: int, reason="", admin_id=None):
     await db.execute(
@@ -66,7 +56,7 @@ async def update_user_money(user_id: int, amount: int, reason="", admin_id=None)
 
 
 # =====================
-# XP SYSTEM
+# XP
 # =====================
 async def update_user_xp(user_id: int, amount: int):
     await db.execute(
@@ -93,7 +83,7 @@ async def get_user_status(user_id: int):
 
 
 # =====================
-# GENERAL MODS
+# MODS
 # =====================
 async def is_general_mod(user_id: int):
     row = await db.fetchrow(
@@ -116,3 +106,11 @@ async def remove_general_mod(user_id: int):
         "DELETE FROM general_mods WHERE user_id = ?",
         user_id
     )
+
+
+# =====================
+# FIX REQUIRED BY main.py (بدون حذف أي ميزة)
+# =====================
+def register_user_handlers(dp):
+    # لا يوجد handlers هنا، لكن نحتاجها لتجنب ImportError
+    pass
