@@ -10,9 +10,9 @@ def set_bot_instance(b: Bot):
     global bot
     bot = b
 
-async def send_auto_delete(chat_id: int, text: str, parse_mode: str = "Markdown"):
+async def send_auto_delete(chat_id: int, text: str):
     try:
-        msg = await bot.send_message(chat_id, text, parse_mode=parse_mode)
+        msg = await bot.send_message(chat_id, text)
         asyncio.create_task(delete_after(msg, 30))
     except Exception as e:
         print(f"⚠️ فشل إرسال الإشعار: {e}")
