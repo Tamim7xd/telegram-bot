@@ -5,12 +5,12 @@ from aiogram.types import BotCommand, ChatMemberUpdated
 from config import BOT_TOKEN, ADMIN_IDS
 from db import db
 from _core.bot_core import setup_bot
-from _core.users import get_or_create_user, register_user_handlers, is_admin
+from _core.users import get_or_create_user, register_user_handlers
 from _core.xp import register_xp_handlers
 from _core.titles import register_titles_handlers
 from _core.games import register_games_handlers
 from _core.events import register_event_handlers
-from _core.callbacks import register_callback_handlers, admin_panel
+from _core.callbacks import register_callback_handlers
 from _core.notify import register_notify_handlers, set_bot_instance
 
 logging.basicConfig(level=logging.INFO)
