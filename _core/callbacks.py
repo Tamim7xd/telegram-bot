@@ -1,199 +1,201 @@
 from aiogram import Dispatcher
-from aiogram.types import Message, ChatPermissions
-from config import ADMIN_IDS, CURRENCY_NAME, XP_PER_MESSAGE, GROUP_ID
-from _core.users import update_user_money, get_user, set_user_status, get_or_create_user, is_admin, is_general_mod, is_admin_mod, add_general_mod, remove_general_mod, add_admin_mod, remove_admin_mod, add_warning, get_user_warnings_count, get_user_warnings_list, reset_warnings
-from _core.xp import add_xp, get_xp_progress, increment_message_count
-from _core.games import start_game_with_choice
-from _core.titles import set_user_title
-from _core.notify import send_auto_delete, send_admin_notification
+from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
+from aiogram.filters import Command
+from config import ADMIN_IDS, CURRENCY_NAME, GROUP_ID
 from db import db
+from _core.users import get_user, update_user_money, set_user_status
+from _core.titles import set_user_title
+from _core.notify import bot, send_auto_delete, send_admin_notification
 import asyncio
 
 def format_number(num):
     return f"{num:,}".replace(",", " ").replace(",", ".")
 
-async def delete_after(msg, seconds):
-    await asyncio.sleep(seconds)
-    try: await msg.delete()
-    except: pass
-
-# ========== أوامر $ ==========
-async def dollar_commands(message: Message):
-    if not message.reply_to_message:
+async def admin_panel(message: Message):
+    if message.from_user.id not in ADMIN_IDS:
+        await message.answer("⚠️ هذه اللوحة للأدمن فقط.")
         return
-    uid = message.from_user.id
-    is_adm = await is_admin(uid)
-    is_gen_mod = await is_general_mod(uid)
-    is_adm_mod = await is_admin_mod(uid)
-    if not (is_adm or is_gen_mod or is_adm_mod):
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="👥 إدارة الأعضاء", callback_data="admin_users")],
+        [InlineKeyboardButton(text="💰 الاقتصاد", callback_data="admin_economy")],
+        [InlineKeyboardButton(text="📊 الإحصائيات", callback_data="admin_stats")],
+        [InlineKeyboardButton(text="❌ إغلاق", callback_data="admin_close")]
+    ])
+    await message.reply("👑 *لوحة تحكم الأدمن*", reply_markup=kb, parse_mode="Markdown")
+
+async def show_users(callback: CallbackQuery, page=1):
+    limit = 10
+    off = (page-1)*limit
+    rows = await db.fetch("SELECT telegram_id, full_name, money, level, warnings FROM users ORDER BY created_at DESC LIMIT ? OFFSET ?", limit, off)
+    if not rows:
+        await callback.message.edit_text("لا يوجد أعضاء")
         return
-    target = message.reply_to_message.from_user
-    text = message.text.strip()
-    chat_id = message.chat.id
-    admin_name = message.from_user.full_name
-    target_name = target.full_name
+    text = "👥 *الأعضاء*\n\n"
+    btns = []
+    for r in rows:
+        text += f"• {r['full_name']} - 💰{format_number(r['money'])} - مستوى {r['level']} - ⚠️ {r['warnings']}/100\n"
+        btns.append([InlineKeyboardButton(text=r['full_name'], callback_data=f"user_{r['telegram_id']}")])
+    nav = []
+    if page>1:
+        nav.append(InlineKeyboardButton(text="◀️ السابق", callback_data=f"users_page_{page-1}"))
+    if len(rows)==limit:
+        nav.append(InlineKeyboardButton(text="▶️ التالي", callback_data=f"users_page_{page+1}"))
+    if nav:
+        btns.append(nav)
+    btns.append([InlineKeyboardButton(text="◀️ رجوع", callback_data="admin_back")])
+    await callback.message.edit_text(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=btns), parse_mode="Markdown")
 
-    if text.startswith("$خصم") and (is_adm or is_adm_mod):
-        parts = text.split(maxsplit=2)
-        if len(parts) >= 2 and parts[1].isdigit():
-            amt = int(parts[1])
-            reason = parts[2] if len(parts) > 2 else "خصم"
-            await update_user_money(target.id, -amt, reason, uid)
-            await send_auto_delete(chat_id, f"✅ خصم {format_number(amt)} {CURRENCY_NAME} من {target_name}\nالسبب: {reason}")
-            await send_admin_notification(admin_name, target_name, "💰 خصم رصيد", f"-{format_number(amt)}")
-        else:
-            await send_auto_delete(chat_id, "❌ استخدم: $خصم 50 سبب")
-    elif text.startswith("$مكافئة") and (is_adm or is_adm_mod):
-        parts = text.split(maxsplit=2)
-        if len(parts) >= 2 and parts[1].isdigit():
-            amt = int(parts[1])
-            reason = parts[2] if len(parts) > 2 else "مكافأة"
-            await update_user_money(target.id, amt, reason, uid)
-            await send_auto_delete(chat_id, f"✅ إضافة {format_number(amt)} {CURRENCY_NAME} إلى {target_name}\nالسبب: {reason}")
-            await send_admin_notification(admin_name, target_name, "💰 إضافة رصيد", f"+{format_number(amt)}")
-        else:
-            await send_auto_delete(chat_id, "❌ استخدم: $مكافئة 100 سبب")
-    elif text.startswith("$تحذير") and (is_adm or is_gen_mod or is_adm_mod):
-        reason = text[8:].strip() or "لا يوجد سبب"
-        new_count = await add_warning(target.id, reason, uid)
-        await send_auto_delete(chat_id, f"⚠️ تم تحذير {target_name} (التحذير {new_count}/100)\nالسبب: {reason}")
-        await send_admin_notification(admin_name, target_name, "⚠️ تحذير", f"التحذير {new_count}/100\nالسبب: {reason}")
-    elif text.startswith("$معلومات") and (is_adm or is_gen_mod or is_adm_mod):
-        u = await get_user(target.id)
-        if u:
-            msg = await message.reply(f"📄 {u['full_name']}\n💰 {format_number(u['money'])}\n⭐ XP: {u['xp']}\n📊 مستوى {u['level']}\n🏷️ لقب: {u['title'] or 'لا يوجد'}\n⚠️ تحذيرات: {u['warnings']}/100")
-            asyncio.create_task(delete_after(msg, 30))
-    elif text.startswith("$فلوس") and (is_adm or is_gen_mod or is_adm_mod):
-        u = await get_user(target.id)
-        if u:
-            msg = await message.reply(f"💰 فلوس {target_name}: {format_number(u['money'])} {CURRENCY_NAME}")
-            asyncio.create_task(delete_after(msg, 30))
-    elif text.startswith("$التحذيرات") and (is_adm or is_gen_mod or is_adm_mod):
-        warns = await get_user_warnings_list(target.id, 5)
-        if warns:
-            txt = f"⚠️ تحذيرات {target_name}:\n"
-            for w in warns:
-                admin = await get_user(w['admin_id'])
-                admin_name = admin['full_name'] if admin else "نظام"
-                txt += f"• {w['reason']} (بواسطة {admin_name}) - {w['created_at']}\n"
-            msg = await message.reply(txt)
-            asyncio.create_task(delete_after(msg, 30))
-        else:
-            await send_auto_delete(chat_id, f"✅ {target_name} ليس لديه تحذيرات")
-    elif text == "$سجل" and (is_adm or is_adm_mod):
-        rows = await db.fetch("SELECT amount, reason, user_id FROM economy_log WHERE admin_id = ? ORDER BY timestamp DESC LIMIT 10", uid)
-        if rows:
-            log = "📜 سجلك:\n"
-            for r in rows:
-                log += f"• {format_number(r['amount'])} {CURRENCY_NAME} للمستخدم {r['user_id']} - {r['reason']}\n"
-            msg = await message.reply(log)
-            asyncio.create_task(delete_after(msg, 30))
-        else:
-            await send_auto_delete(chat_id, "📭 لا توجد عمليات مسجلة لك")
-
-# ========== أوامر الأعضاء (#) ==========
-async def handle_member_commands(message: Message):
-    text = message.text.strip()
-    uid = message.from_user.id
-    await get_or_create_user(message.from_user)
-    asyncio.create_task(delete_after(message, 3))
-
-    if text in ["#ملفي", "#حسابي", "#معلوماتي"]:
-        user = await get_user(uid)
-        progress = await get_xp_progress(uid)
-        last_action = await db.fetchrow("SELECT amount, reason, admin_id FROM economy_log WHERE user_id = ? ORDER BY timestamp DESC LIMIT 1", uid)
-        last_action_text = "لا يوجد"
-        if last_action:
-            admin = await get_user(last_action['admin_id']) if last_action['admin_id'] else None
-            admin_name = admin['full_name'] if admin else "نظام"
-            last_action_text = f"{admin_name} | {last_action['reason']} | {format_number(last_action['amount'])} {CURRENCY_NAME}"
-        reply = f"""╭━━━━━━━━━━━━━━━━━━━━━━╮
-┃ 👤 *الملف الشخصي* 👤
-╰━━━━━━━━━━━━━━━━━━━━━━╯
-
-✨ *الاسم:* {user['full_name']}
-🆔 *المعرف:* @{user['username'] or 'لا يوجد'}
-
-⬅️ 💲 *فلوسك:* {format_number(user['money'])} {CURRENCY_NAME}
-⬅️ 💎 *نقاطك (XP):* {user['xp']}
-⬅️ 🪪 *عضويتك:* {user['title'] or 'عادي'}
-⬅️ 💠 *المستوى:* {user['level']}
-⬅️ ❗️ *التحذيرات:* {user['warnings']}/100
-
-📈 {progress['bar']} {progress['percent']}%
-
-📌 *آخر إجراء:*
-{last_action_text}
-━━━━━━━━━━━━━━━━━━━━━━"""
-        msg = await message.reply(reply, parse_mode="Markdown")
-        asyncio.create_task(delete_after(msg, 30))
-    elif text in ["#فلوس", "#فلوسي"]:
-        user = await get_user(uid)
-        msg = await message.reply(f"⬅️ 💲 *فلوسك:* {format_number(user['money'])} {CURRENCY_NAME}", parse_mode="Markdown")
-        asyncio.create_task(delete_after(msg, 30))
-    elif text in ["#لعبة", "#العب", "#العاب"]:
-        menu = """🎮 *قائمة الألعاب*
-1 🧠 لغز
-2 ❓ سؤال عام
-3 🔘 اختيار من متعدد
-4 ⚡ سرعة (معكوس كلمة)
-5 📜 مثل شعبي
-6 🎲 حظ (صندوق)
-━━━━━━━━━━━━━
-📝 *أرسل رقم اللعبة (1-6)*"""
-        msg = await message.reply(menu, parse_mode="Markdown")
-        asyncio.create_task(delete_after(msg, 30))
-    elif text.isdigit() and 1 <= int(text) <= 6:
-        game_map = {1:"puzzles",2:"general_qa",3:"mcq",4:"speed_words",5:"proverbs",6:"luck_boxes"}
-        await start_game_with_choice(message, game_map[int(text)])
-        await delete_after(message, 1)
-    elif text in ["#مستواي", "#نقاطي"]:
-        progress = await get_xp_progress(uid)
-        msg = await message.reply(f"📊 *المستوى {progress['level']}*\n{progress['bar']} {progress['percent']}%", parse_mode="Markdown")
-        asyncio.create_task(delete_after(msg, 30))
-    elif text in ["#سوق", "#محل"]:
-        items = await db.fetch("SELECT id, name, price, rank_level FROM shop_items ORDER BY rank_level")
-        if not items:
-            await send_auto_delete(message.chat.id, "🏪 السوق فارغ")
-            return
-        txt = "🏪 *السوق*\n"
-        for it in items:
-            txt += f"🆔 {it['id']} - {it['name']} - 💰{format_number(it['price'])} - مستوى {it['rank_level']}\n"
-        txt += "\nللشراء: `#شراء <اسم الرتبة>`"
-        msg = await message.reply(txt, parse_mode="Markdown")
-        asyncio.create_task(delete_after(msg, 30))
-    elif text.startswith("#شراء"):
-        parts = text.split(maxsplit=1)
-        if len(parts) < 2:
-            await send_auto_delete(message.chat.id, "❌ استخدم: #شراء اسم الرتبة")
-            return
-        rank = parts[1]
-        item = await db.fetchrow("SELECT * FROM shop_items WHERE name = ?", rank)
-        if not item:
-            await send_auto_delete(message.chat.id, "❌ الرتبة غير موجودة")
-            return
-        user = await get_user(uid)
-        if user['money'] >= item['price']:
-            await update_user_money(uid, -item['price'], f"شراء {rank}", None)
-            await db.execute("INSERT INTO user_purchases (user_id, item_id) VALUES (?, ?) ON CONFLICT DO NOTHING", uid, item['id'])
-            await send_auto_delete(message.chat.id, f"✅ تم شراء رتبة *{rank}* بنجاح!")
-            await send_admin_notification("نظام", user['full_name'], "شراء رتبة", f"{rank} - {format_number(item['price'])}")
-        else:
-            await send_auto_delete(message.chat.id, f"❌ رصيدك غير كافٍ (تحتاج {format_number(item['price'])} {CURRENCY_NAME})")
-
-# ========== إضافة XP ومكافأة 100 رسالة ==========
-async def add_xp_handler(message: Message):
-    await get_or_create_user(message.from_user)
-    if not message.text or message.text.startswith(("#", "$")):
+async def show_user_controls(callback: CallbackQuery, uid):
+    user = await get_user(uid)
+    if not user:
+        await callback.answer("المستخدم غير موجود")
         return
-    if await is_admin(message.from_user.id):
-        return
-    await add_xp(message.from_user.id, XP_PER_MESSAGE, message.chat.id, message.from_user.full_name)
-    rewarded = await increment_message_count(message.from_user.id)
-    if rewarded:
-        await send_auto_delete(message.chat.id, f"🎉 *مبروك!* {message.from_user.full_name}\nلقد وصلت إلى 100 رسالة!\n💰 +5,000 {CURRENCY_NAME}")
+    text = f"👤 *{user['full_name']}*\n💰 الرصيد: {format_number(user['money'])}\n⭐ XP: {user['xp']}\n📊 المستوى: {user['level']}\n🏷️ اللقب: {user['title'] or 'لا يوجد'}\n⚠️ التحذيرات: {user['warnings']}/100"
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="➕ +100", callback_data=f"add_{uid}_100"),
+         InlineKeyboardButton(text="➖ -50", callback_data=f"sub_{uid}_50")],
+        [InlineKeyboardButton(text="🔇 كتم", callback_data=f"mute_{uid}"),
+         InlineKeyboardButton(text="🔈 فك كتم", callback_data=f"unmute_{uid}")],
+        [InlineKeyboardButton(text="🚫 حظر", callback_data=f"ban_{uid}"),
+         InlineKeyboardButton(text="✅ فك حظر", callback_data=f"unban_{uid}")],
+        [InlineKeyboardButton(text="🏷️ لقب", callback_data=f"title_{uid}"),
+         InlineKeyboardButton(text="🗑️ طرد", callback_data=f"kick_{uid}")],
+        [InlineKeyboardButton(text="📜 سجل العمليات", callback_data=f"user_log_{uid}")],
+        [InlineKeyboardButton(text="◀️ رجوع", callback_data="admin_users")]
+    ])
+    await callback.message.edit_text(text, reply_markup=kb, parse_mode="Markdown")
 
-def register_event_handlers(dp: Dispatcher):
-    dp.message.register(dollar_commands, lambda m: m.text and m.text.startswith("$"))
-    dp.message.register(handle_member_commands, lambda m: m.text and m.text.startswith("#"))
-    dp.message.register(add_xp_handler)
+async def show_user_log(callback: CallbackQuery, uid):
+    rows = await db.fetch("SELECT * FROM economy_log WHERE user_id = ? ORDER BY timestamp DESC LIMIT 15", uid)
+    if not rows:
+        await callback.message.edit_text("لا توجد عمليات لهذا المستخدم.")
+        return
+    text = "📜 *سجل عمليات المستخدم:*\n\n"
+    for r in rows:
+        admin = await get_user(r['admin_id']) if r['admin_id'] else None
+        admin_name = admin['full_name'] if admin else "نظام"
+        text += f"• {format_number(r['amount'])} {CURRENCY_NAME} - {r['reason']} (بواسطة {admin_name}) - {r['timestamp']}\n"
+    back = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="◀️ رجوع", callback_data=f"user_{uid}")]])
+    await callback.message.edit_text(text, reply_markup=back, parse_mode="Markdown")
+
+async def process_callback(callback: CallbackQuery):
+    await callback.answer()
+    data = callback.data
+    uid = callback.from_user.id
+    if uid not in ADMIN_IDS:
+        await callback.message.answer("غير مصرح")
+        return
+    admin_name = callback.from_user.full_name
+    chat_id = callback.message.chat.id
+
+    if data.startswith("users_page_"):
+        page = int(data.split("_")[-1])
+        await show_users(callback, page)
+    elif data == "admin_users":
+        await show_users(callback, 1)
+    elif data == "admin_economy":
+        total = await db.fetchval("SELECT SUM(money) FROM users") or 0
+        count = await db.fetchval("SELECT COUNT(*) FROM users") or 0
+        await callback.message.edit_text(f"💰 *الاقتصاد*\nإجمالي الأموال: {format_number(total)} {CURRENCY_NAME}\n👥 عدد المستخدمين: {count}", parse_mode="Markdown")
+        back = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="◀️ رجوع", callback_data="admin_back")]])
+        await callback.message.edit_reply_markup(reply_markup=back)
+    elif data == "admin_stats":
+        msgs = await db.fetchval("SELECT SUM(messages_count) FROM users") or 0
+        wins = await db.fetchval("SELECT SUM(wins) FROM users") or 0
+        await callback.message.edit_text(f"📊 *الإحصائيات*\nالرسائل: {format_number(msgs)}\nالانتصارات: {wins}", parse_mode="Markdown")
+        back = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="◀️ رجوع", callback_data="admin_back")]])
+        await callback.message.edit_reply_markup(reply_markup=back)
+    elif data == "admin_close":
+        await callback.message.delete()
+    elif data == "admin_back":
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="👥 إدارة الأعضاء", callback_data="admin_users")],
+            [InlineKeyboardButton(text="💰 الاقتصاد", callback_data="admin_economy")],
+            [InlineKeyboardButton(text="📊 الإحصائيات", callback_data="admin_stats")],
+            [InlineKeyboardButton(text="❌ إغلاق", callback_data="admin_close")]
+        ])
+        await callback.message.edit_text("👑 *لوحة تحكم الأدمن*", reply_markup=kb, parse_mode="Markdown")
+    elif data.startswith("user_"):
+        uid2 = int(data.split("_")[1])
+        await show_user_controls(callback, uid2)
+    elif data.startswith("user_log_"):
+        uid2 = int(data.split("_")[-1])
+        await show_user_log(callback, uid2)
+    elif data.startswith("add_"):
+        _, uid2, amt = data.split("_")
+        uid2, amt = int(uid2), int(amt)
+        target = await get_user(uid2)
+        await update_user_money(uid2, amt, "إضافة من اللوحة", uid)
+        await callback.message.answer(f"✅ +{format_number(amt)}")
+        await send_admin_notification(admin_name, target['full_name'], "💰 إضافة رصيد", f"+{format_number(amt)}")
+        await show_user_controls(callback, uid2)
+    elif data.startswith("sub_"):
+        _, uid2, amt = data.split("_")
+        uid2, amt = int(uid2), int(amt)
+        target = await get_user(uid2)
+        await update_user_money(uid2, -amt, "خصم من اللوحة", uid)
+        await callback.message.answer(f"✅ -{format_number(amt)}")
+        await send_admin_notification(admin_name, target['full_name'], "💰 خصم رصيد", f"-{format_number(amt)}")
+        await show_user_controls(callback, uid2)
+    elif data.startswith("mute_"):
+        uid2 = int(data.split("_")[1])
+        target = await get_user(uid2)
+        try:
+            await callback.message.chat.restrict(uid2, permissions=ChatPermissions(can_send_messages=False))
+            await callback.message.answer("🔇 تم كتم")
+            await send_admin_notification(admin_name, target['full_name'], "🔇 كتم", "")
+            await set_user_status(uid2, "muted")
+        except Exception as e:
+            await callback.message.answer(f"⚠️ فشل الكتم: {e}")
+        await show_user_controls(callback, uid2)
+    elif data.startswith("unmute_"):
+        uid2 = int(data.split("_")[1])
+        target = await get_user(uid2)
+        try:
+            await callback.message.chat.restrict(uid2, permissions=ChatPermissions(can_send_messages=True, can_send_media_messages=True, can_send_other_messages=True))
+            await callback.message.answer("🔈 فك كتم")
+            await send_admin_notification(admin_name, target['full_name'], "🔈 فك كتم", "")
+            await set_user_status(uid2, "active")
+        except Exception as e:
+            await callback.message.answer(f"⚠️ فشل فك الكتم: {e}")
+        await show_user_controls(callback, uid2)
+    elif data.startswith("ban_"):
+        uid2 = int(data.split("_")[1])
+        target = await get_user(uid2)
+        try:
+            await callback.message.chat.ban(uid2)
+            await callback.message.answer("🚫 تم حظر")
+            await send_admin_notification(admin_name, target['full_name'], "🚫 حظر", "")
+            await set_user_status(uid2, "banned")
+        except Exception as e:
+            await callback.message.answer(f"⚠️ فشل الحظر: {e}")
+        await show_user_controls(callback, uid2)
+    elif data.startswith("unban_"):
+        uid2 = int(data.split("_")[1])
+        target = await get_user(uid2)
+        try:
+            await callback.message.chat.unban(uid2)
+            await callback.message.answer("✅ فك حظر")
+            await send_admin_notification(admin_name, target['full_name'], "✅ فك حظر", "")
+            await set_user_status(uid2, "active")
+        except Exception as e:
+            await callback.message.answer(f"⚠️ فشل فك الحظر: {e}")
+        await show_user_controls(callback, uid2)
+    elif data.startswith("kick_"):
+        uid2 = int(data.split("_")[1])
+        target = await get_user(uid2)
+        try:
+            await callback.message.chat.ban(uid2)
+            await callback.message.chat.unban(uid2)
+            await callback.message.answer("🗑️ طرد")
+            await send_admin_notification(admin_name, target['full_name'], "🗑️ طرد", "")
+        except Exception as e:
+            await callback.message.answer(f"⚠️ فشل الطرد: {e}")
+        await show_user_controls(callback, uid2)
+    elif data.startswith("title_"):
+        uid2 = int(data.split("_")[1])
+        await callback.message.answer(f"🏷️ أرسل اللقب الجديد للمستخدم {uid2} في رسالة منفردة.")
+
+def register_callback_handlers(dp: Dispatcher):
+    dp.message.register(admin_panel, Command("adminiq"))
+    dp.callback_query.register(process_callback)
