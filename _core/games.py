@@ -19,9 +19,9 @@ async def start_game_with_choice(message: Message, game_type: str):
     await save_game_session(chat_id, sent.message_id, game['type'], game['question'], game['answer'], prize, user_id)
     asyncio.create_task(end_game_timeout(chat_id, sent.message_id, game['answer']))
 
-async def end_game_timeout(chat_id, msg_id, correct):
+async def end_game_timeout(chat_id, msg_id, correct_answer):
     await asyncio.sleep(GAME_TIME_LIMIT)
-    await send_auto_delete(chat_id, f"⏰ انتهت المهلة! الإجابة: {correct}")
+    await send_auto_delete(chat_id, f"⏰ انتهت المهلة! الإجابة: {correct_answer}")
 
 async def handle_game_answer(message: Message):
     if not message.reply_to_message:
