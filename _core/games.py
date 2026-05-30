@@ -82,3 +82,9 @@ async def game_callback(callback: CallbackQuery):
 def register_games_handlers(dp: Dispatcher):
     dp.message.register(handle_game_answer)
     dp.callback_query.register(game_callback, lambda c: c.data.startswith("game_"))
+
+# =====================
+# FIX IMPORT ERROR (cmd_game missing)
+# =====================
+async def cmd_game(message):
+    return await show_game_menu(message)
