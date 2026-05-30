@@ -2,115 +2,48 @@ from db import db
 from aiogram.types import User
 from config import STARTING_MONEY, STARTING_XP, ADMIN_IDS
 
-
-# =====================
-# ADMIN CHECK
-# =====================
-async def is_admin(user_id: int):
+async def is_admin(user_id: int) -> bool:
     return user_id in ADMIN_IDS
 
-
-# =====================
-# GET USER
-# =====================
-async def get_user(telegram_id: int):
-    return await db.fetchrow(
-        "SELECT * FROM users WHERE telegram_id = ?",
-        telegram_id
-    )
-
-
-# =====================
-# CREATE OR GET USER
-# =====================
-async def get_or_create_user(tg_user: User):
-    user = await get_user(tg_user.id)
-
-    if user:
-        return user
-
-    await db.execute(
-        """
-        INSERT INTO users (telegram_id, username, full_name, money, xp)
-        VALUES (?, ?, ?, ?, ?)
-        """,
-        tg_user.id,
-        tg_user.username,
-        tg_user.full_name,
-        STARTING_MONEY,
-        STARTING_XP
-    )
-
-    return await get_user(tg_user.id)
-
-
-# =====================
-# MONEY
-# =====================
-async def update_user_money(user_id: int, amount: int, reason="", admin_id=None):
-    await db.execute(
-        "UPDATE users SET money = money + ? WHERE telegram_id = ?",
-        amount,
-        user_id
-    )
-
-
-# =====================
-# XP
-# =====================
-async def update_user_xp(user_id: int, amount: int):
-    await db.execute(
-        "UPDATE users SET xp = xp + ? WHERE telegram_id = ?",
-        amount,
-        user_id
-    )
-
-
-# =====================
-# STATUS
-# =====================
-async def set_user_status(user_id: int, status: str):
-    await db.execute(
-        "UPDATE users SET status = ? WHERE telegram_id = ?",
-        status,
-        user_id
-    )
-
-
-async def get_user_status(user_id: int):
-    row = await get_user(user_id)
-    return row["status"] if row else "active"
-
-
-# =====================
-# MODS
-# =====================
-async def is_general_mod(user_id: int):
-    row = await db.fetchrow(
-        "SELECT 1 FROM general_mods WHERE user_id = ?",
-        user_id
-    )
+async def is_general_mod(user_id: int) -> bool:
+    row = await db.fetchrow("SELECT 1 FROM general_mods WHERE user_id = ?", user_id)
     return row is not None
 
-
 async def add_general_mod(user_id: int, added_by: int):
-    await db.execute(
-        "INSERT OR IGNORE INTO general_mods (user_id, added_by) VALUES (?, ?)",
-        user_id,
-        added_by
-    )
-
+    await db.execute("INSERT OR IGNORE INTO general_mods (user_id, added_by, permissions) VALUES (?, ?, 'mute,unmute,ban,unban,kick,warn,info')", user_id, added_by)
 
 async def remove_general_mod(user_id: int):
-    await db.execute(
-        "DELETE FROM general_mods WHERE user_id = ?",
-        user_id
-    )
+    await db.execute("DELETE FROM general_mods WHERE user_id = ?", user_id)
 
+async def get_or_create_user(tg_user: User):
+    row = await db.fetchrow("SELECT * FROM users WHERE telegram_id = $1", tg_user.id)
+    if row:
+        return row
+    else:
+        await db.execute("INSERT INTO users (telegram_id, username, full_name, money, xp) VALUES (?, ?, ?, ?, ?)",
+                         tg_user.id, tg_user.username, tg_user.full_name, STARTING_MONEY, STARTING_XP)
+        await db.execute("INSERT INTO user_stats (user_id) VALUES (?) ON CONFLICT DO NOTHING", tg_user.id)
+        return await db.fetchrow("SELECT * FROM users WHERE telegram_id = $1", tg_user.id)
 
-# =====================
-# FIX REQUIRED BY main.py (بدون حذف أي ميزة)
-# =====================
+async def update_user_money(telegram_id: int, delta: int, reason: str = "", admin_id: int = None):
+    await db.execute("UPDATE users SET money = money + ? WHERE telegram_id = ?", delta, telegram_id)
+    if admin_id:
+        await db.execute("INSERT INTO economy_log (user_id, amount, reason, admin_id) VALUES (?, ?, ?, ?)",
+                         telegram_id, delta, reason, admin_id)
+    return True
+
+async def update_user_xp(telegram_id: int, delta: int):
+    await db.execute("UPDATE users SET xp = xp + ? WHERE telegram_id = ?", delta, telegram_id)
+
+async def get_user(telegram_id: int):
+    return await db.fetchrow("SELECT * FROM users WHERE telegram_id = $1", telegram_id)
+
+async def set_user_status(telegram_id: int, status: str):
+    await db.execute("UPDATE users SET status = ? WHERE telegram_id = ?", status, telegram_id)
+
+async def get_user_status(telegram_id: int):
+    row = await db.fetchrow("SELECT status FROM users WHERE telegram_id = $1", telegram_id)
+    return row["status"] if row else "active"
+
 def register_user_handlers(dp):
-    # لا يوجد handlers هنا، لكن نحتاجها لتجنب ImportError
     pass
