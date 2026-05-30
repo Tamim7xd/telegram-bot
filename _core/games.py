@@ -31,7 +31,7 @@ async def handle_game_answer(message: Message):
     if prize > 0:
         await update_user_money(message.from_user.id, prize, "فوز بلعبة", None)
         await add_xp(message.from_user.id, 25, message.chat.id, message.from_user.full_name)
-        await send_auto_delete(message.chat.id, f"🎉 فوز! +{prize} {CURRENCY_NAME} +25 XP")
+        await send_auto_delete(message.chat.id, f"🎉 فوز! +{prize:,} {CURRENCY_NAME} +25 XP")
     else:
         await message.reply("❌ إجابة خاطئة")
 
