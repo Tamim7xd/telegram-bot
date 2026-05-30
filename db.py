@@ -9,7 +9,6 @@ def get_conn():
 def init_db():
     with get_conn() as conn:
         c = conn.cursor()
-        # جداول موجودة مسبقاً (تبقى كما هي)
         c.execute('''CREATE TABLE IF NOT EXISTS users (
             telegram_id INTEGER PRIMARY KEY,
             username TEXT,
@@ -36,7 +35,6 @@ def init_db():
             permissions TEXT DEFAULT 'warn,info,money,show_warns',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )''')
-        # ✅ جدول المشرفين الإداريين (جديد)
         c.execute('''CREATE TABLE IF NOT EXISTS admin_mods (
             user_id INTEGER PRIMARY KEY,
             added_by INTEGER,
@@ -106,7 +104,6 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             title TEXT UNIQUE
         )''')
-        # ✅ جدول سجل التحذيرات (جديد)
         c.execute('''CREATE TABLE IF NOT EXISTS warnings_log (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER,
@@ -115,7 +112,8 @@ def init_db():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )''')
         # الألقاب الافتراضية
-        for t in ["عضو", "متدرب", "مقاتل", "محارب", "فارس", "بطل", "أسطورة"]:
+        default_titles = ["عضو", "متدرب", "مقاتل", "محارب", "فارس", "بطل", "أسطورة"]
+        for t in default_titles:
             c.execute("INSERT OR IGNORE INTO titles (title) VALUES (?)", (t,))
         # رتب السوق
         ranks = [("عضو جديد", 1000, 1), ("متدرب", 2000, 2), ("مقاتل", 3500, 3),
@@ -127,7 +125,7 @@ def init_db():
         for aid in ADMIN_IDS:
             c.execute("INSERT OR IGNORE INTO admins (user_id, permissions, added_by) VALUES (?, 'all', 0)", (aid,))
         conn.commit()
-        print("✅ قاعدة البيانات محدثة بالجداول الجديدة")
+        print("✅ قاعدة البيانات جاهزة")
 
 async def execute(query, *args):
     with get_conn() as conn:
