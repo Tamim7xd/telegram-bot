@@ -61,7 +61,7 @@ async def dollar_commands(message: Message):
     elif text.startswith("$معلومات") and (is_adm or is_gen_mod or is_adm_mod):
         u = await get_user(target.id)
         if u:
-            msg = await message.reply(f"📄 *{u['full_name']}*\n💰 {format_number(u['money'])} {CURRENCY_NAME}\n⭐ XP: {u['xp']}\n📊 المستوى: {u['level']}\n🏷️ اللقب: {u['title'] or 'لا يوجد'}\n⚠️ التحذيرات: {u['warnings']}/100", parse_mode="Markdown")
+            msg = await message.reply(f"📄 {u['full_name']}\n💰 {format_number(u['money'])} {CURRENCY_NAME}\n⭐ XP: {u['xp']}\n📊 المستوى: {u['level']}\n🏷️ اللقب: {u['title'] or 'لا يوجد'}\n⚠️ التحذيرات: {u['warnings']}/100")
             asyncio.create_task(delete_after(msg, 30))
     elif text.startswith("$فلوس") and (is_adm or is_gen_mod or is_adm_mod):
         u = await get_user(target.id)
@@ -71,22 +71,22 @@ async def dollar_commands(message: Message):
     elif text.startswith("$التحذيرات") and (is_adm or is_gen_mod or is_adm_mod):
         warns = await get_user_warnings_list(target.id, 5)
         if warns:
-            txt = f"⚠️ *تحذيرات {target_name}:*\n"
+            txt = f"⚠️ تحذيرات {target_name}:\n"
             for w in warns:
                 admin = await get_user(w['admin_id'])
                 admin_name = admin['full_name'] if admin else "نظام"
                 txt += f"• {w['reason']} (بواسطة {admin_name}) - {w['created_at']}\n"
-            msg = await message.reply(txt, parse_mode="Markdown")
+            msg = await message.reply(txt)
             asyncio.create_task(delete_after(msg, 30))
         else:
             await send_auto_delete(chat_id, f"✅ {target_name} ليس لديه تحذيرات")
     elif text == "$سجل" and (is_adm or is_adm_mod):
         rows = await db.fetch("SELECT amount, reason, user_id FROM economy_log WHERE admin_id = ? ORDER BY timestamp DESC LIMIT 10", uid)
         if rows:
-            log = "📜 *سجلك:*\n"
+            log = "📜 سجلك:\n"
             for r in rows:
                 log += f"• {format_number(r['amount'])} {CURRENCY_NAME} للمستخدم {r['user_id']} - {r['reason']}\n"
-            msg = await message.reply(log, parse_mode="Markdown")
+            msg = await message.reply(log)
             asyncio.create_task(delete_after(msg, 30))
         else:
             await send_auto_delete(chat_id, "📭 لا توجد عمليات مسجلة لك")
@@ -108,31 +108,31 @@ async def handle_member_commands(message: Message):
             admin_name = admin['full_name'] if admin else "نظام"
             last_action_text = f"{admin_name} | {last_action['reason']} | {format_number(last_action['amount'])} {CURRENCY_NAME}"
         reply = f"""╭━━━━━━━━━━━━━━━━━━━━━━╮
-┃ 👤 *الملف الشخصي* 👤
+┃ 👤 الملف الشخصي
 ╰━━━━━━━━━━━━━━━━━━━━━━╯
 
-✨ *الاسم:* {user['full_name']}
-🆔 *المعرف:* @{user['username'] or 'لا يوجد'}
+✨ الاسم: {user['full_name']}
+🆔 المعرف: @{user['username'] or 'لا يوجد'}
 
-⬅️ 💲 *فلوسك:* {format_number(user['money'])} {CURRENCY_NAME}
-⬅️ 💎 *نقاطك (XP):* {user['xp']}
-⬅️ 🪪 *عضويتك:* {user['title'] or 'عادي'}
-⬅️ 💠 *المستوى:* {user['level']}
-⬅️ ❗️ *التحذيرات:* {user['warnings']}/100
+⬅️ 💲 فلوسك: {format_number(user['money'])} {CURRENCY_NAME}
+⬅️ 💎 نقاطك (XP): {user['xp']}
+⬅️ 🪪 عضويتك: {user['title'] or 'عادي'}
+⬅️ 💠 المستوى: {user['level']}
+⬅️ ❗️ التحذيرات: {user['warnings']}/100
 
 📈 {progress['bar']} {progress['percent']}%
 
-📌 *آخر إجراء:*
+📌 آخر إجراء:
 {last_action_text}
 ━━━━━━━━━━━━━━━━━━━━━━"""
-        msg = await message.reply(reply, parse_mode="Markdown")
+        msg = await message.reply(reply)
         asyncio.create_task(delete_after(msg, 30))
     elif text in ["#فلوس", "#فلوسي"]:
         user = await get_user(uid)
-        msg = await message.reply(f"⬅️ 💲 *فلوسك:* {format_number(user['money'])} {CURRENCY_NAME}", parse_mode="Markdown")
+        msg = await message.reply(f"⬅️ 💲 فلوسك: {format_number(user['money'])} {CURRENCY_NAME}")
         asyncio.create_task(delete_after(msg, 30))
     elif text in ["#لعبة", "#العب", "#العاب"]:
-        menu = """🎮 *قائمة الألعاب*
+        menu = """🎮 قائمة الألعاب
 1 🧠 لغز
 2 ❓ سؤال عام
 3 🔘 اختيار من متعدد
@@ -140,8 +140,8 @@ async def handle_member_commands(message: Message):
 5 📜 مثل شعبي
 6 🎲 حظ (صندوق)
 ━━━━━━━━━━━━━
-📝 *أرسل رقم اللعبة (1-6)*"""
-        msg = await message.reply(menu, parse_mode="Markdown")
+📝 أرسل رقم اللعبة (1-6)"""
+        msg = await message.reply(menu)
         asyncio.create_task(delete_after(msg, 30))
     elif text.isdigit() and 1 <= int(text) <= 6:
         game_map = {1:"puzzles",2:"general_qa",3:"mcq",4:"speed_words",5:"proverbs",6:"luck_boxes"}
@@ -149,18 +149,18 @@ async def handle_member_commands(message: Message):
         await delete_after(message, 1)
     elif text in ["#مستواي", "#نقاطي"]:
         progress = await get_xp_progress(uid)
-        msg = await message.reply(f"📊 *المستوى {progress['level']}*\n{progress['bar']} {progress['percent']}%", parse_mode="Markdown")
+        msg = await message.reply(f"📊 المستوى {progress['level']}\n{progress['bar']} {progress['percent']}%")
         asyncio.create_task(delete_after(msg, 30))
     elif text in ["#سوق", "#محل"]:
         items = await db.fetch("SELECT id, name, price, rank_level FROM shop_items ORDER BY rank_level")
         if not items:
             await send_auto_delete(message.chat.id, "🏪 السوق فارغ")
             return
-        txt = "🏪 *السوق*\n"
+        txt = "🏪 السوق\n"
         for it in items:
             txt += f"🆔 {it['id']} - {it['name']} - 💰{format_number(it['price'])} - مستوى {it['rank_level']}\n"
-        txt += "\nللشراء: `#شراء <اسم الرتبة>`"
-        msg = await message.reply(txt, parse_mode="Markdown")
+        txt += "\nللشراء: #شراء <اسم الرتبة>"
+        msg = await message.reply(txt)
         asyncio.create_task(delete_after(msg, 30))
     elif text.startswith("#شراء"):
         parts = text.split(maxsplit=1)
@@ -191,7 +191,7 @@ async def add_xp_handler(message: Message):
     await add_xp(message.from_user.id, XP_PER_MESSAGE, message.chat.id, message.from_user.full_name)
     rewarded = await increment_message_count(message.from_user.id)
     if rewarded:
-        await send_auto_delete(message.chat.id, f"🎉 *مبروك!* {message.from_user.full_name}\nلقد وصلت إلى 100 رسالة!\n💰 +5,000 {CURRENCY_NAME}")
+        await send_auto_delete(message.chat.id, f"🎉 مبروك! {message.from_user.full_name}\nلقد وصلت إلى 100 رسالة!\n💰 +5,000 {CURRENCY_NAME}")
 
 def register_event_handlers(dp: Dispatcher):
     dp.message.register(dollar_commands, lambda m: m.text and m.text.startswith("$"))
