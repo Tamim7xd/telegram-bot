@@ -6,7 +6,7 @@ load_dotenv()
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 ADMIN_IDS = list(map(int, os.getenv("ADMIN_IDS", "").split(","))) if os.getenv("ADMIN_IDS") else []
 GROUP_ID = int(os.getenv("GROUP_ID", 0)) if os.getenv("GROUP_ID") else None   # ✅ جديد
-
+print(f"✅ GROUP_ID من البيئة: {GROUP_ID}")
 XP_PER_MESSAGE = 5
 XP_PER_LEVEL = 250
 LEVELUP_BONUS_MONEY = 500
