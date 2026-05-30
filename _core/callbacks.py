@@ -15,7 +15,7 @@ async def admin_panel(message: Message):
 async def process_callback(callback: CallbackQuery):
     await callback.answer()
     if callback.data == "test":
-        await callback.message.edit_text("✅ الزر يعمل")
+        await callback.message.edit_text("✅ الزر يعمل بنجاح!")
 
 def register_callback_handlers(dp: Dispatcher):
     dp.message.register(admin_panel, Command("adminiq"))
