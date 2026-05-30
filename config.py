@@ -4,15 +4,10 @@ from dotenv import load_dotenv
 load_dotenv()
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-
-ADMIN_IDS = []
-raw_admins = os.getenv("ADMIN_IDS", "")
-if raw_admins:
-    ADMIN_IDS = [int(x) for x in raw_admins.split(",") if x.strip().isdigit()]
+ADMIN_IDS = list(map(int, os.getenv("ADMIN_IDS", "").split(","))) if os.getenv("ADMIN_IDS") else []
 
 XP_PER_MESSAGE = 5
 XP_PER_LEVEL = 250
-
 LEVELUP_BONUS_MONEY = 500
 LEVELUP_BONUS_XP = 100
 
@@ -21,5 +16,8 @@ STARTING_MONEY = 100
 STARTING_XP = 0
 
 GAME_TIME_LIMIT = 20
-
+DEFAULT_GAME_PRIZE_MIN = 50
+DEFAULT_GAME_PRIZE_MAX = 300
 DATA_DIR = "data"
+
+print(f"✅ الأدمن (المسؤول الوحيد): {ADMIN_IDS}")
