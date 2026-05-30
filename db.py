@@ -1,5 +1,4 @@
 import sqlite3
-from config import ADMIN_IDS
 
 DB_FILE = "bot_data.db"
 
@@ -7,63 +6,105 @@ def get_conn():
     return sqlite3.connect(DB_FILE)
 
 def init_db():
-    conn = get_conn()
-    c = conn.cursor()
+    with get_conn() as conn:
+        c = conn.cursor()
 
-    c.execute("""
-    CREATE TABLE IF NOT EXISTS users (
-        telegram_id INTEGER PRIMARY KEY,
-        username TEXT,
-        full_name TEXT,
-        money INTEGER DEFAULT 100,
-        xp INTEGER DEFAULT 0,
-        level INTEGER DEFAULT 1,
-        title TEXT DEFAULT '',
-        status TEXT DEFAULT 'active'
-    )
-    """)
+        c.execute('''CREATE TABLE IF NOT EXISTS users (
+            telegram_id INTEGER PRIMARY KEY,
+            username TEXT,
+            full_name TEXT,
+            messages_count INTEGER DEFAULT 0,
+            money INTEGER DEFAULT 100,
+            xp INTEGER DEFAULT 0,
+            level INTEGER DEFAULT 1,
+            title TEXT DEFAULT '',
+            warnings INTEGER DEFAULT 0,
+            status TEXT DEFAULT 'active',
+            game_points INTEGER DEFAULT 0,
+            wins INTEGER DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )''')
 
-    c.execute("""
-    CREATE TABLE IF NOT EXISTS admins (
-        user_id INTEGER PRIMARY KEY
-    )
-    """)
+        c.execute('''CREATE TABLE IF NOT EXISTS general_mods (
+            user_id INTEGER PRIMARY KEY,
+            added_by INTEGER,
+            permissions TEXT DEFAULT 'mute,unmute,ban,unban,kick,warn,info'
+        )''')
 
-    c.execute("""
-    CREATE TABLE IF NOT EXISTS game_sessions (
-        chat_id INTEGER,
-        message_id INTEGER,
-        answer TEXT,
-        prize INTEGER,
-        status TEXT DEFAULT 'waiting'
-    )
-    """)
+        c.execute('''CREATE TABLE IF NOT EXISTS user_stats (
+            user_id INTEGER PRIMARY KEY,
+            total_messages INTEGER DEFAULT 0,
+            total_warns INTEGER DEFAULT 0,
+            total_mutes INTEGER DEFAULT 0,
+            total_bans INTEGER DEFAULT 0,
+            total_kicks INTEGER DEFAULT 0,
+            total_deductions INTEGER DEFAULT 0
+        )''')
 
-    for aid in ADMIN_IDS:
-        c.execute("INSERT OR IGNORE INTO admins (user_id) VALUES (?)", (aid,))
+        c.execute('''CREATE TABLE IF NOT EXISTS game_sessions (
+            chat_id INTEGER,
+            message_id INTEGER,
+            game_type TEXT,
+            question TEXT,
+            answer TEXT,
+            prize_money INTEGER,
+            status TEXT DEFAULT 'waiting',
+            PRIMARY KEY (chat_id, message_id)
+        )''')
 
-    conn.commit()
-    conn.close()
+        conn.commit()
+        print("✅ DB Ready")
 
-def execute(q, params=()):
-    conn = get_conn()
-    c = conn.cursor()
-    c.execute(q, params)
-    conn.commit()
-    conn.close()
+async def execute(query, *args):
+    with get_conn() as conn:
+        c = conn.cursor()
+        c.execute(query, args)
+        conn.commit()
 
-def fetchone(q, params=()):
-    conn = get_conn()
-    c = conn.cursor()
-    c.execute(q, params)
-    row = c.fetchone()
-    conn.close()
-    return row
+async def fetch(query, *args):
+    with get_conn() as conn:
+        c = conn.cursor()
+        c.execute(query, args)
+        rows = c.fetchall()
+        cols = [d[0] for d in c.description] if c.description else []
+        return [dict(zip(cols, r)) for r in rows]
 
-def fetchall(q, params=()):
-    conn = get_conn()
-    c = conn.cursor()
-    c.execute(q, params)
-    rows = c.fetchall()
-    conn.close()
-    return rows
+async def fetchrow(query, *args):
+    with get_conn() as conn:
+        c = conn.cursor()
+        c.execute(query, args)
+        row = c.fetchone()
+        if not row:
+            return None
+        cols = [d[0] for d in c.description]
+        return dict(zip(cols, row))
+
+async def fetchval(query, *args):
+    with get_conn() as conn:
+        c = conn.cursor()
+        c.execute(query, args)
+        r = c.fetchone()
+        return r[0] if r else None
+
+
+class Database:
+    async def connect(self):
+        init_db()
+
+    async def init_tables(self):
+        init_db()
+
+    async def execute(self, q, *a):
+        return await execute(q, *a)
+
+    async def fetch(self, q, *a):
+        return await fetch(q, *a)
+
+    async def fetchrow(self, q, *a):
+        return await fetchrow(q, *a)
+
+    async def fetchval(self, q, *a):
+        return await fetchval(q, *a)
+
+
+db = Database()
