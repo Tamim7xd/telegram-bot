@@ -8,10 +8,8 @@ from _core.titles import set_user_title
 from _core.notify import bot, send_auto_delete, send_admin_notification
 from db import db
 import asyncio
-import logging
 
-logger = logging.getLogger(__name__)
-
+# ========== دوال مساعدة ==========
 async def get_user_stats(user_id: int):
     row = await db.fetchrow("SELECT * FROM user_stats WHERE user_id = $1", user_id)
     if not row:
@@ -26,7 +24,6 @@ async def update_user_stats(user_id: int, field: str, value=1, extra=None):
         amt, rsn = extra
         await db.execute("UPDATE user_stats SET last_deduction_amount = ?, last_deduction_reason = ?, last_deduction_at = CURRENT_TIMESTAMP WHERE user_id = ?", amt, rsn, user_id)
 
-# حذف رسالة الأمر بعد 3 ثوانٍ
 async def delete_command(msg: Message, delay=3):
     await asyncio.sleep(delay)
     try:
@@ -34,7 +31,7 @@ async def delete_command(msg: Message, delay=3):
     except:
         pass
 
-# أوامر $ للأدمن والمشرف العام
+# ========== أوامر $ (كما هي، مع إشعارات المجموعة) ==========
 async def handle_admin_commands(message: Message):
     if not message.reply_to_message:
         return
@@ -49,7 +46,7 @@ async def handle_admin_commands(message: Message):
     executor_name = message.from_user.full_name
     target_name = target.full_name
 
-    # ========== الأدمن فقط ==========
+    # الأدمن فقط
     if text.startswith("$رفع مشرف"):
         if not is_adm:
             await send_auto_delete(chat_id, "❌ للأدمن فقط")
@@ -90,7 +87,7 @@ async def handle_admin_commands(message: Message):
         else:
             await send_auto_delete(chat_id, "❌ استخدم: $اعطاء 100 سبب")
 
-    # ========== الأوامر المشتركة ==========
+    # الأوامر المشتركة
     elif text.startswith("$معلومات"):
         u = await get_user(target.id)
         if u:
@@ -102,14 +99,12 @@ async def handle_admin_commands(message: Message):
         parts = text.split(maxsplit=2)
         duration = parts[1] if len(parts) >= 2 else "30m"
         reason = parts[2] if len(parts) > 2 else "لا سبب"
-        # تحديث قاعدة البيانات
         await set_user_status(target.id, "muted")
-        # محاولة الكتم الفعلي في المجموعة (يتطلب صلاحيات)
         try:
             await message.chat.restrict_member(target.id, can_send_messages=False)
             await send_auto_delete(chat_id, f"🔇 تم كتم {target_name} لمدة {duration}")
         except:
-            await send_auto_delete(chat_id, f"⚠️ لا يمكن كتم {target_name} (صلاحيات البوت)")
+            await send_auto_delete(chat_id, f"⚠️ لا يمكن كتم {target_name}")
         await send_admin_notification(chat_id, executor_name, target_name, "كتم", f"لمدة {duration}\nالسبب: {reason}")
     elif text == "$فك كتم":
         await set_user_status(target.id, "active")
@@ -160,7 +155,7 @@ async def handle_admin_commands(message: Message):
             msg = await message.reply(log, parse_mode="Markdown")
             asyncio.create_task(delete_command(msg, 30))
 
-# ========== أوامر الأعضاء (#) ==========
+# ========== أوامر الأعضاء # ==========
 async def handle_member_commands(message: Message):
     text = message.text.strip()
     uid = message.from_user.id
@@ -241,19 +236,23 @@ async def handle_member_commands(message: Message):
         msg = await message.reply(f"📊 المستوى {progress['level']}\n{progress['bar']} {progress['percent']}%")
         asyncio.create_task(delete_command(msg, 30))
 
-# ========== معالج رقم اللعبة ==========
+# ========== معالج أرقام الألعاب (المعدل) ==========
 async def handle_game_choice(message: Message):
+    # يجب أن يكون الرد على رسالة قائمة الألعاب
+    if not message.reply_to_message:
+        return
     if not message.text or not message.text.isdigit():
         return
     choice = int(message.text)
     if 1 <= choice <= 6:
         game_map = {1: "puzzles", 2: "general_qa", 3: "mcq", 4: "speed_words", 5: "proverbs", 6: "luck_boxes"}
         game_type = game_map[choice]
+        # نبدأ اللعبة
         await start_game_with_choice(message, game_type)
-        # حذف رسالة الاختيار
+        # نحذف رسالة الاختيار
         asyncio.create_task(delete_command(message, 1))
 
-# ========== إضافة XP لكل رسالة ==========
+# ========== إضافة XP ==========
 async def add_xp_on_message(message: Message):
     await get_or_create_user(message.from_user)
     if not message.text or message.text.startswith(("#", "$")):
@@ -266,5 +265,5 @@ async def add_xp_on_message(message: Message):
 def register_event_handlers(dp: Dispatcher):
     dp.message.register(handle_admin_commands, lambda m: m.text and m.text.startswith("$"))
     dp.message.register(handle_member_commands, lambda m: m.text and m.text.startswith("#"))
-    dp.message.register(handle_game_choice, lambda m: m.text and m.text.isdigit())
+    dp.message.register(handle_game_choice, lambda m: m.text and m.text.isdigit() and m.reply_to_message)
     dp.message.register(add_xp_on_message)
