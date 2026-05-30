@@ -97,8 +97,8 @@ async def dollar_commands(message: Message):
             msg = await message.reply(log)
             asyncio.create_task(delete_after(msg, 30))
 
-# أوامر # (للأعضاء)
-async def hash_commands(message: Message):
+# أوامر # (للأعضاء) - هذه هي الدالة التي يحتاجها bot_core.py
+async def handle_member_commands(message: Message):
     text = message.text.strip()
     uid = message.from_user.id
     await get_or_create_user(message.from_user)
@@ -122,7 +122,6 @@ async def hash_commands(message: Message):
         msg = await message.reply(menu, parse_mode="Markdown")
         asyncio.create_task(delete_after(msg, 30))
     elif text.isdigit() and 1 <= int(text) <= 6:
-        # اختيار اللعبة
         game_map = {1:"puzzles",2:"general_qa",3:"mcq",4:"speed_words",5:"proverbs",6:"luck_boxes"}
         await start_game_with_choice(message, game_map[int(text)])
         await delete_after(message, 1)
@@ -135,5 +134,5 @@ async def add_xp_handler(message: Message):
 
 def register_event_handlers(dp: Dispatcher):
     dp.message.register(dollar_commands, lambda m: m.text and m.text.startswith("$"))
-    dp.message.register(hash_commands, lambda m: m.text and m.text.startswith("#"))
+    dp.message.register(handle_member_commands, lambda m: m.text and m.text.startswith("#"))
     dp.message.register(add_xp_handler)
