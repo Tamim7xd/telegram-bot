@@ -11,12 +11,9 @@ import asyncio
 
 async def delete_after(msg, seconds):
     await asyncio.sleep(seconds)
-    try:
-        await msg.delete()
-    except:
-        pass
+    try: await msg.delete()
+    except: pass
 
-# ========== أوامر $ (للأدمن والمشرف) ==========
 async def dollar_commands(message: Message):
     if not message.reply_to_message:
         return
@@ -74,7 +71,7 @@ async def dollar_commands(message: Message):
         reason = text[5:].strip() or "لا سبب"
         await set_user_status(target.id, "banned")
         try:
-            await message.chat.ban_member(target.id)
+            await message.chat.ban(target.id)   # ✅ تصحيح
             await send_auto_delete(chat_id, f"🚫 تم حظر {target_name}\nالسبب: {reason}")
         except Exception as e:
             await send_auto_delete(chat_id, f"⚠️ لا يمكن حظر {target_name}: {e}")
@@ -82,7 +79,7 @@ async def dollar_commands(message: Message):
     elif text == "$فك حظر":
         await set_user_status(target.id, "active")
         try:
-            await message.chat.unban_member(target.id)
+            await message.chat.unban(target.id)   # ✅ تصحيح
             await send_auto_delete(chat_id, f"✅ تم فك حظر {target_name}")
         except Exception as e:
             await send_auto_delete(chat_id, f"⚠️ لا يمكن فك الحظر: {e}")
@@ -90,8 +87,8 @@ async def dollar_commands(message: Message):
     elif text.startswith("$طرد"):
         reason = text[5:].strip() or "لا سبب"
         try:
-            await message.chat.ban_member(target.id)
-            await message.chat.unban_member(target.id)
+            await message.chat.ban(target.id)
+            await message.chat.unban(target.id)
             await send_auto_delete(chat_id, f"👢 تم طرد {target_name}\nالسبب: {reason}")
         except Exception as e:
             await send_auto_delete(chat_id, f"⚠️ لا يمكن طرد {target_name}: {e}")
@@ -126,7 +123,6 @@ async def dollar_commands(message: Message):
             await set_user_status(target.id, "banned")
             await send_auto_delete(chat_id, f"🚫 تم حظر {target_name} تلقائياً لـ 3 تحذيرات")
 
-# ========== أوامر الأعضاء (#) ==========
 async def handle_member_commands(message: Message):
     text = message.text.strip()
     uid = message.from_user.id
