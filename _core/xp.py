@@ -1,7 +1,6 @@
 from db import db
 from config import XP_PER_LEVEL, LEVELUP_BONUS_MONEY, LEVELUP_BONUS_XP
 from _core.users import update_user_money, update_user_xp, get_user
-import asyncio
 
 async def get_xp_progress(telegram_id: int):
     user = await get_user(telegram_id)
@@ -22,14 +21,13 @@ async def get_xp_progress(telegram_id: int):
         "remaining": needed - xp_in_level if needed > 0 else 0
     }
 
-# حساب عدد رسائل المستخدم وإعطاء مكافأة كل 100 رسالة
 async def increment_message_count(user_id: int):
     await db.execute("UPDATE user_stats SET total_messages = total_messages + 1 WHERE user_id = ?", user_id)
     row = await db.fetchrow("SELECT total_messages FROM user_stats WHERE user_id = ?", user_id)
     count = row['total_messages'] if row else 0
     if count % 100 == 0 and count > 0:
         await update_user_money(user_id, 5000, f"مكافأة {count} رسالة", None)
-        return True  # تم إعطاء المكافأة
+        return True
     return False
 
 async def add_xp(telegram_id: int, amount: int, chat_id: int = None, user_name: str = ""):
