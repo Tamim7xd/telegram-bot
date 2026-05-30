@@ -11,7 +11,7 @@ async def is_admin(user_id: int):
 
 
 # =====================
-# GET USER (مفقود عندك وكان سبب الخطأ)
+# GET USER
 # =====================
 async def get_user(telegram_id: int):
     return await db.fetchrow(
@@ -21,7 +21,7 @@ async def get_user(telegram_id: int):
 
 
 # =====================
-# CREATE OR GET USER
+# CREATE OR GET USER (FIXED)
 # =====================
 async def get_or_create_user(tg_user: User):
     user = await get_user(tg_user.id)
@@ -30,7 +30,10 @@ async def get_or_create_user(tg_user: User):
         return user
 
     await db.execute(
-        "INSERT INTO users (telegram_id, username, full_name, money, xp) VALUES (?, ?, ?, ?, ?)",
+        """
+        INSERT INTO users (telegram_id, username, full_name, money, xp)
+        VALUES (?, ?, ?, ?, ?)
+        """,
         tg_user.id,
         tg_user.username,
         tg_user.full_name,
@@ -38,7 +41,17 @@ async def get_or_create_user(tg_user: User):
         STARTING_XP
     )
 
-    return await get_user(tg_user.id)
+    # ⚡ الأفضل: نعيد نفس البيانات مباشرة بدون إعادة استعلام
+    return {
+        "telegram_id": tg_user.id,
+        "username": tg_user.username,
+        "full_name": tg_user.full_name,
+        "money": STARTING_MONEY,
+        "xp": STARTING_XP,
+        "level": 1,
+        "title": "",
+        "status": "active"
+    }
 
 
 # =====================
@@ -80,7 +93,7 @@ async def get_user_status(user_id: int):
 
 
 # =====================
-# GENERAL MODS (اختياري لكن موجود في مشروعك)
+# GENERAL MODS
 # =====================
 async def is_general_mod(user_id: int):
     row = await db.fetchrow(
