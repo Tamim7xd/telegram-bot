@@ -11,8 +11,10 @@ import asyncio
 
 async def delete_after(msg, seconds):
     await asyncio.sleep(seconds)
-    try: await msg.delete()
-    except: pass
+    try:
+        await msg.delete()
+    except:
+        pass
 
 async def dollar_commands(message: Message):
     if not message.reply_to_message:
@@ -54,7 +56,7 @@ async def dollar_commands(message: Message):
         reason = parts[2] if len(parts) > 2 else "لا سبب"
         await set_user_status(target.id, "muted")
         try:
-            await message.chat.restrict_member(target.id, permissions=ChatPermissions(can_send_messages=False))
+            await message.chat.restrict(target.id, permissions=ChatPermissions(can_send_messages=False))
             await send_auto_delete(chat_id, f"🔇 تم كتم {target_name} لمدة {duration}\nالسبب: {reason}")
         except Exception as e:
             await send_auto_delete(chat_id, f"⚠️ لا يمكن كتم {target_name}: {e}")
@@ -62,7 +64,7 @@ async def dollar_commands(message: Message):
     elif text == "$فك كتم":
         await set_user_status(target.id, "active")
         try:
-            await message.chat.restrict_member(target.id, permissions=ChatPermissions(can_send_messages=True, can_send_media_messages=True, can_send_other_messages=True))
+            await message.chat.restrict(target.id, permissions=ChatPermissions(can_send_messages=True, can_send_media_messages=True, can_send_other_messages=True))
             await send_auto_delete(chat_id, f"🔈 تم فك كتم {target_name}")
         except Exception as e:
             await send_auto_delete(chat_id, f"⚠️ لا يمكن فك الكتم: {e}")
@@ -71,7 +73,7 @@ async def dollar_commands(message: Message):
         reason = text[5:].strip() or "لا سبب"
         await set_user_status(target.id, "banned")
         try:
-            await message.chat.ban(target.id)   # ✅ تصحيح
+            await message.chat.ban(target.id)
             await send_auto_delete(chat_id, f"🚫 تم حظر {target_name}\nالسبب: {reason}")
         except Exception as e:
             await send_auto_delete(chat_id, f"⚠️ لا يمكن حظر {target_name}: {e}")
@@ -79,7 +81,7 @@ async def dollar_commands(message: Message):
     elif text == "$فك حظر":
         await set_user_status(target.id, "active")
         try:
-            await message.chat.unban(target.id)   # ✅ تصحيح
+            await message.chat.unban(target.id)
             await send_auto_delete(chat_id, f"✅ تم فك حظر {target_name}")
         except Exception as e:
             await send_auto_delete(chat_id, f"⚠️ لا يمكن فك الحظر: {e}")
