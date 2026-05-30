@@ -5,6 +5,7 @@ load_dotenv()
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 ADMIN_IDS = list(map(int, os.getenv("ADMIN_IDS", "").split(","))) if os.getenv("ADMIN_IDS") else []
+GROUP_ID = int(os.getenv("GROUP_ID", 0)) if os.getenv("GROUP_ID") else None   # ✅ جديد
 
 XP_PER_MESSAGE = 5
 XP_PER_LEVEL = 250
@@ -20,4 +21,5 @@ DEFAULT_GAME_PRIZE_MIN = 50
 DEFAULT_GAME_PRIZE_MAX = 300
 DATA_DIR = "data"
 
-print(f"✅ الأدمن (المسؤول الوحيد): {ADMIN_IDS}")
+print(f"✅ الأدمن: {ADMIN_IDS}")
+print(f"✅ المجموعة المستهدفة للإشعارات: {GROUP_ID}")
