@@ -1,79 +1,226 @@
-from config import ADMIN_IDS, CURRENCY_NAME
-from db import execute, fetchone, fetchall
-from _core.users import create_user, add_money
-from _core.xp import update_level
-from _core.games import start_game_menu, process_game_answer
+from aiogram import Dispatcher
+from aiogram.types import Message
+from config import ADMIN_IDS, CURRENCY_NAME, XP_PER_MESSAGE
+from _core.users import (update_user_money, get_user, set_user_status, get_or_create_user,
+                         is_admin, is_general_mod, add_general_mod, remove_general_mod)
+from _core.xp import add_xp, get_xp_progress
+from _core.games import cmd_game
+from _core.titles import set_user_title
+from _core.notify import bot, send_auto_delete
+from db import db
+from datetime import datetime, timedelta
+import asyncio
 
+async def get_user_stats(user_id: int):
+    row = await db.fetchrow("SELECT * FROM user_stats WHERE user_id = $1", user_id)
+    if not row:
+        await db.execute("INSERT INTO user_stats (user_id) VALUES (?)", user_id)
+        row = await db.fetchrow("SELECT * FROM user_stats WHERE user_id = $1", user_id)
+    return row
 
-# 🔥 تحديث المستخدم عند أي رسالة
-async def handle_text(message):
+async def update_user_stats(user_id: int, field: str, value=1, extra=None):
+    if field in ["total_messages", "total_warns", "total_mutes", "total_bans", "total_kicks", "total_deductions"]:
+        await db.execute(f"UPDATE user_stats SET {field} = {field} + ? WHERE user_id = ?", value, user_id)
+    elif field == "last_deduction" and extra:
+        amt, rsn = extra
+        await db.execute("UPDATE user_stats SET last_deduction_amount = ?, last_deduction_reason = ?, last_deduction_at = CURRENT_TIMESTAMP WHERE user_id = ?", amt, rsn, user_id)
 
-    if not message.text:
+async def send_admin_notification(chat_id, admin_name, target_name, action, detail=""):
+    border = "╭━━━━━━━━━━━━━━━━━━━━━━━━━━╮"
+    text = f"""{border}
+┃ 🔔 *إشـارة إداريـة* 🔔
+╰━━━━━━━━━━━━━━━━━━━━━━━━━━╯
+
+👤 *المنفذ:* {admin_name}
+👥 *المستخدم:* {target_name}
+⚙️ *الإجراء:* {action}
+📝 *التفاصيل:* {detail}
+🕒 *الوقت:* {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+━━━━━━━━━━━━━━━━━━━━━━━━━━"""
+    await send_auto_delete(chat_id, text)
+
+async def handle_admin_commands(message: Message):
+    if not message.reply_to_message:
         return
+    uid = message.from_user.id
+    is_adm = await is_admin(uid)
+    is_mod = await is_general_mod(uid)
+    if not (is_adm or is_mod):
+        return
+    target = message.reply_to_message.from_user
+    text = message.text.strip()
+    chat_id = message.chat.id
+    executor_name = message.from_user.full_name
+    target_name = target.full_name
 
-    await create_user(message.from_user)
+    # أوامر الأدمن فقط (إضافة/حذف مشرف عام)
+    if text.startswith("$رفع مشرف"):
+        if not is_adm:
+            await send_auto_delete(chat_id, "❌ الأدمن فقط يمكنه رفع مشرف عام")
+            return
+        await add_general_mod(target.id, uid)
+        await send_auto_delete(chat_id, f"✅ تم رفع {target_name} مشرفاً عاماً")
+        await send_admin_notification(chat_id, executor_name, target_name, "🛡️ رفع مشرف عام", "")
+    elif text.startswith("$حذف مشرف"):
+        if not is_adm:
+            await send_auto_delete(chat_id, "❌ الأدمن فقط يمكنه حذف مشرف عام")
+            return
+        await remove_general_mod(target.id)
+        await send_auto_delete(chat_id, f"✅ تم حذف صلاحيات المشرف العام عن {target_name}")
 
+    # الأوامر المشتركة للأدمن والمشرف العام
+    elif text.startswith("$معلومات"):
+        u = await get_user(target.id)
+        if u:
+            msg = await message.reply(f"📄 *معلومات {u['full_name']}*\n💰 الرصيد: {u['money']}\n⭐ XP: {u['xp']}\n📊 المستوى: {u['level']}\n🏷️ اللقب: {u['title'] or 'لا يوجد'}")
+            asyncio.create_task(delete_after(msg, 30))
+            await message.delete()
+        else:
+            await send_auto_delete(chat_id, "المستخدم غير موجود")
+    elif text.startswith("$كتم"):
+        parts = text.split(maxsplit=2)
+        duration = parts[1] if len(parts) >= 2 else "30m"
+        reason = parts[2] if len(parts) > 2 else "لا يوجد سبب"
+        await set_user_status(target.id, "muted")
+        await send_auto_delete(chat_id, f"🔇 تم كتم {target_name} لمدة {duration}\nالسبب: {reason}")
+        await send_admin_notification(chat_id, executor_name, target_name, "🔇 كتم", f"لمدة {duration}\nالسبب: {reason}")
+    elif text == "$فك كتم":
+        await set_user_status(target.id, "active")
+        await send_auto_delete(chat_id, f"🔈 تم فك الكتم عن {target_name}")
+        await send_admin_notification(chat_id, executor_name, target_name, "🔈 فك كتم", "")
+    elif text.startswith("$حظر"):
+        reason = text[5:].strip() or "لا يوجد سبب"
+        await set_user_status(target.id, "banned")
+        await send_auto_delete(chat_id, f"🚫 تم حظر {target_name}\nالسبب: {reason}")
+        await send_admin_notification(chat_id, executor_name, target_name, "🚫 حظر", reason)
+    elif text == "$فك حظر":
+        await set_user_status(target.id, "active")
+        await send_auto_delete(chat_id, f"✅ تم فك الحظر عن {target_name}")
+        await send_admin_notification(chat_id, executor_name, target_name, "✅ فك حظر", "")
+    elif text.startswith("$طرد"):
+        reason = text[5:].strip() or "لا يوجد سبب"
+        await send_auto_delete(chat_id, f"👢 تم طرد {target_name}\nالسبب: {reason}")
+        await send_admin_notification(chat_id, executor_name, target_name, "🗑️ طرد", reason)
+        try:
+            await message.chat.ban_member(target.id)
+            await message.chat.unban_member(target.id)
+        except: pass
+    elif text.startswith("$لقب"):
+        new_title = text[5:].strip()
+        if new_title:
+            await set_user_title(target.id, new_title)
+            await send_auto_delete(chat_id, f"🏷️ تم منح اللقب '{new_title}' إلى {target_name}")
+            await send_admin_notification(chat_id, executor_name, target_name, "🏷️ تغيير لقب", f"اللقب الجديد: {new_title}")
+        else:
+            await send_auto_delete(chat_id, "❌ استخدم: $لقب بطل")
+    elif text == "$سجل":
+        rows = await db.fetch("SELECT * FROM economy_log WHERE admin_id = ? ORDER BY timestamp DESC LIMIT 10", uid)
+        if rows:
+            log = "📜 *آخر عملياتك:*\n"
+            for r in rows:
+                log += f"• {r['amount']} {CURRENCY_NAME} - {r['reason']}\n"
+            await send_auto_delete(chat_id, log)
+        else:
+            await send_auto_delete(chat_id, "📭 لا توجد عمليات مسجلة لك.")
+    elif text.startswith("$خصم"):
+        if not is_adm:
+            await send_auto_delete(chat_id, "❌ الأدمن فقط يمكنه خصم الرصيد")
+            return
+        parts = text.split(maxsplit=2)
+        if len(parts) >= 2 and parts[1].isdigit():
+            amt = int(parts[1])
+            reason = parts[2] if len(parts) > 2 else "خصم"
+            await update_user_money(target.id, -amt, reason, uid)
+            await send_auto_delete(chat_id, f"✅ تم خصم {amt} {CURRENCY_NAME} من {target_name}\nالسبب: {reason}")
+            await send_admin_notification(chat_id, executor_name, target_name, "💰 خصم رصيد", f"-{amt} {CURRENCY_NAME}\nالسبب: {reason}")
+        else:
+            await send_auto_delete(chat_id, "❌ استخدم: $خصم 50 سبب")
+    elif text.startswith("$اعطاء") or text.startswith("$إعطاء"):
+        if not is_adm:
+            await send_auto_delete(chat_id, "❌ الأدمن فقط يمكنه إضافة رصيد")
+            return
+        parts = text.split(maxsplit=2)
+        if len(parts) >= 2 and parts[1].isdigit():
+            amt = int(parts[1])
+            reason = parts[2] if len(parts) > 2 else "مكافأة"
+            await update_user_money(target.id, amt, reason, uid)
+            await send_auto_delete(chat_id, f"✅ تم إضافة {amt} {CURRENCY_NAME} إلى {target_name}\nالسبب: {reason}")
+            await send_admin_notification(chat_id, executor_name, target_name, "💰 إضافة رصيد", f"+{amt} {CURRENCY_NAME}\nالسبب: {reason}")
+        else:
+            await send_auto_delete(chat_id, "❌ استخدم: $اعطاء 100 سبب")
+
+async def handle_member_commands(message: Message):
     text = message.text.strip()
     uid = message.from_user.id
+    await get_or_create_user(message.from_user)
 
-    # =========================
-    # 👤 أوامر الأعضاء #
-    # =========================
-    if text.startswith("#"):
-
-        if text in ["#لعبة", "#العاب", "#العب"]:
-            await start_game_menu(message)
+    if text in ["#ملفي", "#حسابي", "#معلوماتي"]:
+        user = await get_user(uid)
+        stats = await get_user_stats(uid)
+        progress = await get_xp_progress(uid)
+        reply = f"👤 *{user['full_name']}*\n💰 {user['money']} {CURRENCY_NAME}\n⭐ XP: {user['xp']}\n📊 المستوى: {user['level']}\n🏷️ اللقب: {user['title'] or 'لا يوجد'}\n📨 الرسائل: {stats['total_messages']}\n⚠️ التحذيرات: {stats['total_warns']}\n📈 {progress['bar']} {progress['percent']}%"
+        msg = await message.reply(reply, parse_mode="Markdown")
+        asyncio.create_task(delete_after(msg, 30))
+        await message.delete()
+    elif text in ["#فلوس", "#فلوسي"]:
+        user = await get_user(uid)
+        msg = await message.reply(f"💰 رصيدك: {user['money']} {CURRENCY_NAME}")
+        asyncio.create_task(delete_after(msg, 30))
+    elif text in ["#لقب", "#لقبي"]:
+        user = await get_user(uid)
+        msg = await message.reply(f"🏷️ لقبك: {user['title'] or 'لا يوجد'}")
+        asyncio.create_task(delete_after(msg, 30))
+    elif text in ["#لعبة", "#العب", "#العاب"]:
+        await cmd_game(message)
+    elif text in ["#مستواي", "#نقاطي"]:
+        progress = await get_xp_progress(uid)
+        msg = await message.reply(f"📊 المستوى {progress['level']}\n{progress['bar']} {progress['percent']}%")
+        asyncio.create_task(delete_after(msg, 30))
+    elif text in ["#شراء", "#محل", "#سوق"]:
+        items = await db.fetch("SELECT name, price FROM shop_items ORDER BY rank_level")
+        if items:
+            txt = "🏪 *السوق*\n"
+            for it in items:
+                txt += f"• {it['name']} - {it['price']} {CURRENCY_NAME}\n"
+            txt += "\nاستخدم `#شراء <اسم الرتبة>` لشرائها"
+            await send_auto_delete(message.chat.id, txt)
+        else:
+            await send_auto_delete(message.chat.id, "السوق فارغ حالياً.")
+    elif text.startswith("#شراء"):
+        parts = text.split(maxsplit=1)
+        if len(parts) < 2:
+            await send_auto_delete(message.chat.id, "❌ استخدم: #شراء اسم الرتبة")
             return
-
-        if text == "#ملفي":
-            user = fetchone("SELECT * FROM users WHERE telegram_id=?", (uid,))
-            await message.reply(
-                f"👤 {user[2]}\n💰 {user[3]} {CURRENCY_NAME}\n⭐ XP: {user[4]}\n📊 Level: {user[5]}"
-            )
+        rank_name = parts[1]
+        item = await db.fetchrow("SELECT * FROM shop_items WHERE name = ?", rank_name)
+        if not item:
+            await send_auto_delete(message.chat.id, "❌ الرتبة غير موجودة")
             return
+        user = await get_user(uid)
+        if user['money'] >= item['price']:
+            await update_user_money(uid, -item['price'], f"شراء {rank_name}", None)
+            await db.execute("INSERT INTO user_purchases (user_id, item_id) VALUES (?, ?) ON CONFLICT DO NOTHING", uid, item['id'])
+            await send_auto_delete(message.chat.id, f"✅ تم شراء رتبة *{rank_name}* بنجاح!")
+        else:
+            await send_auto_delete(message.chat.id, f"❌ رصيدك غير كافٍ (تحتاج {item['price']} {CURRENCY_NAME})")
 
-        if text == "#فلوسي":
-            user = fetchone("SELECT money FROM users WHERE telegram_id=?", (uid,))
-            await message.reply(f"💰 رصيدك: {user[0]} {CURRENCY_NAME}")
-            return
+async def add_xp_on_message(message: Message):
+    await get_or_create_user(message.from_user)
+    if not message.text or message.text.startswith(("#", "$")):
+        return
+    if await is_admin(message.from_user.id):
+        return
+    await add_xp(message.from_user.id, XP_PER_MESSAGE, message.chat.id, message.from_user.full_name)
+    await update_user_stats(message.from_user.id, 'total_messages')
 
-    # =========================
-    # 👮 أوامر الأدمن $
-    # =========================
-    if text.startswith("$"):
+async def delete_after(msg, seconds: int):
+    await asyncio.sleep(seconds)
+    try:
+        await msg.delete()
+    except:
+        pass
 
-        if uid not in ADMIN_IDS:
-            await message.reply("❌ ليس لديك صلاحية")
-            return
-
-        parts = text.split()
-
-        # ➕ إعطاء فلوس
-        if parts[0] == "$اعطاء":
-            amount = int(parts[1])
-            target = message.reply_to_message.from_user.id
-            await add_money(target, amount)
-            await message.reply("✅ تم الإضافة")
-            return
-
-        # ➖ خصم
-        if parts[0] == "$خصم":
-            amount = int(parts[1])
-            target = message.reply_to_message.from_user.id
-            await add_money(target, -amount)
-            await message.reply("✅ تم الخصم")
-            return
-
-        # 🔇 كتم (بسيط)
-        if parts[0] == "$كتم":
-            target = message.reply_to_message.from_user.id
-            execute("UPDATE users SET status='muted' WHERE telegram_id=?", (target,))
-            await message.reply("🔇 تم الكتم")
-            return
-
-        # 🚫 حظر
-        if parts[0] == "$حظر":
-            target = message.reply_to_message.from_user.id
-            execute("UPDATE users SET status='banned' WHERE telegram_id=?", (target,))
-            await message.reply("🚫 تم الحظر")
-            return
+def register_event_handlers(dp: Dispatcher):
+    dp.message.register(handle_admin_commands, lambda m: m.text and m.text.startswith("$"))
+    dp.message.register(handle_member_commands, lambda m: m.text and m.text.startswith("#"))
+    dp.message.register(add_xp_on_message)
