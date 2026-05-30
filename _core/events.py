@@ -33,6 +33,7 @@ async def dollar_commands(message: Message):
     admin_name = message.from_user.full_name
     target_name = target.full_name
 
+    # خصم (للمشرف الإداري والأدمن فقط)
     if text.startswith("$خصم") and (is_adm or is_adm_mod):
         parts = text.split(maxsplit=2)
         if len(parts) >= 2 and parts[1].isdigit():
@@ -43,6 +44,7 @@ async def dollar_commands(message: Message):
             await send_admin_notification(admin_name, target_name, "💰 خصم رصيد", f"-{format_number(amt)}")
         else:
             await send_auto_delete(chat_id, "❌ استخدم: $خصم 50 سبب")
+    # مكافأة (للمشرف الإداري والأدمن فقط)
     elif text.startswith("$مكافئة") and (is_adm or is_adm_mod):
         parts = text.split(maxsplit=2)
         if len(parts) >= 2 and parts[1].isdigit():
@@ -53,40 +55,45 @@ async def dollar_commands(message: Message):
             await send_admin_notification(admin_name, target_name, "💰 إضافة رصيد", f"+{format_number(amt)}")
         else:
             await send_auto_delete(chat_id, "❌ استخدم: $مكافئة 100 سبب")
+    # تحذير (لجميع المشرفين)
     elif text.startswith("$تحذير") and (is_adm or is_gen_mod or is_adm_mod):
         reason = text[8:].strip() or "لا يوجد سبب"
         new_count = await add_warning(target.id, reason, uid)
         await send_auto_delete(chat_id, f"⚠️ تم تحذير {target_name} (التحذير {new_count}/100)\nالسبب: {reason}")
         await send_admin_notification(admin_name, target_name, "⚠️ تحذير", f"التحذير {new_count}/100\nالسبب: {reason}")
+    # معلومات (لجميع المشرفين)
     elif text.startswith("$معلومات") and (is_adm or is_gen_mod or is_adm_mod):
         u = await get_user(target.id)
         if u:
-            msg = await message.reply(f"📄 {u['full_name']}\n💰 {format_number(u['money'])}\n⭐ XP: {u['xp']}\n📊 مستوى {u['level']}\n🏷️ لقب: {u['title'] or 'لا يوجد'}\n⚠️ تحذيرات: {u['warnings']}/100")
+            msg = await message.reply(f"📄 *{u['full_name']}*\n💰 {format_number(u['money'])} {CURRENCY_NAME}\n⭐ XP: {u['xp']}\n📊 المستوى: {u['level']}\n🏷️ اللقب: {u['title'] or 'لا يوجد'}\n⚠️ التحذيرات: {u['warnings']}/100", parse_mode="Markdown")
             asyncio.create_task(delete_after(msg, 30))
+    # فلوس (لجميع المشرفين)
     elif text.startswith("$فلوس") and (is_adm or is_gen_mod or is_adm_mod):
         u = await get_user(target.id)
         if u:
             msg = await message.reply(f"💰 فلوس {target_name}: {format_number(u['money'])} {CURRENCY_NAME}")
             asyncio.create_task(delete_after(msg, 30))
+    # التحذيرات (لجميع المشرفين)
     elif text.startswith("$التحذيرات") and (is_adm or is_gen_mod or is_adm_mod):
         warns = await get_user_warnings_list(target.id, 5)
         if warns:
-            txt = f"⚠️ تحذيرات {target_name}:\n"
+            txt = f"⚠️ *تحذيرات {target_name}:*\n"
             for w in warns:
                 admin = await get_user(w['admin_id'])
                 admin_name = admin['full_name'] if admin else "نظام"
                 txt += f"• {w['reason']} (بواسطة {admin_name}) - {w['created_at']}\n"
-            msg = await message.reply(txt)
+            msg = await message.reply(txt, parse_mode="Markdown")
             asyncio.create_task(delete_after(msg, 30))
         else:
             await send_auto_delete(chat_id, f"✅ {target_name} ليس لديه تحذيرات")
+    # سجل (للمشرف الإداري والأدمن فقط)
     elif text == "$سجل" and (is_adm or is_adm_mod):
         rows = await db.fetch("SELECT amount, reason, user_id FROM economy_log WHERE admin_id = ? ORDER BY timestamp DESC LIMIT 10", uid)
         if rows:
-            log = "📜 سجلك:\n"
+            log = "📜 *سجلك:*\n"
             for r in rows:
                 log += f"• {format_number(r['amount'])} {CURRENCY_NAME} للمستخدم {r['user_id']} - {r['reason']}\n"
-            msg = await message.reply(log)
+            msg = await message.reply(log, parse_mode="Markdown")
             asyncio.create_task(delete_after(msg, 30))
         else:
             await send_auto_delete(chat_id, "📭 لا توجد عمليات مسجلة لك")
