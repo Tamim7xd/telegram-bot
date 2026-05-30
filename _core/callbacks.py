@@ -6,6 +6,7 @@ from db import db
 from _core.users import get_user, update_user_money, set_user_status, is_admin, is_general_mod, add_general_mod, remove_general_mod
 from _core.titles import set_user_title
 from _core.notify import bot, send_auto_delete, send_admin_notification
+import asyncio
 
 # ========== لوحة الأدمن الرئيسية ==========
 async def admin_panel(message: Message):
@@ -90,8 +91,8 @@ async def manage_shop(callback: CallbackQuery):
 
 # ========== تثبيت رسالة ==========
 async def pin_message(callback: CallbackQuery):
-    await callback.message.edit_text("أرسل النص الذي تريد تثبيته في المجموعة (يمكنك الرد على رسالة موجودة).")
-    # سنتعامل معه في معالج منفصل
+    await callback.message.edit_text("أرسل النص الذي تريد تثبيته في المجموعة (أو رد على رسالة موجودة).")
+    # سيتم التعامل معه في معالج منفصل أدناه
 
 # ========== معالج الأزرار الرئيسي ==========
 async def process_callback(callback: CallbackQuery):
@@ -151,7 +152,7 @@ async def process_callback(callback: CallbackQuery):
     elif data == "users_back":
         await show_users(callback, 1)
 
-    # إجراءات التعديل
+    # إجراءات التعديل (مع تنفيذ حقيقي)
     elif data.startswith("add_"):
         _, uid2, amt = data.split("_")
         uid2, amt = int(uid2), int(amt)
@@ -171,40 +172,57 @@ async def process_callback(callback: CallbackQuery):
     elif data.startswith("mute_"):
         uid2 = int(data.split("_")[1])
         target = await get_user(uid2)
-        await set_user_status(uid2, "muted")
-        await callback.message.answer("🔇 تم كتم")
-        await send_admin_notification(admin_name, target['full_name'], "🔇 كتم", "")
+        try:
+            await callback.message.chat.restrict_member(uid2, permissions=ChatPermissions(can_send_messages=False))
+            await callback.message.answer("🔇 تم كتم")
+            await send_admin_notification(admin_name, target['full_name'], "🔇 كتم", "")
+            await set_user_status(uid2, "muted")
+        except Exception as e:
+            await callback.message.answer(f"⚠️ فشل الكتم: {e}")
         await show_user_controls(callback, uid2)
     elif data.startswith("unmute_"):
         uid2 = int(data.split("_")[1])
         target = await get_user(uid2)
-        await set_user_status(uid2, "active")
-        await callback.message.answer("🔈 فك كتم")
-        await send_admin_notification(admin_name, target['full_name'], "🔈 فك كتم", "")
+        try:
+            await callback.message.chat.restrict_member(uid2, permissions=ChatPermissions(can_send_messages=True, can_send_media_messages=True, can_send_other_messages=True))
+            await callback.message.answer("🔈 فك كتم")
+            await send_admin_notification(admin_name, target['full_name'], "🔈 فك كتم", "")
+            await set_user_status(uid2, "active")
+        except Exception as e:
+            await callback.message.answer(f"⚠️ فشل فك الكتم: {e}")
         await show_user_controls(callback, uid2)
     elif data.startswith("ban_"):
         uid2 = int(data.split("_")[1])
         target = await get_user(uid2)
-        await set_user_status(uid2, "banned")
-        await callback.message.answer("🚫 تم حظر")
-        await send_admin_notification(admin_name, target['full_name'], "🚫 حظر", "")
+        try:
+            await callback.message.chat.ban_member(uid2)
+            await callback.message.answer("🚫 تم حظر")
+            await send_admin_notification(admin_name, target['full_name'], "🚫 حظر", "")
+            await set_user_status(uid2, "banned")
+        except Exception as e:
+            await callback.message.answer(f"⚠️ فشل الحظر: {e}")
         await show_user_controls(callback, uid2)
     elif data.startswith("unban_"):
         uid2 = int(data.split("_")[1])
         target = await get_user(uid2)
-        await set_user_status(uid2, "active")
-        await callback.message.answer("✅ فك حظر")
-        await send_admin_notification(admin_name, target['full_name'], "✅ فك حظر", "")
+        try:
+            await callback.message.chat.unban_member(uid2)
+            await callback.message.answer("✅ فك حظر")
+            await send_admin_notification(admin_name, target['full_name'], "✅ فك حظر", "")
+            await set_user_status(uid2, "active")
+        except Exception as e:
+            await callback.message.answer(f"⚠️ فشل فك الحظر: {e}")
         await show_user_controls(callback, uid2)
     elif data.startswith("kick_"):
         uid2 = int(data.split("_")[1])
         target = await get_user(uid2)
-        await callback.message.answer("🗑️ طرد")
-        await send_admin_notification(admin_name, target['full_name'], "🗑️ طرد", "")
         try:
             await callback.message.chat.ban_member(uid2)
             await callback.message.chat.unban_member(uid2)
-        except: pass
+            await callback.message.answer("🗑️ طرد")
+            await send_admin_notification(admin_name, target['full_name'], "🗑️ طرد", "")
+        except Exception as e:
+            await callback.message.answer(f"⚠️ فشل الطرد: {e}")
         await show_user_controls(callback, uid2)
     elif data.startswith("warn_"):
         uid2 = int(data.split("_")[1])
@@ -221,13 +239,13 @@ async def process_callback(callback: CallbackQuery):
         uid2 = int(data.split("_")[1])
         await callback.message.answer(f"أرسل اللقب الجديد للمستخدم {uid2} في رسالة منفردة.")
 
-# ========== معالج التثبيت والإعلانات ==========
-async def handle_pin_and_broadcast(message: Message):
+# ========== معالج الإشعار العام والتثبيت ==========
+async def handle_broadcast_and_pin(message: Message):
     if message.from_user.id not in ADMIN_IDS:
         return
     if message.chat.type != "private":
         return
-    # الإعلان العام
+    # إشعار عام
     if message.reply_to_message and "أرسل نص الإشعار العام" in message.reply_to_message.text:
         await send_auto_delete(GROUP_ID, f"📢 *إعلان عام:*\n{message.text}")
         await message.reply("✅ تم إرسال الإشعار إلى المجموعة")
@@ -243,4 +261,4 @@ async def handle_pin_and_broadcast(message: Message):
 def register_callback_handlers(dp: Dispatcher):
     dp.message.register(admin_panel, Command("adminiq"))
     dp.callback_query.register(process_callback)
-    dp.message.register(handle_pin_and_broadcast)
+    dp.message.register(handle_broadcast_and_pin)
