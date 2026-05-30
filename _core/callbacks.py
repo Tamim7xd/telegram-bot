@@ -9,15 +9,7 @@ from _core.notify import bot, send_auto_delete
 from datetime import datetime
 import asyncio
 
-# ========== دوال مساعدة ==========
-async def delete_msg_after(msg, seconds: int):
-    await asyncio.sleep(seconds)
-    try:
-        await msg.delete()
-    except:
-        pass
-
-# ========== لوحة الأدمن الرئيسية (لا تختفي تلقائياً) ==========
+# ========== لوحة الأدمن الرئيسية ==========
 async def admin_panel(message: Message):
     if message.from_user.id not in ADMIN_IDS:
         await message.answer("⚠️ هذه اللوحة للأدمن فقط.")
@@ -103,31 +95,6 @@ async def manage_shop(callback: CallbackQuery):
     ])
     await callback.message.edit_text(text, parse_mode="Markdown", reply_markup=kb)
 
-async def add_product_step(callback: CallbackQuery):
-    await callback.message.edit_text("أرسل اسم المنتج الجديد (سلسلة نصية):")
-    # سيتم استقبال الاسم في الخطوة التالية (سنستخدم حالة بسيطة)
-    # سنستخدم متغير عام مؤقت (لكن الأفضل FSM). للتبسيط، سنطلب البيانات في خطوات متتالية عبر ردود المستخدم.
-    # نستخدم الانتظار للرد من نفس المستخدم.
-    # لكن لتجنب التعقيد، سنستخدم أزراراً لإدخال البيانات عبر callbacks متتالية (هذا يتطلب حفظ حالة).
-    # بدلاً من ذلك، سنستخدم أوامر نصية؟ لكن الشرط هو أزرار فقط. لذا سنستخدم رسائل منبثقة.
-    # الطريقة العملية: نطلب من الأدمن إرسال البيانات بعد الضغط على الزر عبر رسالة عادية، ثم نلتقطها في معالج منفصل.
-    # سأضيف معالجاً لاستقبال البيانات بعد الضغط.
-    pass  # سيتم تنفيذها في معالج منفصل
-
-async def process_shop_callback(callback: CallbackQuery):
-    data = callback.data
-    if data == "shop_add":
-        await callback.message.edit_text("أرسل بيانات المنتج بهذا الشكل:\n`الاسم | السعر | المستوى`\nمثال: رتبة جديدة | 2000 | 5")
-        # سيتم التعامل مع الرسالة التالية في معالج منفصل.
-    elif data == "shop_edit":
-        await callback.message.edit_text("أرسل id المنتج والسعر الجديد:\n`id | السعر الجديد`\nمثال: 5 | 3000")
-    elif data == "shop_delete":
-        await callback.message.edit_text("أرسل id المنتج للحذف:\n`id`")
-
-def register_shop_handlers(dp: Dispatcher):
-    # سيتم ربط معالجة الرسائل النصية لإضافة/تعديل/حذف المنتجات هنا.
-    pass
-
 # ========== معالج الأزرار الرئيسي ==========
 async def process_callback(callback: CallbackQuery):
     await callback.answer()
@@ -158,11 +125,8 @@ async def process_callback(callback: CallbackQuery):
         await manage_mods(callback)
     elif data == "admin_shop":
         await manage_shop(callback)
-    elif data.startswith("shop_"):
-        await process_shop_callback(callback)
     elif data == "admin_broadcast":
         await callback.message.edit_text("أرسل نص الإشعار العام (سيختفي بعد 30 ثانية)")
-        # هنا يمكن تفعيل FSM، لكننا سنأخذ النص في معالج رسائل منفصل.
         back = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="◀️ رجوع", callback_data="admin_back")]])
         await callback.message.edit_reply_markup(reply_markup=back)
     elif data == "admin_send_pinned":
@@ -244,13 +208,13 @@ async def process_callback(callback: CallbackQuery):
         uid = int(data.split("_")[1])
         await callback.message.answer(f"أرسل اللقب الجديد للمستخدم {uid} في رسالة منفردة.")
 
-# معالج الرسائل النصية لإدارة السوق (لأن أزرار لوحة الأدمن تستدعي إدخال نص)
+# ========== معالج إدارة السوق (نصوص) ==========
 async def handle_shop_text_commands(message: Message):
     if message.from_user.id not in ADMIN_IDS:
         return
     text = message.text.strip()
     if message.chat.type != "private":
-        return  # يجب أن تكون الرسالة في الخاص لتجنب الازعاج
+        return
     # إضافة منتج
     if message.reply_to_message and message.reply_to_message.text and "أرسل بيانات المنتج" in message.reply_to_message.text:
         parts = text.split("|")
@@ -284,4 +248,4 @@ async def handle_shop_text_commands(message: Message):
 def register_callback_handlers(dp: Dispatcher):
     dp.message.register(admin_panel, Command("adminiq"))
     dp.callback_query.register(process_callback)
-    dp.message.register(handle_shop_text_commands)  # لاستقبال بيانات السوق
+    dp.message.register(handle_shop_text_commands)
