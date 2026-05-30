@@ -43,9 +43,8 @@ async def send_levelup_notification(chat_id: int, user_id: int, new_level: int, 
     await send_auto_delete(chat_id, text)
 
 async def send_admin_notification(executor_name: str, target_name: str, action: str, detail: str = ""):
-    """إرسال إشعار إلى المجموعة المحددة في GROUP_ID"""
     if not GROUP_ID:
-        print("⚠️ GROUP_ID غير معرف - لن يتم إرسال الإشعار")
+        print("⚠️ GROUP_ID غير معرف")
         return
     border = "╭━━━━━━━━━━━━━━━━━━━━━━━━━━╮"
     text = f"""{border}
@@ -58,7 +57,6 @@ async def send_admin_notification(executor_name: str, target_name: str, action: 
 📝 *التفاصيل:* {detail}
 🕒 *الوقت:* {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━"""
-    print(f"📢 محاولة إرسال إشعار إلى GROUP_ID: {GROUP_ID}")  # للتأكد
     await send_auto_delete(GROUP_ID, text)
 
 def register_notify_handlers(dp: Dispatcher):
