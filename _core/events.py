@@ -58,16 +58,20 @@ async def dollar_commands(message: Message):
         reason = parts[2] if len(parts) > 2 else "لا سبب"
         await set_user_status(target.id, "muted")
         try:
-            await message.chat.restrict_member(target.id, permissions=ChatPermissions(can_send_messages=False))
+            # في aiogram 3.x، الصلاحيات تُمرر كـ ChatPermissions
+            permissions = ChatPermissions(can_send_messages=False)
+            await message.chat.restrict_member(target.id, permissions=permissions)
             await send_auto_delete(chat_id, f"🔇 تم كتم {target_name} لمدة {duration}\nالسبب: {reason}")
         except Exception as e:
-            await send_auto_delete(chat_id, f"⚠️ لا يمكن كتم {target_name} (صلاحيات): {e}")
+            await send_auto_delete(chat_id, f"⚠️ لا يمكن كتم {target_name}: {e}")
         await send_admin_notification(admin_name, target_name, "🔇 كتم", f"لمدة {duration}\nالسبب: {reason}")
     # فك كتم
     elif text == "$فك كتم":
         await set_user_status(target.id, "active")
         try:
-            await message.chat.restrict_member(target.id, permissions=ChatPermissions(can_send_messages=True, can_send_media_messages=True, can_send_other_messages=True))
+            # إعادة كافة الصلاحيات
+            permissions = ChatPermissions(can_send_messages=True, can_send_media_messages=True, can_send_other_messages=True)
+            await message.chat.restrict_member(target.id, permissions=permissions)
             await send_auto_delete(chat_id, f"🔈 تم فك كتم {target_name}")
         except Exception as e:
             await send_auto_delete(chat_id, f"⚠️ لا يمكن فك الكتم: {e}")
@@ -123,7 +127,7 @@ async def dollar_commands(message: Message):
                 log += f"• {r['amount']} {CURRENCY_NAME} للمستخدم {r['user_id']} - {r['reason']}\n"
             msg = await message.reply(log)
             asyncio.create_task(delete_after(msg, 30))
-    # تحذير منفرد
+    # تحذير
     elif text.startswith("$تحذير") and is_adm:
         reason = text[8:].strip() or "لا يوجد سبب"
         user = await get_user(target.id)
