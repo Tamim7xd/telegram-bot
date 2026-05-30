@@ -1,8 +1,7 @@
 from aiogram import Dispatcher
 from aiogram.types import Message
 from config import ADMIN_IDS, CURRENCY_NAME, XP_PER_MESSAGE
-from _core.users import (update_user_money, get_user, set_user_status, get_or_create_user,
-                         is_admin, is_general_mod, add_general_mod, remove_general_mod)
+from _core.users import update_user_money, get_user, set_user_status, get_or_create_user, is_admin, is_general_mod, add_general_mod, remove_general_mod
 from _core.xp import add_xp, get_xp_progress
 from _core.games import cmd_game
 from _core.titles import set_user_title
@@ -26,14 +25,14 @@ async def update_user_stats(user_id: int, field: str, value=1, extra=None):
         amt, rsn = extra
         await db.execute("UPDATE user_stats SET last_deduction_amount = ?, last_deduction_reason = ?, last_deduction_at = CURRENT_TIMESTAMP WHERE user_id = ?", amt, rsn, user_id)
 
-# ========== إشعار إداري متطور ==========
-async def send_admin_notification(chat_id, admin_name, target_name, action, detail=""):
+# ========== إشعار إداري متطور (يختفي بعد 30 ثانية) ==========
+async def send_admin_notification(chat_id: int, executor_name: str, target_name: str, action: str, detail: str = ""):
     border = "╭━━━━━━━━━━━━━━━━━━━━━━━━━━╮"
     text = f"""{border}
 ┃ 🔔 *إشـارة إداريـة* 🔔
 ╰━━━━━━━━━━━━━━━━━━━━━━━━━━╯
 
-👤 *المنفذ:* {admin_name}
+👤 *المنفذ:* {executor_name}
 👥 *المستخدم:* {target_name}
 ⚙️ *الإجراء:* {action}
 📝 *التفاصيل:* {detail}
@@ -76,7 +75,7 @@ async def handle_admin_commands(message: Message):
     executor_name = message.from_user.full_name
     target_name = target.full_name
 
-    # أوامر الأدمن فقط
+    # ---- أوامر الأدمن فقط ----
     if text.startswith("$رفع مشرف"):
         if not is_adm:
             await send_auto_delete(chat_id, "❌ الأدمن فقط يمكنه رفع مشرف عام")
@@ -117,7 +116,7 @@ async def handle_admin_commands(message: Message):
         else:
             await send_auto_delete(chat_id, "❌ استخدم: $اعطاء 100 سبب")
 
-    # الأوامر المشتركة للأدمن والمشرف العام
+    # ---- الأوامر المشتركة للأدمن والمشرف العام ----
     elif text.startswith("$معلومات"):
         u = await get_user(target.id)
         if u:
