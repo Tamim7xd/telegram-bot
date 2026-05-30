@@ -15,11 +15,8 @@ async def start_game_with_choice(message: Message, game_type: str):
     if not game:
         await send_auto_delete(chat_id, "⚠️ لا توجد أسئلة لهذا النوع حالياً.")
         return
-    # إرسال السؤال
     sent = await bot.send_message(chat_id, game['display_text'])
-    # حفظ الجلسة مع ربطها بالمستخدم (نضيف user_id)
     await save_game_session(chat_id, sent.message_id, game['type'], game['question'], game['answer'], prize, user_id)
-    # مهلة للإجابة
     asyncio.create_task(end_game_timeout(chat_id, sent.message_id, game['answer']))
 
 async def end_game_timeout(chat_id, msg_id, correct):
@@ -27,7 +24,6 @@ async def end_game_timeout(chat_id, msg_id, correct):
     await send_auto_delete(chat_id, f"⏰ انتهت المهلة! الإجابة: {correct}")
 
 async def handle_game_answer(message: Message):
-    # يجب أن يكون الرد على رسالة البوت
     if not message.reply_to_message:
         return
     prize = await check_answer(message.chat.id, message.reply_to_message.message_id, message.text)
@@ -42,4 +38,3 @@ async def handle_game_answer(message: Message):
 
 def register_games_handlers(dp: Dispatcher):
     dp.message.register(handle_game_answer)
-    # لا نسجل أي أمر هنا لأن الألعاب تُبدأ من events.py
