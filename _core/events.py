@@ -9,7 +9,7 @@ from _core.notify import bot, send_auto_delete, send_admin_notification
 from db import db
 import asyncio
 
-# ========== دوال مساعدة ==========
+# ========== إحصائيات المستخدم ==========
 async def get_user_stats(user_id: int):
     row = await db.fetchrow("SELECT * FROM user_stats WHERE user_id = $1", user_id)
     if not row:
@@ -24,6 +24,7 @@ async def update_user_stats(user_id: int, field: str, value=1, extra=None):
         amt, rsn = extra
         await db.execute("UPDATE user_stats SET last_deduction_amount = ?, last_deduction_reason = ?, last_deduction_at = CURRENT_TIMESTAMP WHERE user_id = ?", amt, rsn, user_id)
 
+# ========== حذف أوامر الأعضاء بعد 3 ثوانٍ ==========
 async def delete_command(msg: Message, delay=3):
     await asyncio.sleep(delay)
     try:
@@ -31,7 +32,7 @@ async def delete_command(msg: Message, delay=3):
     except:
         pass
 
-# ========== أوامر $ (كما هي، مع إشعارات المجموعة) ==========
+# ========== أوامر الأدمن والمشرف العام ($) ==========
 async def handle_admin_commands(message: Message):
     if not message.reply_to_message:
         return
@@ -46,14 +47,14 @@ async def handle_admin_commands(message: Message):
     executor_name = message.from_user.full_name
     target_name = target.full_name
 
-    # الأدمن فقط
+    # ---- الأدمن فقط ----
     if text.startswith("$رفع مشرف"):
         if not is_adm:
             await send_auto_delete(chat_id, "❌ للأدمن فقط")
             return
         await add_general_mod(target.id, uid)
         await send_auto_delete(chat_id, f"✅ تم رفع {target_name} مشرفاً عاماً")
-        await send_admin_notification(chat_id, executor_name, target_name, "رفع مشرف عام", "")
+        await send_admin_notification(executor_name, target_name, "رفع مشرف عام", "")
     elif text.startswith("$حذف مشرف"):
         if not is_adm:
             await send_auto_delete(chat_id, "❌ للأدمن فقط")
@@ -70,7 +71,7 @@ async def handle_admin_commands(message: Message):
             reason = parts[2] if len(parts) > 2 else "خصم"
             await update_user_money(target.id, -amt, reason, uid)
             await send_auto_delete(chat_id, f"✅ خصم {amt} من {target_name}")
-            await send_admin_notification(chat_id, executor_name, target_name, "خصم رصيد", f"-{amt}\nالسبب: {reason}")
+            await send_admin_notification(executor_name, target_name, "خصم رصيد", f"-{amt}\nالسبب: {reason}")
         else:
             await send_auto_delete(chat_id, "❌ استخدم: $خصم 50 سبب")
     elif text.startswith("$اعطاء") or text.startswith("$إعطاء"):
@@ -83,11 +84,11 @@ async def handle_admin_commands(message: Message):
             reason = parts[2] if len(parts) > 2 else "مكافأة"
             await update_user_money(target.id, amt, reason, uid)
             await send_auto_delete(chat_id, f"✅ إضافة {amt} إلى {target_name}")
-            await send_admin_notification(chat_id, executor_name, target_name, "إضافة رصيد", f"+{amt}\nالسبب: {reason}")
+            await send_admin_notification(executor_name, target_name, "إضافة رصيد", f"+{amt}\nالسبب: {reason}")
         else:
             await send_auto_delete(chat_id, "❌ استخدم: $اعطاء 100 سبب")
 
-    # الأوامر المشتركة
+    # ---- الأوامر المشتركة ----
     elif text.startswith("$معلومات"):
         u = await get_user(target.id)
         if u:
@@ -105,7 +106,7 @@ async def handle_admin_commands(message: Message):
             await send_auto_delete(chat_id, f"🔇 تم كتم {target_name} لمدة {duration}")
         except:
             await send_auto_delete(chat_id, f"⚠️ لا يمكن كتم {target_name}")
-        await send_admin_notification(chat_id, executor_name, target_name, "كتم", f"لمدة {duration}\nالسبب: {reason}")
+        await send_admin_notification(executor_name, target_name, "كتم", f"لمدة {duration}\nالسبب: {reason}")
     elif text == "$فك كتم":
         await set_user_status(target.id, "active")
         try:
@@ -113,7 +114,7 @@ async def handle_admin_commands(message: Message):
             await send_auto_delete(chat_id, f"🔈 تم فك الكتم عن {target_name}")
         except:
             await send_auto_delete(chat_id, f"⚠️ لا يمكن فك الكتم")
-        await send_admin_notification(chat_id, executor_name, target_name, "فك كتم", "")
+        await send_admin_notification(executor_name, target_name, "فك كتم", "")
     elif text.startswith("$حظر"):
         reason = text[5:].strip() or "لا سبب"
         await set_user_status(target.id, "banned")
@@ -122,7 +123,7 @@ async def handle_admin_commands(message: Message):
             await send_auto_delete(chat_id, f"🚫 تم حظر {target_name}")
         except:
             await send_auto_delete(chat_id, f"⚠️ لا يمكن حظر {target_name}")
-        await send_admin_notification(chat_id, executor_name, target_name, "حظر", reason)
+        await send_admin_notification(executor_name, target_name, "حظر", reason)
     elif text == "$فك حظر":
         await set_user_status(target.id, "active")
         try:
@@ -130,7 +131,7 @@ async def handle_admin_commands(message: Message):
             await send_auto_delete(chat_id, f"✅ تم فك حظر {target_name}")
         except:
             await send_auto_delete(chat_id, f"⚠️ لا يمكن فك الحظر")
-        await send_admin_notification(chat_id, executor_name, target_name, "فك حظر", "")
+        await send_admin_notification(executor_name, target_name, "فك حظر", "")
     elif text.startswith("$طرد"):
         reason = text[5:].strip() or "لا سبب"
         try:
@@ -139,13 +140,13 @@ async def handle_admin_commands(message: Message):
             await send_auto_delete(chat_id, f"👢 تم طرد {target_name}")
         except:
             await send_auto_delete(chat_id, f"⚠️ لا يمكن طرد {target_name}")
-        await send_admin_notification(chat_id, executor_name, target_name, "طرد", reason)
+        await send_admin_notification(executor_name, target_name, "طرد", reason)
     elif text.startswith("$لقب"):
         new_title = text[5:].strip()
         if new_title:
             await set_user_title(target.id, new_title)
             await send_auto_delete(chat_id, f"🏷️ لقب {target_name} ← {new_title}")
-            await send_admin_notification(chat_id, executor_name, target_name, "تغيير لقب", new_title)
+            await send_admin_notification(executor_name, target_name, "تغيير لقب", new_title)
         else:
             await send_auto_delete(chat_id, "❌ استخدم: $لقب بطل")
     elif text == "$سجل":
@@ -155,7 +156,7 @@ async def handle_admin_commands(message: Message):
             msg = await message.reply(log, parse_mode="Markdown")
             asyncio.create_task(delete_command(msg, 30))
 
-# ========== أوامر الأعضاء # ==========
+# ========== أوامر الأعضاء (#) ==========
 async def handle_member_commands(message: Message):
     text = message.text.strip()
     uid = message.from_user.id
@@ -236,9 +237,8 @@ async def handle_member_commands(message: Message):
         msg = await message.reply(f"📊 المستوى {progress['level']}\n{progress['bar']} {progress['percent']}%")
         asyncio.create_task(delete_command(msg, 30))
 
-# ========== معالج أرقام الألعاب (المعدل) ==========
+# ========== معالج اختيار اللعبة برقم ==========
 async def handle_game_choice(message: Message):
-    # يجب أن يكون الرد على رسالة قائمة الألعاب
     if not message.reply_to_message:
         return
     if not message.text or not message.text.isdigit():
@@ -247,12 +247,10 @@ async def handle_game_choice(message: Message):
     if 1 <= choice <= 6:
         game_map = {1: "puzzles", 2: "general_qa", 3: "mcq", 4: "speed_words", 5: "proverbs", 6: "luck_boxes"}
         game_type = game_map[choice]
-        # نبدأ اللعبة
         await start_game_with_choice(message, game_type)
-        # نحذف رسالة الاختيار
         asyncio.create_task(delete_command(message, 1))
 
-# ========== إضافة XP ==========
+# ========== إضافة XP لكل رسالة ==========
 async def add_xp_on_message(message: Message):
     await get_or_create_user(message.from_user)
     if not message.text or message.text.startswith(("#", "$")):
