@@ -2,23 +2,20 @@ from aiogram import Dispatcher
 from aiogram.types import Message
 from config import ADMIN_IDS
 from _core.users import get_or_create_user
-from _core.notify import send_auto_delete
 
-async def dollar_commands(message: Message):
-    if message.text and message.text.startswith("$"):
-        await send_auto_delete(message.chat.id, f"✅ تم استلام أمر $: {message.text}")
-
-async def handle_member_commands(message: Message):
-    text = message.text.strip()
+# معالج لكل الرسائل (للتأكد من استقبالها)
+async def catch_all(message: Message):
+    await get_or_create_user(message.from_user)
+    text = message.text or ""
     if text.startswith("#"):
-        await send_auto_delete(message.chat.id, f"✅ تم استلام أمر #: {text}")
+        await message.reply(f"✅ أمر #: {text}")
+    elif text.startswith("$"):
+        await message.reply(f"✅ أمر $: {text}")
     elif text.isdigit():
-        await send_auto_delete(message.chat.id, f"✅ تم استلام رقم: {text}")
-
-async def add_xp_handler(message: Message):
-    pass
+        await message.reply(f"✅ رقم: {text}")
+    else:
+        # رسالة عادية
+        await message.reply(f"رسالة عادية: {text}")
 
 def register_event_handlers(dp: Dispatcher):
-    dp.message.register(dollar_commands)
-    dp.message.register(handle_member_commands)
-    dp.message.register(add_xp_handler)
+    dp.message.register(catch_all)
