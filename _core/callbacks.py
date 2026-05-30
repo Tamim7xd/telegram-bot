@@ -172,7 +172,7 @@ async def process_callback(callback: CallbackQuery):
         uid2 = int(data.split("_")[1])
         target = await get_user(uid2)
         try:
-            await callback.message.chat.restrict_member(uid2, permissions=ChatPermissions(can_send_messages=False))
+            await callback.message.chat.restrict(uid2, permissions=ChatPermissions(can_send_messages=False))
             await callback.message.answer("🔇 تم كتم")
             await send_admin_notification(admin_name, target['full_name'], "🔇 كتم", "")
             await set_user_status(uid2, "muted")
@@ -183,7 +183,7 @@ async def process_callback(callback: CallbackQuery):
         uid2 = int(data.split("_")[1])
         target = await get_user(uid2)
         try:
-            await callback.message.chat.restrict_member(uid2, permissions=ChatPermissions(can_send_messages=True, can_send_media_messages=True, can_send_other_messages=True))
+            await callback.message.chat.restrict(uid2, permissions=ChatPermissions(can_send_messages=True, can_send_media_messages=True, can_send_other_messages=True))
             await callback.message.answer("🔈 فك كتم")
             await send_admin_notification(admin_name, target['full_name'], "🔈 فك كتم", "")
             await set_user_status(uid2, "active")
@@ -194,7 +194,7 @@ async def process_callback(callback: CallbackQuery):
         uid2 = int(data.split("_")[1])
         target = await get_user(uid2)
         try:
-            await callback.message.chat.ban(uid2)   # ✅ تصحيح
+            await callback.message.chat.ban(uid2)
             await callback.message.answer("🚫 تم حظر")
             await send_admin_notification(admin_name, target['full_name'], "🚫 حظر", "")
             await set_user_status(uid2, "banned")
@@ -205,7 +205,7 @@ async def process_callback(callback: CallbackQuery):
         uid2 = int(data.split("_")[1])
         target = await get_user(uid2)
         try:
-            await callback.message.chat.unban(uid2)   # ✅ تصحيح
+            await callback.message.chat.unban(uid2)
             await callback.message.answer("✅ فك حظر")
             await send_admin_notification(admin_name, target['full_name'], "✅ فك حظر", "")
             await set_user_status(uid2, "active")
