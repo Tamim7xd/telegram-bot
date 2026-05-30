@@ -9,6 +9,7 @@ from _core.notify import bot, send_auto_delete
 from datetime import datetime
 import asyncio
 
+# ========== دوال مساعدة ==========
 async def delete_msg_after(msg, seconds: int):
     await asyncio.sleep(seconds)
     try:
@@ -16,14 +17,7 @@ async def delete_msg_after(msg, seconds: int):
     except:
         pass
 
-async def close_keyboard_after(message, seconds: int):
-    await asyncio.sleep(seconds)
-    try:
-        await message.delete()
-    except:
-        pass
-
-# لوحة الأدمن الرئيسية (تغلق بعد 5 ثوانٍ إذا لم يتم الضغط)
+# ========== لوحة الأدمن الرئيسية (لا تختفي تلقائياً) ==========
 async def admin_panel(message: Message):
     if message.from_user.id not in ADMIN_IDS:
         await message.answer("⚠️ هذه اللوحة للأدمن فقط.")
@@ -38,10 +32,9 @@ async def admin_panel(message: Message):
         [InlineKeyboardButton(text="📌 إرسال مثبت", callback_data="admin_send_pinned")],
         [InlineKeyboardButton(text="❌ إغلاق", callback_data="admin_close")]
     ])
-    msg = await message.reply("👑 *لوحة تحكم الأدمن*", reply_markup=kb, parse_mode="Markdown")
-    asyncio.create_task(close_keyboard_after(msg, 5))
+    await message.reply("👑 *لوحة تحكم الأدمن*", reply_markup=kb, parse_mode="Markdown")
 
-# عرض قائمة الأعضاء مع أزرار (تغلق بعد 5 ثوانٍ)
+# ========== عرض قائمة الأعضاء ==========
 async def show_users(callback: CallbackQuery, page=1):
     limit = 10
     off = (page-1)*limit
@@ -62,8 +55,7 @@ async def show_users(callback: CallbackQuery, page=1):
     if nav:
         btns.append(nav)
     btns.append([InlineKeyboardButton(text="◀️ رجوع", callback_data="admin_back")])
-    msg = await callback.message.edit_text(text, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(inline_keyboard=btns))
-    asyncio.create_task(close_keyboard_after(msg, 5))
+    await callback.message.edit_text(text, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(inline_keyboard=btns))
 
 async def show_user_controls(callback: CallbackQuery, uid):
     user = await get_user(uid)
@@ -82,8 +74,7 @@ async def show_user_controls(callback: CallbackQuery, uid):
          InlineKeyboardButton(text="🗑️ طرد", callback_data=f"kick_{uid}")],
         [InlineKeyboardButton(text="◀️ رجوع", callback_data="admin_users")]
     ])
-    msg = await callback.message.edit_text(text, reply_markup=kb)
-    asyncio.create_task(close_keyboard_after(msg, 5))
+    await callback.message.edit_text(text, reply_markup=kb)
 
 async def manage_mods(callback: CallbackQuery):
     mods = await db.fetch("SELECT user_id FROM general_mods")
@@ -93,22 +84,51 @@ async def manage_mods(callback: CallbackQuery):
         text += f"• {u['full_name']} (ID: {m['user_id']})\n"
     text += "\nلإضافة مشرف: استخدم الأمر `$رفع مشرف` بالرد على رسالة العضو.\nلحذف مشرف: استخدم `$حذف مشرف` بالرد عليه."
     kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="◀️ رجوع", callback_data="admin_back")]])
-    msg = await callback.message.edit_text(text, parse_mode="Markdown", reply_markup=kb)
-    asyncio.create_task(close_keyboard_after(msg, 5))
+    await callback.message.edit_text(text, parse_mode="Markdown", reply_markup=kb)
 
+# ========== إدارة السوق (أزرار فقط) ==========
 async def manage_shop(callback: CallbackQuery):
     items = await db.fetch("SELECT id, name, price, rank_level FROM shop_items ORDER BY rank_level")
     text = "🏪 *إدارة السوق*\n\n"
-    for it in items:
-        text += f"🆔 {it['id']} - {it['name']} - 💰{it['price']} - مستوى {it['rank_level']}\n"
-    text += "\n*الأوامر النصية للأدمن:*\n"
-    text += "`$تعديل سعر <id> <سعر جديد>`\n"
-    text += "`$إضافة منتج <اسم> <سعر> <مستوى>`\n"
-    text += "`$حذف منتج <id>`"
-    kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="◀️ رجوع", callback_data="admin_back")]])
-    msg = await callback.message.edit_text(text, parse_mode="Markdown", reply_markup=kb)
-    asyncio.create_task(close_keyboard_after(msg, 5))
+    if items:
+        for it in items:
+            text += f"🆔 {it['id']} - {it['name']} - 💰{it['price']} - مستوى {it['rank_level']}\n"
+    else:
+        text += "لا توجد منتجات.\n"
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="➕ إضافة منتج", callback_data="shop_add")],
+        [InlineKeyboardButton(text="✏️ تعديل سعر", callback_data="shop_edit")],
+        [InlineKeyboardButton(text="❌ حذف منتج", callback_data="shop_delete")],
+        [InlineKeyboardButton(text="◀️ رجوع", callback_data="admin_back")]
+    ])
+    await callback.message.edit_text(text, parse_mode="Markdown", reply_markup=kb)
 
+async def add_product_step(callback: CallbackQuery):
+    await callback.message.edit_text("أرسل اسم المنتج الجديد (سلسلة نصية):")
+    # سيتم استقبال الاسم في الخطوة التالية (سنستخدم حالة بسيطة)
+    # سنستخدم متغير عام مؤقت (لكن الأفضل FSM). للتبسيط، سنطلب البيانات في خطوات متتالية عبر ردود المستخدم.
+    # نستخدم الانتظار للرد من نفس المستخدم.
+    # لكن لتجنب التعقيد، سنستخدم أزراراً لإدخال البيانات عبر callbacks متتالية (هذا يتطلب حفظ حالة).
+    # بدلاً من ذلك، سنستخدم أوامر نصية؟ لكن الشرط هو أزرار فقط. لذا سنستخدم رسائل منبثقة.
+    # الطريقة العملية: نطلب من الأدمن إرسال البيانات بعد الضغط على الزر عبر رسالة عادية، ثم نلتقطها في معالج منفصل.
+    # سأضيف معالجاً لاستقبال البيانات بعد الضغط.
+    pass  # سيتم تنفيذها في معالج منفصل
+
+async def process_shop_callback(callback: CallbackQuery):
+    data = callback.data
+    if data == "shop_add":
+        await callback.message.edit_text("أرسل بيانات المنتج بهذا الشكل:\n`الاسم | السعر | المستوى`\nمثال: رتبة جديدة | 2000 | 5")
+        # سيتم التعامل مع الرسالة التالية في معالج منفصل.
+    elif data == "shop_edit":
+        await callback.message.edit_text("أرسل id المنتج والسعر الجديد:\n`id | السعر الجديد`\nمثال: 5 | 3000")
+    elif data == "shop_delete":
+        await callback.message.edit_text("أرسل id المنتج للحذف:\n`id`")
+
+def register_shop_handlers(dp: Dispatcher):
+    # سيتم ربط معالجة الرسائل النصية لإضافة/تعديل/حذف المنتجات هنا.
+    pass
+
+# ========== معالج الأزرار الرئيسي ==========
 async def process_callback(callback: CallbackQuery):
     await callback.answer()
     data = callback.data
@@ -128,21 +148,21 @@ async def process_callback(callback: CallbackQuery):
         msg = await callback.message.edit_text(f"💰 إجمالي الأموال: {total}\n👥 عدد المستخدمين: {count}")
         back = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="◀️ رجوع", callback_data="admin_back")]])
         await msg.edit_reply_markup(reply_markup=back)
-        asyncio.create_task(close_keyboard_after(msg, 5))
     elif data == "admin_stats":
         msgs = await db.fetchval("SELECT SUM(messages_count) FROM users") or 0
         wins = await db.fetchval("SELECT SUM(wins) FROM users") or 0
         msg = await callback.message.edit_text(f"📊 إحصائيات\nالرسائل: {msgs}\nالانتصارات: {wins}")
         back = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="◀️ رجوع", callback_data="admin_back")]])
         await msg.edit_reply_markup(reply_markup=back)
-        asyncio.create_task(close_keyboard_after(msg, 5))
     elif data == "admin_mods":
         await manage_mods(callback)
     elif data == "admin_shop":
         await manage_shop(callback)
+    elif data.startswith("shop_"):
+        await process_shop_callback(callback)
     elif data == "admin_broadcast":
         await callback.message.edit_text("أرسل نص الإشعار العام (سيختفي بعد 30 ثانية)")
-        # هنا يمكن تفعيل FSM، لكننا سنأخذ النص من حدث منفصل (يمكن إضافة معالج لـ $اشعار)
+        # هنا يمكن تفعيل FSM، لكننا سنأخذ النص في معالج رسائل منفصل.
         back = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="◀️ رجوع", callback_data="admin_back")]])
         await callback.message.edit_reply_markup(reply_markup=back)
     elif data == "admin_send_pinned":
@@ -162,8 +182,7 @@ async def process_callback(callback: CallbackQuery):
             [InlineKeyboardButton(text="📌 إرسال مثبت", callback_data="admin_send_pinned")],
             [InlineKeyboardButton(text="❌ إغلاق", callback_data="admin_close")]
         ])
-        msg = await callback.message.edit_text("👑 *لوحة تحكم الأدمن*", reply_markup=kb, parse_mode="Markdown")
-        asyncio.create_task(close_keyboard_after(msg, 5))
+        await callback.message.edit_text("👑 *لوحة تحكم الأدمن*", reply_markup=kb, parse_mode="Markdown")
     elif data.startswith("user_"):
         uid = int(data.split("_")[1])
         await show_user_controls(callback, uid)
@@ -225,6 +244,44 @@ async def process_callback(callback: CallbackQuery):
         uid = int(data.split("_")[1])
         await callback.message.answer(f"أرسل اللقب الجديد للمستخدم {uid} في رسالة منفردة.")
 
+# معالج الرسائل النصية لإدارة السوق (لأن أزرار لوحة الأدمن تستدعي إدخال نص)
+async def handle_shop_text_commands(message: Message):
+    if message.from_user.id not in ADMIN_IDS:
+        return
+    text = message.text.strip()
+    if message.chat.type != "private":
+        return  # يجب أن تكون الرسالة في الخاص لتجنب الازعاج
+    # إضافة منتج
+    if message.reply_to_message and message.reply_to_message.text and "أرسل بيانات المنتج" in message.reply_to_message.text:
+        parts = text.split("|")
+        if len(parts) == 3:
+            name = parts[0].strip()
+            price = int(parts[1].strip())
+            level = int(parts[2].strip())
+            await db.execute("INSERT INTO shop_items (name, price, rank_level, description) VALUES (?, ?, ?, ?)", name, price, level, "منتج")
+            await message.reply(f"✅ تم إضافة المنتج {name}")
+        else:
+            await message.reply("❌ الصيغة خاطئة. استخدم: الاسم | السعر | المستوى")
+    # تعديل سعر
+    elif message.reply_to_message and message.reply_to_message.text and "أرسل id المنتج والسعر الجديد" in message.reply_to_message.text:
+        parts = text.split("|")
+        if len(parts) == 2:
+            pid = int(parts[0].strip())
+            new_price = int(parts[1].strip())
+            await db.execute("UPDATE shop_items SET price = ? WHERE id = ?", new_price, pid)
+            await message.reply(f"✅ تم تعديل سعر المنتج {pid} إلى {new_price}")
+        else:
+            await message.reply("❌ استخدم: id | السعر الجديد")
+    # حذف منتج
+    elif message.reply_to_message and message.reply_to_message.text and "أرسل id المنتج للحذف" in message.reply_to_message.text:
+        try:
+            pid = int(text.strip())
+            await db.execute("DELETE FROM shop_items WHERE id = ?", pid)
+            await message.reply(f"✅ تم حذف المنتج {pid}")
+        except:
+            await message.reply("❌ أرسل الرقم فقط")
+
 def register_callback_handlers(dp: Dispatcher):
     dp.message.register(admin_panel, Command("adminiq"))
     dp.callback_query.register(process_callback)
+    dp.message.register(handle_shop_text_commands)  # لاستقبال بيانات السوق
