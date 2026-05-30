@@ -33,20 +33,20 @@ async def get_random_game(prize, game_type=None):
     item = random.choice(games_data[chosen])
     if chosen == "puzzles":
         ans = item["answer"]
-        disp = f"🧩 {item['question']}\n⏳ {GAME_TIME_LIMIT} ث\n💰 الجائزة: {prize}"
+        disp = f"🧩 {item['question']}\n⏳ {GAME_TIME_LIMIT} ث\n💰 الجائزة: {prize:,}"
     elif chosen == "general_qa":
         ans = item["answer"]
-        disp = f"❓ {item['question']}\n💰 {prize}"
+        disp = f"❓ {item['question']}\n💰 {prize:,}"
     elif chosen == "mcq":
         opts = "\n".join([f"{chr(1575+i)}. {opt}" for i,opt in enumerate(item['options'])])
         ans = item['correct']
-        disp = f"🔘 {item['question']}\n{opts}\n💰 {prize}\nأرسل الحرف (أ،ب،ج،د)"
+        disp = f"🔘 {item['question']}\n{opts}\n💰 {prize:,}\nأرسل الحرف (أ،ب،ج،د)"
     elif chosen == "speed_words":
         ans = item['reversed']
-        disp = f"⚡ اكتب معكوس: {item['word']}\n💰 {prize}"
+        disp = f"⚡ اكتب معكوس: {item['word']}\n💰 {prize:,}"
     elif chosen == "proverbs":
         ans = item['complete']
-        disp = f"📜 أكمل: {item['partial']}\n💰 {prize}"
+        disp = f"📜 أكمل: {item['partial']}\n💰 {prize:,}"
     elif chosen == "luck_boxes":
         ans = "box"
         disp = f"🎁 اختر صندوقاً (1-5)\n💰 عشوائي"
@@ -54,7 +54,7 @@ async def get_random_game(prize, game_type=None):
         return None
     return {"type": chosen, "question": item.get('question',''), "answer": str(ans).strip().lower(), "display_text": disp, "prize": prize}
 
-async def save_game_session(chat_id, mid, gtype, q, a, prize, user_id=None):
+async def save_game_session(chat_id, mid, gtype, q, a, prize):
     await db.execute("INSERT INTO game_sessions (chat_id, message_id, game_type, question, answer, prize_money, status) VALUES (?, ?, ?, ?, ?, ?, 'waiting')", chat_id, mid, gtype, q, a, prize)
 
 async def get_game_session(chat_id, mid):
