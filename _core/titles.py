@@ -5,17 +5,17 @@ async def get_available_titles():
     return [r['title'] for r in rows]
 
 async def add_custom_title(title: str):
-    await db.execute("INSERT INTO titles (title) VALUES ($1) ON CONFLICT (title) DO NOTHING", title)
+    await db.execute("INSERT INTO titles (title) VALUES (?) ON CONFLICT DO NOTHING", title)
 
 async def set_user_title(telegram_id: int, title: str):
-    title_exists = await db.fetchval("SELECT 1 FROM titles WHERE title = $1", title)
-    if not title_exists:
+    exists = await db.fetchval("SELECT 1 FROM titles WHERE title = ?", title)
+    if not exists:
         return False
-    await db.execute("UPDATE users SET title = $1 WHERE telegram_id = $2", title, telegram_id)
+    await db.execute("UPDATE users SET title = ? WHERE telegram_id = ?", title, telegram_id)
     return True
 
 async def remove_user_title(telegram_id: int):
-    await db.execute("UPDATE users SET title = '' WHERE telegram_id = $1", telegram_id)
+    await db.execute("UPDATE users SET title = '' WHERE telegram_id = ?", telegram_id)
 
 def register_titles_handlers(dp):
     pass
