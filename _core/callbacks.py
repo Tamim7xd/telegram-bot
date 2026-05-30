@@ -5,9 +5,7 @@ from config import ADMIN_IDS, CURRENCY_NAME
 from db import db
 from _core.users import get_user, update_user_money, set_user_status, is_admin, is_general_mod, add_general_mod, remove_general_mod
 from _core.titles import set_user_title
-from _core.notify import bot, send_auto_delete
-from datetime import datetime
-import asyncio
+from _core.notify import bot, send_auto_delete, send_admin_notification
 
 # ========== لوحة الأدمن الرئيسية ==========
 async def admin_panel(message: Message):
@@ -74,11 +72,10 @@ async def manage_mods(callback: CallbackQuery):
     for m in mods:
         u = await get_user(m['user_id'])
         text += f"• {u['full_name']} (ID: {m['user_id']})\n"
-    text += "\nلإضافة مشرف: استخدم الأمر `$رفع مشرف` بالرد على رسالة العضو.\nلحذف مشرف: استخدم `$حذف مشرف` بالرد عليه."
+    text += "\nلإضافة مشرف: استخدم الأمر `$رفع مشرف` بالرد.\nلحذف مشرف: استخدم `$حذف مشرف`."
     kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="◀️ رجوع", callback_data="admin_back")]])
     await callback.message.edit_text(text, parse_mode="Markdown", reply_markup=kb)
 
-# ========== إدارة السوق (أزرار فقط) ==========
 async def manage_shop(callback: CallbackQuery):
     items = await db.fetch("SELECT id, name, price, rank_level FROM shop_items ORDER BY rank_level")
     text = "🏪 *إدارة السوق*\n\n"
@@ -103,6 +100,8 @@ async def process_callback(callback: CallbackQuery):
     if user_id not in ADMIN_IDS:
         await callback.message.answer("غير مصرح")
         return
+    chat_id = callback.message.chat.id
+    admin_name = callback.from_user.full_name
 
     if data.startswith("users_page_"):
         page = int(data.split("_")[-1])
@@ -150,13 +149,15 @@ async def process_callback(callback: CallbackQuery):
     elif data.startswith("user_"):
         uid = int(data.split("_")[1])
         await show_user_controls(callback, uid)
+
+    # ========== الإجراءات مع إشعارات المجموعة ==========
     elif data.startswith("add_"):
         _, uid, amt = data.split("_")
         uid, amt = int(uid), int(amt)
         target = await get_user(uid)
         await update_user_money(uid, amt, "إضافة من اللوحة", user_id)
         await callback.message.answer(f"✅ +{amt}")
-        await send_auto_delete(callback.message.chat.id, f"💰 تم إضافة {amt} {CURRENCY_NAME} إلى {target['full_name']}")
+        await send_admin_notification(chat_id, admin_name, target['full_name'], "💰 إضافة رصيد", f"+{amt}")
         await show_user_controls(callback, uid)
     elif data.startswith("sub_"):
         _, uid, amt = data.split("_")
@@ -164,41 +165,41 @@ async def process_callback(callback: CallbackQuery):
         target = await get_user(uid)
         await update_user_money(uid, -amt, "خصم من اللوحة", user_id)
         await callback.message.answer(f"✅ -{amt}")
-        await send_auto_delete(callback.message.chat.id, f"💰 تم خصم {amt} {CURRENCY_NAME} من {target['full_name']}")
+        await send_admin_notification(chat_id, admin_name, target['full_name'], "💰 خصم رصيد", f"-{amt}")
         await show_user_controls(callback, uid)
     elif data.startswith("mute_"):
         uid = int(data.split("_")[1])
         target = await get_user(uid)
         await set_user_status(uid, "muted")
         await callback.message.answer("🔇 تم الكتم")
-        await send_auto_delete(callback.message.chat.id, f"🔇 تم كتم {target['full_name']}")
+        await send_admin_notification(chat_id, admin_name, target['full_name'], "🔇 كتم", "")
         await show_user_controls(callback, uid)
     elif data.startswith("unmute_"):
         uid = int(data.split("_")[1])
         target = await get_user(uid)
         await set_user_status(uid, "active")
         await callback.message.answer("🔈 فك الكتم")
-        await send_auto_delete(callback.message.chat.id, f"🔈 تم فك الكتم عن {target['full_name']}")
+        await send_admin_notification(chat_id, admin_name, target['full_name'], "🔈 فك كتم", "")
         await show_user_controls(callback, uid)
     elif data.startswith("ban_"):
         uid = int(data.split("_")[1])
         target = await get_user(uid)
         await set_user_status(uid, "banned")
         await callback.message.answer("🚫 تم الحظر")
-        await send_auto_delete(callback.message.chat.id, f"🚫 تم حظر {target['full_name']}")
+        await send_admin_notification(chat_id, admin_name, target['full_name'], "🚫 حظر", "")
         await show_user_controls(callback, uid)
     elif data.startswith("unban_"):
         uid = int(data.split("_")[1])
         target = await get_user(uid)
         await set_user_status(uid, "active")
         await callback.message.answer("✅ فك الحظر")
-        await send_auto_delete(callback.message.chat.id, f"✅ تم فك الحظر عن {target['full_name']}")
+        await send_admin_notification(chat_id, admin_name, target['full_name'], "✅ فك حظر", "")
         await show_user_controls(callback, uid)
     elif data.startswith("kick_"):
         uid = int(data.split("_")[1])
         target = await get_user(uid)
         await callback.message.answer("🗑️ تم الطرد")
-        await send_auto_delete(callback.message.chat.id, f"🗑️ تم طرد {target['full_name']}")
+        await send_admin_notification(chat_id, admin_name, target['full_name'], "🗑️ طرد", "")
         try:
             await callback.message.chat.ban_member(uid)
             await callback.message.chat.unban_member(uid)
@@ -208,35 +209,29 @@ async def process_callback(callback: CallbackQuery):
         uid = int(data.split("_")[1])
         await callback.message.answer(f"أرسل اللقب الجديد للمستخدم {uid} في رسالة منفردة.")
 
-# ========== معالج إدارة السوق (نصوص) ==========
+# معالج إدارة السوق نصوص
 async def handle_shop_text_commands(message: Message):
     if message.from_user.id not in ADMIN_IDS:
         return
     text = message.text.strip()
     if message.chat.type != "private":
         return
-    # إضافة منتج
     if message.reply_to_message and message.reply_to_message.text and "أرسل بيانات المنتج" in message.reply_to_message.text:
         parts = text.split("|")
         if len(parts) == 3:
-            name = parts[0].strip()
-            price = int(parts[1].strip())
-            level = int(parts[2].strip())
+            name, price, level = parts[0].strip(), int(parts[1].strip()), int(parts[2].strip())
             await db.execute("INSERT INTO shop_items (name, price, rank_level, description) VALUES (?, ?, ?, ?)", name, price, level, "منتج")
-            await message.reply(f"✅ تم إضافة المنتج {name}")
+            await message.reply(f"✅ تم إضافة {name}")
         else:
-            await message.reply("❌ الصيغة خاطئة. استخدم: الاسم | السعر | المستوى")
-    # تعديل سعر
+            await message.reply("❌ استخدم: الاسم | السعر | المستوى")
     elif message.reply_to_message and message.reply_to_message.text and "أرسل id المنتج والسعر الجديد" in message.reply_to_message.text:
         parts = text.split("|")
         if len(parts) == 2:
-            pid = int(parts[0].strip())
-            new_price = int(parts[1].strip())
+            pid, new_price = int(parts[0].strip()), int(parts[1].strip())
             await db.execute("UPDATE shop_items SET price = ? WHERE id = ?", new_price, pid)
-            await message.reply(f"✅ تم تعديل سعر المنتج {pid} إلى {new_price}")
+            await message.reply(f"✅ تم تعديل سعر {pid} إلى {new_price}")
         else:
-            await message.reply("❌ استخدم: id | السعر الجديد")
-    # حذف منتج
+            await message.reply("❌ استخدم: id | السعر")
     elif message.reply_to_message and message.reply_to_message.text and "أرسل id المنتج للحذف" in message.reply_to_message.text:
         try:
             pid = int(text.strip())
