@@ -8,6 +8,16 @@ from _core.titles import set_user_title
 from _core.notify import bot, send_auto_delete, send_admin_notification
 import asyncio
 
+async def safe_edit(callback: CallbackQuery, text: str, reply_markup=None):
+    """تعديل الرسالة فقط إذا كان النص أو الأزرار مختلفة"""
+    try:
+        # إذا كانت الرسالة الحالية تحمل نفس النص والأزرار، لا نفعل شيئاً
+        if callback.message.text == text and callback.message.reply_markup == reply_markup:
+            return
+        await callback.message.edit_text(text, reply_markup=reply_markup)
+    except Exception:
+        await callback.message.answer(text, reply_markup=reply_markup)
+
 async def admin_panel(message: Message):
     if message.from_user.id not in ADMIN_IDS:
         await message.answer("⚠️ للأدمن فقط")
@@ -16,6 +26,10 @@ async def admin_panel(message: Message):
         [InlineKeyboardButton(text="👥 الأعضاء", callback_data="admin_users")],
         [InlineKeyboardButton(text="💰 الاقتصاد", callback_data="admin_economy")],
         [InlineKeyboardButton(text="📊 الإحصائيات", callback_data="admin_stats")],
+        [InlineKeyboardButton(text="🛡️ المشرفين", callback_data="admin_mods")],
+        [InlineKeyboardButton(text="🏪 السوق", callback_data="admin_shop")],
+        [InlineKeyboardButton(text="📣 إشعار عام", callback_data="admin_broadcast")],
+        [InlineKeyboardButton(text="📌 تثبيت رسالة", callback_data="admin_pin")],
         [InlineKeyboardButton(text="❌ إغلاق", callback_data="admin_close")]
     ])
     await message.reply("👑 لوحة الأدمن", reply_markup=kb)
@@ -25,7 +39,7 @@ async def show_users(callback: CallbackQuery, page=1):
     off = (page-1)*limit
     rows = await db.fetch("SELECT telegram_id, full_name, money, level FROM users ORDER BY created_at DESC LIMIT ? OFFSET ?", limit, off)
     if not rows:
-        await callback.message.edit_text("لا يوجد أعضاء")
+        await safe_edit(callback, "لا يوجد أعضاء")
         return
     text = "👥 الأعضاء:\n"
     btns = []
@@ -40,7 +54,7 @@ async def show_users(callback: CallbackQuery, page=1):
     if nav:
         btns.append(nav)
     btns.append([InlineKeyboardButton(text="رجوع", callback_data="admin_back")])
-    await callback.message.edit_text(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=btns))
+    await safe_edit(callback, text, reply_markup=InlineKeyboardMarkup(inline_keyboard=btns))
 
 async def show_user_controls(callback: CallbackQuery, uid):
     user = await get_user(uid)
@@ -56,10 +70,33 @@ async def show_user_controls(callback: CallbackQuery, uid):
         [InlineKeyboardButton(text="🚫 حظر", callback_data=f"ban_{uid}"),
          InlineKeyboardButton(text="✅ فك حظر", callback_data=f"unban_{uid}")],
         [InlineKeyboardButton(text="🏷️ لقب", callback_data=f"title_{uid}"),
-         InlineKeyboardButton(text="🗑️ طرد", callback_data=f"kick_{uid}")],
+         InlineKeyboardButton(text="🗑️ طرد", callback_data=f"kick_{uid}"),
+         InlineKeyboardButton(text="⚠️ تحذير", callback_data=f"warn_{uid}")],
         [InlineKeyboardButton(text="رجوع", callback_data="admin_users")]
     ])
-    await callback.message.edit_text(text, reply_markup=kb)
+    await safe_edit(callback, text, reply_markup=kb)
+
+async def manage_mods(callback: CallbackQuery):
+    mods = await db.fetch("SELECT user_id FROM general_mods")
+    text = "🛡️ المشرفون:\n"
+    for m in mods:
+        u = await get_user(m['user_id'])
+        text += f"• {u['full_name']} (ID {m['user_id']})\n"
+    text += "\nلإضافة: $رفع مشرف بالرد\nلحذف: $حذف مشرف"
+    kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="رجوع", callback_data="admin_back")]])
+    await safe_edit(callback, text, reply_markup=kb)
+
+async def manage_shop(callback: CallbackQuery):
+    items = await db.fetch("SELECT id, name, price FROM shop_items ORDER BY rank_level")
+    text = "🏪 السوق:\n"
+    for it in items:
+        text += f"🆔 {it['id']} - {it['name']} - 💰{it['price']}\n"
+    text += "\nالأوامر النصية:\n$اضف منتج <اسم>|<سعر>|<مستوى>\n$تعديل سعر <id>|<سعر>\n$حذف منتج <id>"
+    kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="رجوع", callback_data="admin_back")]])
+    await safe_edit(callback, text, reply_markup=kb)
+
+async def pin_message(callback: CallbackQuery):
+    await safe_edit(callback, "أرسل النص الذي تريد تثبيته في المجموعة (أو رد على رسالة موجودة).")
 
 async def process_callback(callback: CallbackQuery):
     await callback.answer()
@@ -69,6 +106,7 @@ async def process_callback(callback: CallbackQuery):
         await callback.message.answer("غير مصرح")
         return
     admin_name = callback.from_user.full_name
+    chat_id = callback.message.chat.id
 
     if data.startswith("users_page_"):
         page = int(data.split("_")[-1])
@@ -78,15 +116,25 @@ async def process_callback(callback: CallbackQuery):
     elif data == "admin_economy":
         total = await db.fetchval("SELECT SUM(money) FROM users") or 0
         count = await db.fetchval("SELECT COUNT(*) FROM users") or 0
-        msg = await callback.message.edit_text(f"💰 إجمالي الأموال: {total}\n👥 المستخدمون: {count}")
+        await safe_edit(callback, f"💰 إجمالي الأموال: {total}\n👥 المستخدمون: {count}")
         back = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="رجوع", callback_data="admin_back")]])
-        await msg.edit_reply_markup(reply_markup=back)
+        await callback.message.edit_reply_markup(reply_markup=back)
     elif data == "admin_stats":
         msgs = await db.fetchval("SELECT SUM(messages_count) FROM users") or 0
         wins = await db.fetchval("SELECT SUM(wins) FROM users") or 0
-        msg = await callback.message.edit_text(f"📊 الرسائل: {msgs}\n🏆 الانتصارات: {wins}")
+        await safe_edit(callback, f"📊 الرسائل: {msgs}\n🏆 الانتصارات: {wins}")
         back = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="رجوع", callback_data="admin_back")]])
-        await msg.edit_reply_markup(reply_markup=back)
+        await callback.message.edit_reply_markup(reply_markup=back)
+    elif data == "admin_mods":
+        await manage_mods(callback)
+    elif data == "admin_shop":
+        await manage_shop(callback)
+    elif data == "admin_broadcast":
+        await safe_edit(callback, "أرسل نص الإشعار العام (سيختفي بعد 30 ثانية)")
+        back = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="رجوع", callback_data="admin_back")]])
+        await callback.message.edit_reply_markup(reply_markup=back)
+    elif data == "admin_pin":
+        await pin_message(callback)
     elif data == "admin_close":
         await callback.message.delete()
     elif data == "admin_back":
@@ -94,14 +142,20 @@ async def process_callback(callback: CallbackQuery):
             [InlineKeyboardButton(text="👥 الأعضاء", callback_data="admin_users")],
             [InlineKeyboardButton(text="💰 الاقتصاد", callback_data="admin_economy")],
             [InlineKeyboardButton(text="📊 الإحصائيات", callback_data="admin_stats")],
+            [InlineKeyboardButton(text="🛡️ المشرفين", callback_data="admin_mods")],
+            [InlineKeyboardButton(text="🏪 السوق", callback_data="admin_shop")],
+            [InlineKeyboardButton(text="📣 إشعار عام", callback_data="admin_broadcast")],
+            [InlineKeyboardButton(text="📌 تثبيت رسالة", callback_data="admin_pin")],
             [InlineKeyboardButton(text="❌ إغلاق", callback_data="admin_close")]
         ])
-        await callback.message.edit_text("👑 لوحة الأدمن", reply_markup=kb)
+        await safe_edit(callback, "👑 لوحة الأدمن", reply_markup=kb)
     elif data.startswith("user_"):
         uid2 = int(data.split("_")[1])
         await show_user_controls(callback, uid2)
+    elif data == "users_back":
+        await show_users(callback, 1)
 
-    # إجراءات التعديل (باستخدام الدوال الصحيحة)
+    # إجراءات التعديل
     elif data.startswith("add_"):
         _, uid2, amt = data.split("_")
         uid2, amt = int(uid2), int(amt)
@@ -173,10 +227,38 @@ async def process_callback(callback: CallbackQuery):
         except Exception as e:
             await callback.message.answer(f"⚠️ فشل الطرد: {e}")
         await show_user_controls(callback, uid2)
+    elif data.startswith("warn_"):
+        uid2 = int(data.split("_")[1])
+        target = await get_user(uid2)
+        warnings = target['warnings'] + 1
+        await db.execute("UPDATE users SET warnings = ? WHERE telegram_id = ?", warnings, uid2)
+        await callback.message.answer(f"⚠️ تم تحذير {target['full_name']} (التحذير {warnings}/3)")
+        await send_admin_notification(admin_name, target['full_name'], "⚠️ تحذير", f"التحذير {warnings}/3")
+        if warnings >= 3:
+            await set_user_status(uid2, "banned")
+            await callback.message.answer(f"🚫 تم حظر {target['full_name']} تلقائياً")
+        await show_user_controls(callback, uid2)
     elif data.startswith("title_"):
         uid2 = int(data.split("_")[1])
         await callback.message.answer(f"أرسل اللقب الجديد للمستخدم {uid2} في رسالة منفردة.")
 
+async def handle_broadcast_and_pin(message: Message):
+    if message.from_user.id not in ADMIN_IDS:
+        return
+    if message.chat.type != "private":
+        return
+    if message.reply_to_message and "أرسل نص الإشعار العام" in message.reply_to_message.text:
+        await send_auto_delete(GROUP_ID, f"📢 *إعلان عام:*\n{message.text}")
+        await message.reply("✅ تم إرسال الإشعار إلى المجموعة")
+    elif message.reply_to_message and "أرسل النص الذي تريد تثبيته" in message.reply_to_message.text:
+        try:
+            sent = await bot.send_message(GROUP_ID, message.text)
+            await bot.pin_chat_message(GROUP_ID, sent.message_id)
+            await message.reply("✅ تم تثبيت الرسالة")
+        except Exception as e:
+            await message.reply(f"❌ فشل التثبيت: {e}")
+
 def register_callback_handlers(dp: Dispatcher):
     dp.message.register(admin_panel, Command("adminiq"))
     dp.callback_query.register(process_callback)
+    dp.message.register(handle_broadcast_and_pin)
