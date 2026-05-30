@@ -2,7 +2,7 @@ from aiogram import Dispatcher
 from aiogram.filters import CommandStart, Command
 from aiogram.types import Message
 from _core.users import get_or_create_user
-from _core.events import handle_member_commands   # تأكد من وجود هذه الدالة في events.py
+from _core.events import handle_member_commands   # هذه الدالة موجودة في events.py الكامل
 
 async def cmd_start(message: Message):
     user = await get_or_create_user(message.from_user)
