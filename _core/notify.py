@@ -2,6 +2,7 @@ from aiogram import Bot, Dispatcher
 from config import CURRENCY_NAME, LEVELUP_BONUS_MONEY, LEVELUP_BONUS_XP
 from _core.xp import get_xp_progress
 import asyncio
+from datetime import datetime
 
 bot = None
 
@@ -36,6 +37,20 @@ async def send_levelup_notification(chat_id: int, user_id: int, new_level: int, 
 {progress['bar']} {progress['percent']}%
 
 📌 *المتبقي للمستوى التالي:* {progress['remaining']} XP"""
+    await send_auto_delete(chat_id, text)
+
+async def send_admin_notification(chat_id: int, executor_name: str, target_name: str, action: str, detail: str = ""):
+    border = "╭━━━━━━━━━━━━━━━━━━━━━━━━━━╮"
+    text = f"""{border}
+┃ 🔔 *إشـارة إداريـة* 🔔
+╰━━━━━━━━━━━━━━━━━━━━━━━━━━╯
+
+👤 *المنفذ:* {executor_name}
+👥 *المستخدم:* {target_name}
+⚙️ *الإجراء:* {action}
+📝 *التفاصيل:* {detail}
+🕒 *الوقت:* {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+━━━━━━━━━━━━━━━━━━━━━━━━━━"""
     await send_auto_delete(chat_id, text)
 
 def register_notify_handlers(dp: Dispatcher):
