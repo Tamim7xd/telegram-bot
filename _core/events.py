@@ -19,14 +19,19 @@ async def delete_after(msg, seconds):
 
 # ========== أوامر $ ==========
 async def dollar_commands(message: Message):
+    # التحقق من الرد على رسالة
     if not message.reply_to_message:
+        await send_auto_delete(message.chat.id, "❌ يجب الرد على رسالة العضو المستهدف لاستخدام أمر $")
         return
+    
     uid = message.from_user.id
     is_adm = await is_admin(uid)
     is_gen_mod = await is_general_mod(uid)
     is_adm_mod = await is_admin_mod(uid)
     if not (is_adm or is_gen_mod or is_adm_mod):
+        await send_auto_delete(message.chat.id, "❌ ليس لديك صلاحية لاستخدام هذا الأمر")
         return
+    
     target = message.reply_to_message.from_user
     text = message.text.strip()
     chat_id = message.chat.id
