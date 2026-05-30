@@ -9,8 +9,8 @@ from _core.users import get_or_create_user, register_user_handlers
 from _core.xp import register_xp_handlers
 from _core.titles import register_titles_handlers
 from _core.games import register_games_handlers
-from _core.events import register_event_handlers
-from _core.callbacks import register_callback_handlers
+from _core.events import register_event_handlers   # ✅ هذا السطر مهم
+from _core.callbacks import register_callback_handlers  # ✅ وهذا السطر مهم
 from _core.notify import register_notify_handlers, set_bot_instance
 
 logging.basicConfig(level=logging.INFO)
@@ -43,8 +43,8 @@ async def main():
     register_xp_handlers(dp)
     register_titles_handlers(dp)
     register_games_handlers(dp)
-    register_event_handlers(dp)
-    register_callback_handlers(dp)
+    register_event_handlers(dp)          # ✅ تسجيل معالجات الأوامر
+    register_callback_handlers(dp)       # ✅ تسجيل معالجات الأزرار
     register_notify_handlers(dp)
 
     dp.chat_member.register(on_user_join)
