@@ -14,13 +14,15 @@ from _core.users import (
 )
 
 from _core.xp import add_xp, get_xp_progress
-from _core.games import cmd_game
 from _core.titles import set_user_title
 from _core.notify import send_auto_delete
 from db import db
 import asyncio
 from datetime import datetime
-
+# lazy import لتجنب import error
+def get_cmd_game():
+    from _core.games import cmd_game
+    return cmd_game
 
 # =====================
 # ADMIN COMMANDS (بدون حذف أي وظيفة)
@@ -72,7 +74,7 @@ async def handle_member_commands(message: Message):
 
     # 🎮 الألعاب
     elif text in ["#لعبة", "#العب", "#العاب"]:
-        await cmd_game(message)
+        await get_cmd_game()(message)
 
     # 💰 المال
     elif text in ["#فلوس", "#فلوسي"]:
