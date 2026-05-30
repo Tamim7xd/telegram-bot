@@ -10,7 +10,7 @@ def set_bot_instance(b: Bot):
     global bot
     bot = b
 
-async def send_auto_delete(chat_id: int, text: str, parse_mode: str = "Markdown"):
+async def send_auto_delete(chat_id: int, text: str, parse_mode: str = None):
     try:
         msg = await bot.send_message(chat_id, text, parse_mode=parse_mode)
         asyncio.create_task(delete_after(msg, 30))
@@ -40,7 +40,7 @@ async def send_levelup_notification(chat_id: int, user_id: int, new_level: int, 
 {progress['bar']} {progress['percent']}%
 
 📌 *المتبقي للمستوى التالي:* {progress['remaining']} XP"""
-    await send_auto_delete(chat_id, text)
+    await send_auto_delete(chat_id, text, parse_mode="Markdown")
 
 async def send_admin_notification(executor_name: str, target_name: str, action: str, detail: str = ""):
     if not GROUP_ID:
@@ -57,7 +57,7 @@ async def send_admin_notification(executor_name: str, target_name: str, action: 
 📝 *التفاصيل:* {detail}
 🕒 *الوقت:* {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━"""
-    await send_auto_delete(GROUP_ID, text)
+    await send_auto_delete(GROUP_ID, text, parse_mode="Markdown")
 
 def register_notify_handlers(dp: Dispatcher):
     pass
