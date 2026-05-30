@@ -2,7 +2,7 @@ from aiogram import Dispatcher
 from aiogram.filters import CommandStart, Command
 from aiogram.types import Message
 from _core.users import get_or_create_user
-from _core.events import handle_member_commands
+from _core.events import handle_all_commands   # ✅ الدالة الجديدة
 
 async def cmd_start(message: Message):
     user = await get_or_create_user(message.from_user)
@@ -14,8 +14,8 @@ async def cmd_adminiq(message: Message):
 
 async def catch_all(message: Message):
     await get_or_create_user(message.from_user)
-    if message.text and message.text.startswith("#"):
-        await handle_member_commands(message)
+    # جميع الأوامر (بما فيها #) تُعالج في handle_all_commands
+    await handle_all_commands(message)
 
 def setup_bot(dp: Dispatcher):
     dp.message.register(cmd_start, CommandStart())
