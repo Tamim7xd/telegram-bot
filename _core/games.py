@@ -31,13 +31,13 @@ async def show_game_menu(message: Message, private=False):
     else:
         await message.reply("🎮 اختر نوع اللعبة:", reply_markup=kb)
 
-async def start_game(chat_id, game_type, prize, user_id=None):
+async def start_game(chat_id, game_type, prize):
     game = await get_random_game(prize, game_type)
     if not game:
         await send_auto_delete(chat_id, "⚠️ لا توجد أسئلة حالياً.")
         return False
-    sent = await bot.send_message(chat_id, game['display_text'], parse_mode="Markdown")
-    await save_game_session(chat_id, sent.message_id, game['type'], game['question'], game['answer'], prize, user_id)
+    sent = await bot.send_message(chat_id, game['display_text'])
+    await save_game_session(chat_id, sent.message_id, game['type'], game['question'], game['answer'], prize)
     asyncio.create_task(end_game_timeout(chat_id, sent.message_id, game['answer']))
     return True
 
@@ -52,11 +52,10 @@ async def handle_game_answer(message: Message):
     if prize is None:
         return
     if prize > 0:
-        fixed = 10
-        await update_user_money(message.from_user.id, fixed, "فوز بلعبة", None)
+        await update_user_money(message.from_user.id, prize, "فوز بلعبة", None)
         await add_xp(message.from_user.id, 25, message.chat.id, message.from_user.full_name)
-        await send_auto_delete(message.chat.id, f"🎉 فوز! +{fixed} {CURRENCY_NAME} و +25 XP")
-    elif prize == 0:
+        await send_auto_delete(message.chat.id, f"🎉 فوز! +{prize} {CURRENCY_NAME} و +25 XP")
+    else:
         await message.reply("❌ خطأ")
 
 async def game_callback(callback: CallbackQuery):
@@ -66,13 +65,12 @@ async def game_callback(callback: CallbackQuery):
         game_type = None
     prize = random.randint(DEFAULT_GAME_PRIZE_MIN, DEFAULT_GAME_PRIZE_MAX)
     await callback.message.delete()
-    # اللعبة ستظهر في نفس مكان الدردشة (خاص إذا كانت خاصة، أو مجموعة إذا كانت عامة)
-    await start_game(callback.message.chat.id, game_type, prize, callback.from_user.id)
+    await start_game(callback.message.chat.id, game_type, prize)
 
 async def cmd_game(message: Message, private=False):
     await show_game_menu(message, private)
 
 def register_games_handlers(dp: Dispatcher):
-    dp.message.register(cmd_game, lambda m: m.text in ["#لعبة", "#العب", "#العاب"] and not m.chat.type == "private")
+    dp.message.register(cmd_game, lambda m: m.text in ["#لعبة", "#العب", "#العاب"])
     dp.message.register(handle_game_answer)
     dp.callback_query.register(game_callback, lambda c: c.data.startswith("game_"))
