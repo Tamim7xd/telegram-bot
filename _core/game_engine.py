@@ -54,7 +54,8 @@ async def get_random_game(prize, game_type=None):
         return None
     return {"type": chosen, "question": item.get('question',''), "answer": str(ans).strip().lower(), "display_text": disp, "prize": prize}
 
-async def save_game_session(chat_id, mid, gtype, q, a, prize):
+async def save_game_session(chat_id, mid, gtype, q, a, prize, user_id=None):
+    # أضفنا user_id للاستخدام المستقبلي (يمكن التحقق من أن الإجابة من نفس المستخدم)
     await db.execute("INSERT INTO game_sessions (chat_id, message_id, game_type, question, answer, prize_money, status) VALUES (?, ?, ?, ?, ?, ?, 'waiting')", chat_id, mid, gtype, q, a, prize)
 
 async def get_game_session(chat_id, mid):
