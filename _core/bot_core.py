@@ -1,19 +1,22 @@
-from aiogram import Dispatcher
-from aiogram.filters import CommandStart, Command
-from aiogram.types import Message
-
 from _core.events import handle_text
+from _core.games import callbacks as game_callbacks
+from _core.notify import set_bot
 
-async def start(message: Message):
-    await message.answer("👋 أهلاً بك في البوت")
 
-async def admin_cmd(message: Message):
-    await message.answer("لوحة الأدمن")
+def register_core(dp, bot):
+    """
+    تسجيل جميع أجزاء البوت بشكل صحيح (aiogram v3)
+    """
 
-def register_core(dp: Dispatcher, bot):
+    # 🔗 ربط البوت بالأنظمة الداخلية
+    set_bot(bot)
 
-    dp.message.register(start, CommandStart())
-    dp.message.register(admin_cmd, Command("adminiq"))
+    # =========================
+    # 🎮 Callback Queries (الأزرار)
+    # =========================
+    dp.callback_query.register(game_callbacks)
 
-    # 🚨 مهم: هذا هو المعالج الوحيد للرسائل
+    # =========================
+    # 💬 جميع الرسائل النصية
+    # =========================
     dp.message.register(handle_text)
