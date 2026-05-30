@@ -1,6 +1,6 @@
 from aiogram import Dispatcher
 from aiogram.types import Message, ChatPermissions
-from config import ADMIN_IDS, CURRENCY_NAME, XP_PER_MESSAGE, GROUP_ID
+from config import ADMIN_IDS, CURRENCY_NAME, XP_PER_MESSAGE
 from _core.users import update_user_money, get_user, set_user_status, get_or_create_user, is_admin, is_general_mod, add_general_mod, remove_general_mod
 from _core.xp import add_xp, get_xp_progress
 from _core.games import start_game_with_choice
@@ -11,11 +11,10 @@ import asyncio
 
 async def delete_after(msg, seconds):
     await asyncio.sleep(seconds)
-    try:
-        await msg.delete()
-    except:
-        pass
+    try: await msg.delete()
+    except: pass
 
+# ========== أوامر $ ==========
 async def dollar_commands(message: Message):
     if not message.reply_to_message:
         return
@@ -30,6 +29,7 @@ async def dollar_commands(message: Message):
     admin_name = message.from_user.full_name
     target_name = target.full_name
 
+    # خصم
     if text.startswith("$خصم") and is_adm:
         parts = text.split(maxsplit=2)
         if len(parts) >= 2 and parts[1].isdigit():
@@ -40,6 +40,7 @@ async def dollar_commands(message: Message):
             await send_admin_notification(admin_name, target_name, "💰 خصم رصيد", f"-{amt}")
         else:
             await send_auto_delete(chat_id, "❌ استخدم: $خصم 50 سبب")
+    # إضافة
     elif text.startswith("$اعطاء") and is_adm:
         parts = text.split(maxsplit=2)
         if len(parts) >= 2 and parts[1].isdigit():
@@ -50,6 +51,7 @@ async def dollar_commands(message: Message):
             await send_admin_notification(admin_name, target_name, "💰 إضافة رصيد", f"+{amt}")
         else:
             await send_auto_delete(chat_id, "❌ استخدم: $اعطاء 100 سبب")
+    # كتم (باستخدام restrict)
     elif text.startswith("$كتم"):
         parts = text.split(maxsplit=2)
         duration = parts[1] if len(parts) >= 2 else "30m"
@@ -61,6 +63,7 @@ async def dollar_commands(message: Message):
         except Exception as e:
             await send_auto_delete(chat_id, f"⚠️ لا يمكن كتم {target_name}: {e}")
         await send_admin_notification(admin_name, target_name, "🔇 كتم", f"لمدة {duration}\nالسبب: {reason}")
+    # فك كتم
     elif text == "$فك كتم":
         await set_user_status(target.id, "active")
         try:
@@ -69,6 +72,7 @@ async def dollar_commands(message: Message):
         except Exception as e:
             await send_auto_delete(chat_id, f"⚠️ لا يمكن فك الكتم: {e}")
         await send_admin_notification(admin_name, target_name, "🔈 فك كتم", "")
+    # حظر
     elif text.startswith("$حظر"):
         reason = text[5:].strip() or "لا سبب"
         await set_user_status(target.id, "banned")
@@ -78,6 +82,7 @@ async def dollar_commands(message: Message):
         except Exception as e:
             await send_auto_delete(chat_id, f"⚠️ لا يمكن حظر {target_name}: {e}")
         await send_admin_notification(admin_name, target_name, "🚫 حظر", reason)
+    # فك حظر
     elif text == "$فك حظر":
         await set_user_status(target.id, "active")
         try:
@@ -86,6 +91,7 @@ async def dollar_commands(message: Message):
         except Exception as e:
             await send_auto_delete(chat_id, f"⚠️ لا يمكن فك الحظر: {e}")
         await send_admin_notification(admin_name, target_name, "✅ فك حظر", "")
+    # طرد
     elif text.startswith("$طرد"):
         reason = text[5:].strip() or "لا سبب"
         try:
@@ -95,17 +101,20 @@ async def dollar_commands(message: Message):
         except Exception as e:
             await send_auto_delete(chat_id, f"⚠️ لا يمكن طرد {target_name}: {e}")
         await send_admin_notification(admin_name, target_name, "🗑️ طرد", reason)
+    # لقب
     elif text.startswith("$لقب") and is_adm:
         new_title = text[5:].strip()
         if new_title:
             await set_user_title(target.id, new_title)
             await send_auto_delete(chat_id, f"🏷️ لقب {target_name} ← {new_title}")
             await send_admin_notification(admin_name, target_name, "🏷️ تغيير لقب", new_title)
+    # معلومات
     elif text.startswith("$معلومات"):
         u = await get_user(target.id)
         if u:
             msg = await message.reply(f"📄 {u['full_name']}\n💰 {u['money']}\n⭐ {u['xp']}\n📊 مستوى {u['level']}\n🏷️ لقب: {u['title'] or 'لا يوجد'}")
             asyncio.create_task(delete_after(msg, 30))
+    # سجل
     elif text == "$سجل" and is_adm:
         rows = await db.fetch("SELECT amount, reason, user_id FROM economy_log WHERE admin_id = ? ORDER BY timestamp DESC LIMIT 10", uid)
         if rows:
@@ -114,6 +123,7 @@ async def dollar_commands(message: Message):
                 log += f"• {r['amount']} {CURRENCY_NAME} للمستخدم {r['user_id']} - {r['reason']}\n"
             msg = await message.reply(log)
             asyncio.create_task(delete_after(msg, 30))
+    # تحذير
     elif text.startswith("$تحذير") and is_adm:
         reason = text[8:].strip() or "لا يوجد سبب"
         user = await get_user(target.id)
@@ -125,6 +135,7 @@ async def dollar_commands(message: Message):
             await set_user_status(target.id, "banned")
             await send_auto_delete(chat_id, f"🚫 تم حظر {target_name} تلقائياً لـ 3 تحذيرات")
 
+# ========== أوامر # (للأعضاء) ==========
 async def handle_member_commands(message: Message):
     text = message.text.strip()
     uid = message.from_user.id
@@ -213,6 +224,7 @@ async def handle_member_commands(message: Message):
         msg = await message.reply(f"📊 المستوى {progress['level']}\n{progress['bar']} {progress['percent']}%")
         asyncio.create_task(delete_after(msg, 30))
 
+# ========== إضافة XP ==========
 async def add_xp_handler(message: Message):
     await get_or_create_user(message.from_user)
     if message.text and not message.text.startswith(("#", "$")):
