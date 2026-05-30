@@ -58,8 +58,7 @@ async def save_game_session(chat_id, mid, gtype, q, a, prize):
     await db.execute("INSERT INTO game_sessions (chat_id, message_id, game_type, question, answer, prize_money, status) VALUES (?, ?, ?, ?, ?, ?, 'waiting')", chat_id, mid, gtype, q, a, prize)
 
 async def get_game_session(chat_id, mid):
-    row = await db.fetchrow("SELECT * FROM game_sessions WHERE chat_id=? AND message_id=?", chat_id, mid)
-    return row
+    return await db.fetchrow("SELECT * FROM game_sessions WHERE chat_id=? AND message_id=?", chat_id, mid)
 
 async def update_game_session_status(chat_id, mid, status):
     await db.execute("UPDATE game_sessions SET status=? WHERE chat_id=? AND message_id=?", status, chat_id, mid)
