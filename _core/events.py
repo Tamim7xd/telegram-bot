@@ -17,21 +17,18 @@ async def delete_after(msg, seconds):
     try: await msg.delete()
     except: pass
 
-# ========== أوامر $ ==========
+# ========== أوامر $ للمشرفين ==========
 async def dollar_commands(message: Message):
-    # التحقق من الرد على رسالة
     if not message.reply_to_message:
-        await send_auto_delete(message.chat.id, "❌ يجب الرد على رسالة العضو المستهدف لاستخدام أمر $")
+        await send_auto_delete(message.chat.id, "❌ يجب الرد على رسالة العضو المستهدف")
         return
-    
     uid = message.from_user.id
     is_adm = await is_admin(uid)
     is_gen_mod = await is_general_mod(uid)
     is_adm_mod = await is_admin_mod(uid)
     if not (is_adm or is_gen_mod or is_adm_mod):
-        await send_auto_delete(message.chat.id, "❌ ليس لديك صلاحية لاستخدام هذا الأمر")
+        await send_auto_delete(message.chat.id, "❌ ليس لديك صلاحية")
         return
-    
     target = message.reply_to_message.from_user
     text = message.text.strip()
     chat_id = message.chat.id
@@ -95,8 +92,12 @@ async def dollar_commands(message: Message):
             asyncio.create_task(delete_after(msg, 30))
         else:
             await send_auto_delete(chat_id, "📭 لا توجد عمليات مسجلة لك")
+    elif text == "$حذف تحذيرات" and (is_adm or is_adm_mod):
+        await reset_warnings(target.id)
+        await send_auto_delete(chat_id, f"✅ تم إعادة تعيين تحذيرات {target_name} إلى 0")
+        await send_admin_notification(admin_name, target_name, "⚠️ إعادة تعيين تحذيرات", "")
 
-# ========== أوامر الأعضاء (#) ==========
+# ========== أوامر الأعضاء # ==========
 async def handle_member_commands(message: Message):
     text = message.text.strip()
     uid = message.from_user.id
