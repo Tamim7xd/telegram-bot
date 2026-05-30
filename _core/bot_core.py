@@ -1,6 +1,6 @@
 from aiogram import Dispatcher
-from aiogram.filters import CommandStart, Command
 from aiogram.types import Message
+from aiogram.filters import CommandStart, Command
 
 from _core.users import get_or_create_user
 from _core.callbacks import admin_panel
@@ -18,9 +18,7 @@ async def cmd_admin(message: Message):
     await admin_panel(message)
 
 
-# =========================
-# FIX فقط: منع circular import بدون حذف feature
-# =========================
+# 🔥 FIX circular import بدون حذف أي feature
 def get_handle_member_commands():
     from _core.events import handle_member_commands
     return handle_member_commands
