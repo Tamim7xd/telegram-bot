@@ -12,7 +12,6 @@ async def safe_edit_text(callback: CallbackQuery, text: str, reply_markup=None):
     try:
         await callback.message.edit_text(text, reply_markup=reply_markup)
     except Exception:
-        # إذا تعذر التحرير (ربما الرسالة قديمة)، نرسل رسالة جديدة
         await callback.message.answer(text, reply_markup=reply_markup)
 
 async def admin_panel(message: Message):
@@ -195,7 +194,7 @@ async def process_callback(callback: CallbackQuery):
         uid2 = int(data.split("_")[1])
         target = await get_user(uid2)
         try:
-            await callback.message.chat.ban_member(uid2)
+            await callback.message.chat.ban(uid2)   # ✅ تصحيح
             await callback.message.answer("🚫 تم حظر")
             await send_admin_notification(admin_name, target['full_name'], "🚫 حظر", "")
             await set_user_status(uid2, "banned")
@@ -206,7 +205,7 @@ async def process_callback(callback: CallbackQuery):
         uid2 = int(data.split("_")[1])
         target = await get_user(uid2)
         try:
-            await callback.message.chat.unban_member(uid2)
+            await callback.message.chat.unban(uid2)   # ✅ تصحيح
             await callback.message.answer("✅ فك حظر")
             await send_admin_notification(admin_name, target['full_name'], "✅ فك حظر", "")
             await set_user_status(uid2, "active")
@@ -217,8 +216,8 @@ async def process_callback(callback: CallbackQuery):
         uid2 = int(data.split("_")[1])
         target = await get_user(uid2)
         try:
-            await callback.message.chat.ban_member(uid2)
-            await callback.message.chat.unban_member(uid2)
+            await callback.message.chat.ban(uid2)
+            await callback.message.chat.unban(uid2)
             await callback.message.answer("🗑️ طرد")
             await send_admin_notification(admin_name, target['full_name'], "🗑️ طرد", "")
         except Exception as e:
