@@ -11,7 +11,6 @@ import asyncio
 def format_number(num):
     return f"{num:,}".replace(",", " ").replace(",", ".")
 
-# حالة مؤقتة لانتظار إدخال اللقب من الأدمن
 temp_data = {}
 
 # ========== لوحة الأدمن الرئيسية ==========
@@ -95,7 +94,7 @@ async def show_user_log(callback: CallbackQuery, uid):
     back = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="◀️ رجوع", callback_data=f"user_{uid}")]])
     await callback.message.edit_text(text, reply_markup=back, parse_mode="Markdown")
 
-# ====== إدارة المشرفين (رفع مشرف بدون ID) ======
+# ====== إدارة المشرفين ======
 async def manage_mods(callback: CallbackQuery):
     rows = await db.fetch("SELECT telegram_id, full_name FROM users ORDER BY created_at DESC LIMIT 20")
     if not rows:
@@ -159,7 +158,7 @@ async def show_warnings_details(callback: CallbackQuery, uid):
     back = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="◀️ رجوع", callback_data="admin_warnings")]])
     await callback.message.edit_text(text, reply_markup=back, parse_mode="Markdown")
 
-# ====== إدارة السوق (عرض + أوامر نصية) ======
+# ====== إدارة السوق ======
 async def manage_shop(callback: CallbackQuery):
     items = await db.fetch("SELECT id, name, price, rank_level FROM shop_items ORDER BY rank_level")
     text = "🏪 *إدارة السوق*\n\n"
@@ -174,7 +173,6 @@ async def manage_shop(callback: CallbackQuery):
     text += "`$حذف منتج <id>`"
     kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="◀️ رجوع", callback_data="admin_back")]])
     await callback.message.edit_text(text, reply_markup=kb, parse_mode="Markdown")
-    # نستخدم المتغيرات المؤقتة لاستقبال الأوامر (سيتم في events.py)
 
 # ====== سجل الإدارة ======
 async def show_admin_logs(callback: CallbackQuery, page=1):
