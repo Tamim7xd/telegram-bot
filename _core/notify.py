@@ -1,3 +1,6 @@
+
+def register_notify_handlers(dp: Dispatcher):
+    pass
 from aiogram import Bot, Dispatcher
 from config import CURRENCY_NAME, LEVELUP_BONUS_MONEY, LEVELUP_BONUS_XP, GROUP_ID
 from _core.xp import get_xp_progress
@@ -10,13 +13,12 @@ def set_bot_instance(b: Bot):
     global bot
     bot = b
 
-async def send_auto_delete(chat_id: int, text: str, delay: int = 30):
-    """إرسال رسالة تختفي بعد delay ثانية"""
+async def send_auto_delete(chat_id: int, text: str, delay: int = 30, parse_mode: str = "HTML"):
     try:
-        msg = await bot.send_message(chat_id, text, parse_mode="HTML")
+        msg = await bot.send_message(chat_id, text, parse_mode=parse_mode)
         asyncio.create_task(delete_after(msg, delay))
     except Exception as e:
-        print(f"⚠️ فشل إرسال الإشعار: {e}")
+        print(f"⚠️ فشل الإشعار: {e}")
 
 async def delete_after(msg, seconds: int):
     await asyncio.sleep(seconds)
