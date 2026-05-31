@@ -3,7 +3,7 @@ from aiogram.types import Message
 from config import ADMIN_IDS, CURRENCY_NAME, XP_PER_MESSAGE, GROUP_ID
 from _core.users import update_user_money, get_user, set_user_status, get_or_create_user, is_admin, is_general_mod, is_admin_mod, add_general_mod, remove_general_mod, add_admin_mod, remove_admin_mod, add_warning, get_user_warnings_list, reset_warnings
 from _core.xp import add_xp, get_xp_progress, increment_message_count
-from _core.games import handle_game_command, handle_game_answer, set_user_game_context, clear_user_game_context, is_user_in_game
+from _core.games import start_game_by_type
 from _core.titles import set_user_title
 from _core.notify import send_auto_delete, send_deduction_notification, send_reward_notification, send_warning_notification, send_admin_notification
 from db import db
@@ -28,45 +28,12 @@ async def handle_all_commands(message: Message):
     chat_id = message.chat.id
     await get_or_create_user(message.from_user)
 
-    # حذف أي أمر / غير مسموح به (ما عدا /start, /adminiq، وأوامر الألعاب بعد #لعبة)
-    if text.startswith("/"):
-        allowed = ["/start", "/adminiq"]
-        # إذا لم يكن الأمر مسموحاً ولم يكن المستخدم في حالة انتظار اختيار لعبة، احذفه فوراً
-        if text not in allowed and not is_user_in_game(uid, "waiting_choice"):
-            await message.delete()
-            return
-        # إذا كان الأمر من نوع أوامر الألعاب (يبدأ بـ /), نمرره إلى معالج الألعاب
-        if text in ["/لغز", "/سؤال_عام", "/اختيار_من_متعدد", "/سرعة", "/مثل_شعبي", "/حظ"] and is_user_in_game(uid, "waiting_choice"):
-            await handle_game_command(message, text[1:])
-            return
-
-    # معالجة الرسائل العادية (إجابات الألعاب)
-    if is_user_in_game(uid, "answering"):
-        await handle_game_answer(message)
+    # حذف أي أمر / غير مسموح به (ما عدا /start, /adminiq)
+    if text.startswith("/") and text not in ["/start", "/adminiq"]:
+        await message.delete()
         return
 
-    # حالات الانتظار من لوحة الأدمن (تغيير اللقب)
-    if uid in temp_data:
-        state = temp_data[uid]
-        action = state["action"]
-        if action == "waiting_title":
-            target_id = state["target"]
-            new_title = text
-            if new_title:
-                success = await set_user_title(target_id, new_title)
-                if success:
-                    await message.reply(f"🏷️ تم تغيير اللقب إلى {new_title}")
-                    target_user = await get_user(target_id)
-                    await send_admin_notification(message.from_user.full_name, target_user['full_name'] if target_user else str(target_id), "تغيير لقب", new_title)
-                else:
-                    await message.reply(f"❌ اللقب '{new_title}' غير موجود في القائمة")
-            else:
-                await message.reply("❌ لم يتم إدخال لقب")
-            del temp_data[uid]
-            await message.delete()
-            return
-
-    # أوامر الأعضاء (تبدأ بـ #)
+    # معالجة أوامر الأعضاء (تبدأ بـ #)
     if not text.startswith("#"):
         return
 
@@ -110,20 +77,9 @@ async def handle_all_commands(message: Message):
         return
 
     elif text in ["#لعبة", "#العب", "#العاب"]:
-        menu = """🎮 <b>قائمة الألعاب</b> (اضغط على الأمر لبدء اللعبة)
-/لغز
-/سؤال_عام
-/اختيار_من_متعدد
-/سرعة
-/مثل_شعبي
-/حظ
-━━━━━━━━━━━━━
-📝 <b>اختر أحد الأوامر أعلاه</b>"""
-        msg = await message.reply(menu, parse_mode="HTML")
-        # وضع المستخدم في حالة انتظار اختيار لعبة
-        set_user_game_context(uid, "waiting_choice")
-        # حذف رسالة القائمة بعد 30 ثانية
-        asyncio.create_task(delete_after(msg, 30))
+        # عرض أزرار الألعاب (تختفي بعد 3 ثوانٍ)
+        from _core.games import show_game_menu
+        await show_game_menu(message)
         return
 
     elif text in ["#مستواي", "#نقاطي"]:
