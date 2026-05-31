@@ -1,23 +1,20 @@
 from aiogram import Dispatcher
-from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, ChatPermissions
+from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 from aiogram.filters import Command
 from config import ADMIN_IDS, CURRENCY_NAME, GROUP_ID
 from db import db
-from _core.users import get_user, update_user_money, set_user_status, is_admin, is_general_mod, is_admin_mod, add_general_mod, remove_general_mod, add_admin_mod, remove_admin_mod, get_user_warnings_list, reset_warnings
+from _core.users import get_user, update_user_money, set_user_status, is_admin, is_general_mod, is_admin_mod, add_general_mod, remove_general_mod, add_admin_mod, remove_admin_mod, get_user_warnings_list, reset_warnings, add_warning
 from _core.titles import set_user_title
-from _core.notify import bot, send_auto_delete, send_admin_notification
+from _core.notify import bot, send_auto_delete, send_admin_notification, send_deduction_notification, send_reward_notification, send_warning_notification
 import asyncio
 
 def format_number(num):
     return f"{num:,}".replace(",", " ").replace(",", ".")
 
-# ========== دوال مساعدة ==========
-async def log_admin_action(admin_id, admin_name, target_id, target_name, action, detail):
-    """تسجيل الإجراءات الإدارية في جدول economy_log (يمكن استخدامه للسجل)"""
-    await db.execute("INSERT INTO economy_log (user_id, amount, reason, admin_id) VALUES (?, ?, ?, ?)",
-                     target_id, 0, f"{action}: {detail}", admin_id)
+# الحالة المؤقتة لانتظار إدخال سبب التحذير أو اللقب
+temp_data = {}
 
-# ========== لوحة الأدمن الرئيسية (لا تغلق تلقائياً) ==========
+# ========== لوحة الأدمن الرئيسية ==========
 async def admin_panel(message: Message):
     if message.from_user.id not in ADMIN_IDS:
         await message.answer("⚠️ هذه اللوحة للأدمن فقط.")
@@ -36,7 +33,7 @@ async def admin_panel(message: Message):
     ])
     await message.reply("👑 *لوحة تحكم الأدمن المتكاملة*", reply_markup=kb, parse_mode="Markdown")
 
-# ====== قائمة الأعضاء (لا تغلق تلقائياً) ======
+# ====== قائمة الأعضاء ======
 async def show_users(callback: CallbackQuery, page=1):
     limit = 10
     off = (page-1)*limit
@@ -69,9 +66,9 @@ async def show_user_controls(callback: CallbackQuery, uid):
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="➕ +100", callback_data=f"add_{uid}_100"),
          InlineKeyboardButton(text="➖ -50", callback_data=f"sub_{uid}_50")],
-        [InlineKeyboardButton(text="⚠️ تحذير", callback_data=f"warn_{uid}"),
-         InlineKeyboardButton(text="⚠️ إعادة تعيين التحذيرات", callback_data=f"reset_warns_{uid}")],
-        [InlineKeyboardButton(text="🏷️ لقب", callback_data=f"title_{uid}")],
+        [InlineKeyboardButton(text="⚠️ تحذير", callback_data=f"warn_req_{uid}")],
+        [InlineKeyboardButton(text="⚠️ إعادة تعيين التحذيرات", callback_data=f"reset_warns_{uid}")],
+        [InlineKeyboardButton(text="🏷️ تغيير اللقب", callback_data=f"title_req_{uid}")],
         [InlineKeyboardButton(text="📜 سجل العمليات", callback_data=f"user_log_{uid}")],
         [InlineKeyboardButton(text="◀️ رجوع", callback_data="admin_users")]
     ])
@@ -82,66 +79,15 @@ async def show_user_log(callback: CallbackQuery, uid):
     if not rows:
         await callback.message.edit_text("لا توجد عمليات لهذا المستخدم.")
         return
-    text = "📜 *سجل عمليات المستخدم:*\n\n"
+    text = "📜 *سجل عمليات المستخدم*\n\n"
     for r in rows:
         admin = await get_user(r['admin_id']) if r['admin_id'] else None
         admin_name = admin['full_name'] if admin else "نظام"
-        text += f"• {format_number(r['amount'])} {CURRENCY_NAME} - {r['reason']} (بواسطة {admin_name}) - {r['timestamp']}\n"
+        # جعل اسم المستخدم قابلاً للنقر (زر)
+        user_link = f"[{admin_name}](tg://user?id={r['admin_id']})" if r['admin_id'] else "نظام"
+        text += f"• {format_number(r['amount'])} {CURRENCY_NAME} - {r['reason']} (بواسطة {user_link}) - {r['timestamp']}\n"
     back = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="◀️ رجوع", callback_data=f"user_{uid}")]])
     await callback.message.edit_text(text, reply_markup=back, parse_mode="Markdown")
-
-# ====== إدارة المشرفين ======
-async def manage_mods(callback: CallbackQuery, page=1):
-    limit = 10
-    off = (page-1)*limit
-    mods = await db.fetch("SELECT user_id, 'general' as type FROM general_mods UNION SELECT user_id, 'admin' as type FROM admin_mods LIMIT ? OFFSET ?", limit, off)
-    if not mods:
-        await callback.message.edit_text("لا يوجد مشرفون.")
-        return
-    text = "🛡️ *المشرفون:*\n\n"
-    btns = []
-    for m in mods:
-        u = await get_user(m['user_id'])
-        if u:
-            type_label = "⚜️ مشرف إداري" if m['type'] == 'admin' else "🛡️ مشرف عادي"
-            text += f"{type_label} {u['full_name']} (ID: {m['user_id']})\n"
-            btns.append([InlineKeyboardButton(text=f"{type_label} {u['full_name']}", callback_data=f"mod_{m['user_id']}")])
-    nav = []
-    if page>1:
-        nav.append(InlineKeyboardButton(text="◀️ السابق", callback_data=f"mods_page_{page-1}"))
-    if len(mods)==limit:
-        nav.append(InlineKeyboardButton(text="▶️ التالي", callback_data=f"mods_page_{page+1}"))
-    if nav:
-        btns.append(nav)
-    # أزرار التحكم في إضافة/إزالة المشرفين
-    btns.append([InlineKeyboardButton(text="➕ إضافة مشرف عادي", callback_data="add_mod_general")])
-    btns.append([InlineKeyboardButton(text="➕ إضافة مشرف إداري", callback_data="add_mod_admin")])
-    btns.append([InlineKeyboardButton(text="➖ إزالة مشرف", callback_data="remove_mod")])
-    btns.append([InlineKeyboardButton(text="◀️ رجوع", callback_data="admin_back")])
-    await callback.message.edit_text(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=btns), parse_mode="Markdown")
-
-async def show_mod_details(callback: CallbackQuery, uid):
-    user = await get_user(uid)
-    if not user:
-        await callback.answer("المستخدم غير موجود")
-        return
-    is_gen = await is_general_mod(uid)
-    is_adm = await is_admin_mod(uid)
-    role = "⚜️ مشرف إداري" if is_adm else ("🛡️ مشرف عادي" if is_gen else "عضو عادي")
-    text = f"👤 *{user['full_name']}*\n🆔 المعرف: @{user['username'] or 'لا يوجد'}\n━━━━━━━━━━━━━━━━━\n🎖️ الرتبة: {role}\n💰 الرصيد: {format_number(user['money'])}\n⭐ XP: {user['xp']}\n📊 المستوى: {user['level']}"
-    kb = InlineKeyboardMarkup(inline_keyboard=[])
-    if is_gen and not is_adm:
-        kb.inline_keyboard.append([InlineKeyboardButton(text="⬆️ ترقية إلى مشرف إداري", callback_data=f"promote_to_admin_{uid}")])
-        kb.inline_keyboard.append([InlineKeyboardButton(text="⬇️ تخفيض إلى مشرف عادي؟ (لا يوجد)", callback_data="none")])
-        kb.inline_keyboard.append([InlineKeyboardButton(text="❌ إزالة المشرف", callback_data=f"demote_{uid}")])
-    elif is_adm:
-        kb.inline_keyboard.append([InlineKeyboardButton(text="⬇️ تخفيض إلى مشرف عادي", callback_data=f"demote_to_general_{uid}")])
-        kb.inline_keyboard.append([InlineKeyboardButton(text="❌ إزالة المشرف", callback_data=f"demote_{uid}")])
-    else:
-        kb.inline_keyboard.append([InlineKeyboardButton(text="➕ رفع مشرف عادي", callback_data=f"make_general_{uid}")])
-        kb.inline_keyboard.append([InlineKeyboardButton(text="➕ رفع مشرف إداري", callback_data=f"make_admin_{uid}")])
-    kb.inline_keyboard.append([InlineKeyboardButton(text="◀️ رجوع", callback_data="admin_mods")])
-    await callback.message.edit_text(text, reply_markup=kb, parse_mode="Markdown")
 
 # ====== إدارة التحذيرات ======
 async def show_all_warnings(callback: CallbackQuery, page=1):
@@ -179,9 +125,60 @@ async def show_warnings_details(callback: CallbackQuery, uid):
     for i, w in enumerate(warns, 1):
         admin = await get_user(w['admin_id'])
         admin_name = admin['full_name'] if admin else "نظام"
-        text += f"{i}. {w['reason']} (بواسطة {admin_name}) - {w['created_at']}\n"
+        admin_link = f"[{admin_name}](tg://user?id={w['admin_id']})" if w['admin_id'] else "نظام"
+        text += f"{i}. {w['reason']} (بواسطة {admin_link}) - {w['created_at']}\n"
     back = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="◀️ رجوع", callback_data="admin_warnings")]])
     await callback.message.edit_text(text, reply_markup=back, parse_mode="Markdown")
+
+# ====== إدارة المشرفين ======
+async def manage_mods(callback: CallbackQuery, page=1):
+    limit = 10
+    off = (page-1)*limit
+    mods = await db.fetch("SELECT user_id, 'general' as type FROM general_mods UNION SELECT user_id, 'admin' as type FROM admin_mods LIMIT ? OFFSET ?", limit, off)
+    if not mods:
+        await callback.message.edit_text("لا يوجد مشرفون.")
+        return
+    text = "🛡️ *المشرفون:*\n\n"
+    btns = []
+    for m in mods:
+        u = await get_user(m['user_id'])
+        if u:
+            type_label = "⚜️ مشرف إداري" if m['type'] == 'admin' else "🛡️ مشرف عادي"
+            text += f"{type_label} {u['full_name']} (ID: {m['user_id']})\n"
+            btns.append([InlineKeyboardButton(text=f"{type_label} {u['full_name']}", callback_data=f"mod_{m['user_id']}")])
+    nav = []
+    if page>1:
+        nav.append(InlineKeyboardButton(text="◀️ السابق", callback_data=f"mods_page_{page-1}"))
+    if len(mods)==limit:
+        nav.append(InlineKeyboardButton(text="▶️ التالي", callback_data=f"mods_page_{page+1}"))
+    if nav:
+        btns.append(nav)
+    btns.append([InlineKeyboardButton(text="➕ إضافة مشرف عادي", callback_data="add_mod_general")])
+    btns.append([InlineKeyboardButton(text="➕ إضافة مشرف إداري", callback_data="add_mod_admin")])
+    btns.append([InlineKeyboardButton(text="◀️ رجوع", callback_data="admin_back")])
+    await callback.message.edit_text(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=btns), parse_mode="Markdown")
+
+async def show_mod_details(callback: CallbackQuery, uid):
+    user = await get_user(uid)
+    if not user:
+        await callback.answer("المستخدم غير موجود")
+        return
+    is_gen = await is_general_mod(uid)
+    is_adm = await is_admin_mod(uid)
+    role = "⚜️ مشرف إداري" if is_adm else ("🛡️ مشرف عادي" if is_gen else "عضو عادي")
+    text = f"👤 *{user['full_name']}*\n🆔 المعرف: @{user['username'] or 'لا يوجد'}\n━━━━━━━━━━━━━━━━━\n🎖️ الرتبة: {role}\n💰 الرصيد: {format_number(user['money'])}\n⭐ XP: {user['xp']}\n📊 المستوى: {user['level']}"
+    kb = InlineKeyboardMarkup(inline_keyboard=[])
+    if is_gen and not is_adm:
+        kb.inline_keyboard.append([InlineKeyboardButton(text="⬆️ ترقية إلى مشرف إداري", callback_data=f"promote_to_admin_{uid}")])
+        kb.inline_keyboard.append([InlineKeyboardButton(text="⬇️ تخفيض إلى عضو", callback_data=f"demote_{uid}")])
+    elif is_adm:
+        kb.inline_keyboard.append([InlineKeyboardButton(text="⬇️ تخفيض إلى مشرف عادي", callback_data=f"demote_to_general_{uid}")])
+        kb.inline_keyboard.append([InlineKeyboardButton(text="⬇️ تخفيض إلى عضو", callback_data=f"demote_{uid}")])
+    else:
+        kb.inline_keyboard.append([InlineKeyboardButton(text="➕ رفع مشرف عادي", callback_data=f"make_general_{uid}")])
+        kb.inline_keyboard.append([InlineKeyboardButton(text="➕ رفع مشرف إداري", callback_data=f"make_admin_{uid}")])
+    kb.inline_keyboard.append([InlineKeyboardButton(text="◀️ رجوع", callback_data="admin_mods")])
+    await callback.message.edit_text(text, reply_markup=kb, parse_mode="Markdown")
 
 # ====== إدارة السوق ======
 async def manage_shop(callback: CallbackQuery):
@@ -199,7 +196,7 @@ async def manage_shop(callback: CallbackQuery):
     kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="◀️ رجوع", callback_data="admin_back")]])
     await callback.message.edit_text(text, reply_markup=kb, parse_mode="Markdown")
 
-# ====== سجل الإدارة (كل العمليات) ======
+# ====== سجل الإدارة (كل العمليات مع أسماء قابلة للنقر) ======
 async def show_admin_logs(callback: CallbackQuery, page=1):
     limit = 15
     off = (page-1)*limit
@@ -211,9 +208,11 @@ async def show_admin_logs(callback: CallbackQuery, page=1):
     for r in rows:
         admin = await get_user(r['admin_id']) if r['admin_id'] else None
         admin_name = admin['full_name'] if admin else "نظام"
+        admin_link = f"[{admin_name}](tg://user?id={r['admin_id']})" if r['admin_id'] else "نظام"
         user = await get_user(r['user_id'])
         user_name = user['full_name'] if user else "غير معروف"
-        text += f"• {format_number(r['amount'])} {CURRENCY_NAME} للمستخدم {user_name} - {r['reason']} (بواسطة {admin_name})\n"
+        user_link = f"[{user_name}](tg://user?id={r['user_id']})" if r['user_id'] else "غير معروف"
+        text += f"• {format_number(r['amount'])} {CURRENCY_NAME} للمستخدم {user_link} - {r['reason']} (بواسطة {admin_link})\n"
     nav = []
     if page>1:
         nav.append(InlineKeyboardButton(text="◀️ السابق", callback_data=f"logs_page_{page-1}"))
@@ -223,7 +222,7 @@ async def show_admin_logs(callback: CallbackQuery, page=1):
     kb = InlineKeyboardMarkup(inline_keyboard=[nav] if nav else [])
     await callback.message.edit_text(text, reply_markup=kb, parse_mode="Markdown")
 
-# ====== أزرار الإعلان والتنبيهات والعمليات الجماعية ======
+# ====== أزرار الإعلان والتنبيهات ======
 async def admin_notify_menu(callback: CallbackQuery):
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="📣 إعلان عام (للمجموعة)", callback_data="broadcast_group")],
@@ -242,7 +241,7 @@ async def send_message_menu(callback: CallbackQuery):
     ])
     await callback.message.edit_text("✉️ *إرسال رسالة إلى المجموعة*", reply_markup=kb, parse_mode="Markdown")
 
-# ====== المعالج الرئيسي لأزرار لوحة الأدمن ======
+# ====== المعالج الرئيسي ======
 async def process_callback(callback: CallbackQuery):
     await callback.answer()
     data = callback.data
@@ -253,7 +252,7 @@ async def process_callback(callback: CallbackQuery):
     admin_name = callback.from_user.full_name
     chat_id = callback.message.chat.id
 
-    # التنقل بين الصفحات
+    # التنقل
     if data.startswith("users_page_"):
         page = int(data.split("_")[-1])
         await show_users(callback, page)
@@ -328,20 +327,25 @@ async def process_callback(callback: CallbackQuery):
         await callback.message.answer(f"✅ تم إعادة تعيين تحذيرات {user['full_name']} إلى 0")
         await send_admin_notification(admin_name, user['full_name'], "⚠️ إعادة تعيين التحذيرات", "")
         await show_user_controls(callback, uid2)
-    elif data.startswith("warn_"):
+    elif data.startswith("warn_req_"):
         uid2 = int(data.split("_")[-1])
-        await callback.message.answer(f"⚠️ أرسل سبب التحذير للمستخدم {uid2} في رسالة منفردة")
+        temp_data[uid] = {"action": "warn", "target": uid2}
+        await callback.message.edit_text(f"⚠️ *تحذير العضو*\nأرسل سبب التحذير للمستخدم (سطر واحد فقط):")
+    elif data.startswith("title_req_"):
+        uid2 = int(data.split("_")[-1])
+        temp_data[uid] = {"action": "title", "target": uid2}
+        await callback.message.edit_text(f"🏷️ *تغيير اللقب*\nأرسل اللقب الجديد للمستخدم:")
 
     # إدارة المشرفين
     elif data.startswith("mod_"):
         uid2 = int(data.split("_")[-1])
         await show_mod_details(callback, uid2)
     elif data == "add_mod_general":
-        await callback.message.answer("➕ أرسل معرف العضو لرفعه مشرفاً عادياً")
+        await callback.message.edit_text("➕ *إضافة مشرف عادي*\nأرسل معرف العضو (ID) لرفعه مشرفاً عادياً:")
+        temp_data[uid] = {"action": "add_general"}
     elif data == "add_mod_admin":
-        await callback.message.answer("➕ أرسل معرف العضو لرفعه مشرفاً إدارياً")
-    elif data == "remove_mod":
-        await callback.message.answer("➖ أرسل معرف العضو لإزالة صلاحيات المشرف عنه")
+        await callback.message.edit_text("➕ *إضافة مشرف إداري*\nأرسل معرف العضو (ID) لرفعه مشرفاً إدارياً:")
+        temp_data[uid] = {"action": "add_admin"}
     elif data.startswith("make_general_"):
         uid2 = int(data.split("_")[-1])
         await add_general_mod(uid2, uid)
@@ -377,24 +381,9 @@ async def process_callback(callback: CallbackQuery):
         await remove_general_mod(uid2)
         await remove_admin_mod(uid2)
         user = await get_user(uid2)
-        await callback.message.answer(f"✅ تم حذف صلاحيات المشرف عن {user['full_name']}")
+        await callback.message.answer(f"✅ تم إزالة صلاحيات المشرف عن {user['full_name']}")
         await send_admin_notification(admin_name, user['full_name'], "❌ إزالة صلاحيات المشرف", "")
         await show_mod_details(callback, uid2)
-
-    # أزرار الإعلان والعمليات الجماعية
-    elif data == "broadcast_group":
-        await callback.message.edit_text("📣 أرسل نص الإعلان (سيُرسل إلى المجموعة ويختفي بعد 30 ثانية)")
-        # سيتم التعامل معه في رسالة منفردة
-    elif data == "alert_user":
-        await callback.message.edit_text("🔔 أرسل معرف العضو وسبب التنبيه (مثال: 123456789 | سبب)")
-    elif data == "mass_deduct":
-        await callback.message.edit_text("💰 أرسل مبلغ الخصم (لجميع المستخدمين) ثم السبب في سطر جديد")
-    elif data == "mass_reward":
-        await callback.message.edit_text("🎁 أرسل مبلغ المكافأة (لجميع المستخدمين) ثم السبب في سطر جديد")
-    elif data == "send_normal":
-        await callback.message.edit_text("📨 أرسل النص الذي تريد إرساله إلى المجموعة (بدون تثبيت)")
-    elif data == "send_pinned":
-        await callback.message.edit_text("📌 أرسل النص الذي تريد تثبيته في المجموعة")
 
     # إجراءات تعديل الرصيد واللقب
     elif data.startswith("add_"):
@@ -403,7 +392,7 @@ async def process_callback(callback: CallbackQuery):
         target = await get_user(uid2)
         await update_user_money(uid2, amt, "إضافة من اللوحة", uid)
         await callback.message.answer(f"✅ +{format_number(amt)}")
-        await send_admin_notification(admin_name, target['full_name'], "💰 إضافة رصيد", f"+{format_number(amt)}")
+        await send_reward_notification(chat_id, admin_name, target['full_name'], amt, "إضافة من لوحة الأدمن")
         await show_user_controls(callback, uid2)
     elif data.startswith("sub_"):
         _, uid2, amt = data.split("_")
@@ -411,39 +400,14 @@ async def process_callback(callback: CallbackQuery):
         target = await get_user(uid2)
         await update_user_money(uid2, -amt, "خصم من اللوحة", uid)
         await callback.message.answer(f"✅ -{format_number(amt)}")
-        await send_admin_notification(admin_name, target['full_name'], "💰 خصم رصيد", f"-{format_number(amt)}")
+        await send_deduction_notification(chat_id, admin_name, target['full_name'], amt, "خصم من لوحة الأدمن")
         await show_user_controls(callback, uid2)
-    elif data.startswith("title_"):
-        uid2 = int(data.split("_")[1])
-        await callback.message.answer(f"🏷️ أرسل اللقب الجديد للمستخدم {uid2} في رسالة منفردة")
 
-# ====== معالجة الرسائل النصية للإعلانات والعمليات الجماعية ======
-async def handle_admin_text_commands(message: Message):
-    if message.from_user.id not in ADMIN_IDS:
-        return
-    if message.chat.type != "private":
-        return
-    text = message.text.strip()
-    if not text:
-        return
-    # هنا يمكن تنفيذ العمليات بناءً على الردود (سيتم إضافتها لاحقاً حسب الحاجة)
-    # مثال: broadcast_group, send_pinned, etc.
-    if message.reply_to_message and "أرسل نص الإعلان" in message.reply_to_message.text:
-        await send_auto_delete(GROUP_ID, f"📢 *إعلان عام:*\n{text}")
-        await message.reply("✅ تم إرسال الإشعار إلى المجموعة")
-    elif message.reply_to_message and "أرسل النص الذي تريد إرساله إلى المجموعة" in message.reply_to_message.text:
-        await bot.send_message(GROUP_ID, text)
-        await message.reply("✅ تم إرسال الرسالة")
-    elif message.reply_to_message and "أرسل النص الذي تريد تثبيته في المجموعة" in message.reply_to_message.text:
-        try:
-            sent = await bot.send_message(GROUP_ID, text)
-            await bot.pin_chat_message(GROUP_ID, sent.message_id)
-            await message.reply("✅ تم تثبيت الرسالة")
-        except Exception as e:
-            await message.reply(f"❌ فشل التثبيت: {e}")
-    # باقي العمليات يمكن إضافتها بشكل مماثل
+    # أزرار الإعلانات (ستتم معالجتها في رسائل منفصلة)
+    elif data in ["broadcast_group", "alert_user", "mass_deduct", "mass_reward", "send_normal", "send_pinned"]:
+        await callback.message.edit_text(f"✏️ تم اختيار {data} – سيتم إرسال التعليمات لاحقاً.")
+        # يمكن تفعيل FSM لاحقاً
 
 def register_callback_handlers(dp: Dispatcher):
     dp.message.register(admin_panel, Command("adminiq"))
     dp.callback_query.register(process_callback)
-    dp.message.register(handle_admin_text_commands)
