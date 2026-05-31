@@ -11,7 +11,7 @@ import asyncio
 def format_number(num):
     return f"{num:,}".replace(",", " ").replace(",", ".")
 
-# حالة مؤقتة لانتظار إدخال اللقب
+# حالة مؤقتة لانتظار إدخال اللقب من الأدمن
 temp_data = {}
 
 # ========== لوحة الأدمن الرئيسية ==========
@@ -31,7 +31,7 @@ async def admin_panel(message: Message):
     ])
     await message.reply("👑 *لوحة تحكم الأدمن*", reply_markup=kb, parse_mode="Markdown")
 
-# ====== إدارة الأعضاء (عرض الأعضاء مع الرتب) ======
+# ====== إدارة الأعضاء ======
 async def show_users(callback: CallbackQuery, page=1):
     limit = 10
     off = (page-1)*limit
@@ -65,7 +65,6 @@ async def show_users(callback: CallbackQuery, page=1):
     btns.append([InlineKeyboardButton(text="◀️ رجوع", callback_data="admin_back")])
     await callback.message.edit_text(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=btns), parse_mode="Markdown")
 
-# ====== التحكم في عضو معين ======
 async def show_user_controls(callback: CallbackQuery, uid):
     user = await get_user(uid)
     if not user:
@@ -96,7 +95,7 @@ async def show_user_log(callback: CallbackQuery, uid):
     back = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="◀️ رجوع", callback_data=f"user_{uid}")]])
     await callback.message.edit_text(text, reply_markup=back, parse_mode="Markdown")
 
-# ====== إدارة المشرفين (عرض الأعضاء ورفعهم بدون ID) ======
+# ====== إدارة المشرفين (رفع مشرف بدون ID) ======
 async def manage_mods(callback: CallbackQuery):
     rows = await db.fetch("SELECT telegram_id, full_name FROM users ORDER BY created_at DESC LIMIT 20")
     if not rows:
@@ -160,7 +159,7 @@ async def show_warnings_details(callback: CallbackQuery, uid):
     back = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="◀️ رجوع", callback_data="admin_warnings")]])
     await callback.message.edit_text(text, reply_markup=back, parse_mode="Markdown")
 
-# ====== إدارة السوق ======
+# ====== إدارة السوق (عرض + أوامر نصية) ======
 async def manage_shop(callback: CallbackQuery):
     items = await db.fetch("SELECT id, name, price, rank_level FROM shop_items ORDER BY rank_level")
     text = "🏪 *إدارة السوق*\n\n"
@@ -169,12 +168,13 @@ async def manage_shop(callback: CallbackQuery):
             text += f"🆔 {it['id']} - {it['name']} - 💰{format_number(it['price'])} - مستوى {it['rank_level']}\n"
     else:
         text += "لا توجد منتجات.\n"
-    text += "\n*الأوامر النصية (تُكتب في الخاص):*\n"
+    text += "\n*الأوامر النصية (تُكتب في الخاص مع الرد على هذه الرسالة):*\n"
     text += "`$إضافة منتج <الاسم> | <السعر> | <المستوى>`\n"
     text += "`$تعديل سعر <id> | <السعر الجديد>`\n"
     text += "`$حذف منتج <id>`"
     kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="◀️ رجوع", callback_data="admin_back")]])
     await callback.message.edit_text(text, reply_markup=kb, parse_mode="Markdown")
+    # نستخدم المتغيرات المؤقتة لاستقبال الأوامر (سيتم في events.py)
 
 # ====== سجل الإدارة ======
 async def show_admin_logs(callback: CallbackQuery, page=1):
@@ -200,7 +200,7 @@ async def show_admin_logs(callback: CallbackQuery, page=1):
     kb = InlineKeyboardMarkup(inline_keyboard=[nav] if nav else [])
     await callback.message.edit_text(text, reply_markup=kb, parse_mode="Markdown")
 
-# ========== الاقتصاد والإحصائيات ==========
+# ====== الاقتصاد والإحصائيات ======
 async def admin_economy(callback: CallbackQuery):
     total = await db.fetchval("SELECT SUM(money) FROM users") or 0
     count = await db.fetchval("SELECT COUNT(*) FROM users") or 0
@@ -293,7 +293,7 @@ async def process_callback(callback: CallbackQuery):
         await show_user_log(callback, uid2)
         return
 
-    # إجراءات التحكم بالعضو (إضافة/خصم/تحذير/حذف تحذيرات/تغيير لقب)
+    # إجراءات التحكم بالعضو
     if data.startswith("add_"):
         _, uid2, amt = data.split("_")
         uid2, amt = int(uid2), int(amt)
