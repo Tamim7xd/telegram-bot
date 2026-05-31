@@ -55,7 +55,6 @@ async def start(update, context):
     )
 
 async def handle_message(update, context):
-    # معالجة الألعاب التي تنتظر إجابة
     if context.user_data.get('waiting_guess') or \
        context.user_data.get('waiting_question') or \
        context.user_data.get('waiting_reverse') or \
@@ -64,11 +63,9 @@ async def handle_message(update, context):
         return
 
 def backup_thread(bot):
-    """تشغيل النسخ الاحتياطي في خيط منفصل"""
     while True:
-        time.sleep(3600)  # كل ساعة
+        time.sleep(3600)
         try:
-            # إنشاء دالة متزامنة لتشغيل create_backup
             import asyncio
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
@@ -77,64 +74,50 @@ def backup_thread(bot):
         except Exception as e:
             print(f"Backup error: {e}")
 
+async def post_init(app):
+    """تشغيل بعد بدء التطبيق"""
+    # حذف أي webhook موجود
+    await app.bot.delete_webhook()
+    print("✅ Webhook deleted")
+
 def main():
-    # تهيئة قاعدة البيانات
     init_db()
+    app = Application.builder().token(BOT_TOKEN).post_init(post_init).build()
     
-    # إنشاء التطبيق
-    app = Application.builder().token(BOT_TOKEN).build()
-    
-    # ========================================
-    # الأوامر العامة (تعمل للجميع)
-    # ========================================
+    # الأوامر العامة
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("profile", profile_command))
     app.add_handler(CommandHandler("game", game_command))
     app.add_handler(CommandHandler("shop", shop_command))
     app.add_handler(CommandHandler("daily", daily_reward_command))
     
-    # ========================================
     # أوامر المشرفين
-    # ========================================
     app.add_handler(CommandHandler("warn", warning_command))
     app.add_handler(CommandHandler("mute", mute_command))
     app.add_handler(CommandHandler("deduct", add_balance_command))
     app.add_handler(CommandHandler("reward", remove_balance_command))
     
-    # ========================================
     # أوامر المشرف الإداري
-    # ========================================
     app.add_handler(CommandHandler("ban", ban_command))
     app.add_handler(CommandHandler("kick", kick_command))
     
-    # ========================================
     # لوحات التحكم
-    # ========================================
     app.add_handler(CommandHandler("admin", admin_panel_command))
     app.add_handler(CommandHandler("owner", owner_panel_command))
     
-    # ========================================
-    # معالجات الأزرار (Callback Queries)
-    # ========================================
+    # معالجات الأزرار
     app.add_handler(CallbackQueryHandler(game_callback, pattern="^(game_|rps_)"))
     app.add_handler(CallbackQueryHandler(shop_callback, pattern="^shop_"))
     app.add_handler(CallbackQueryHandler(admin_callback, pattern="^admin_"))
     app.add_handler(CallbackQueryHandler(owner_callback, pattern="^owner_"))
     
-    # ========================================
-    # معالج الرسائل (للألعاب)
-    # ========================================
+    # معالج الرسائل
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     
-    # ========================================
-    # تشغيل النسخ الاحتياطي في خلفية منفصلة
-    # ========================================
+    # النسخ الاحتياطي
     backup = threading.Thread(target=backup_thread, args=(app.bot,), daemon=True)
     backup.start()
     
-    # ========================================
-    # تشغيل البوت
-    # ========================================
     print("✅ البوت شغال...")
     app.run_polling()
 
