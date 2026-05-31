@@ -276,7 +276,6 @@ async def process_callback(callback: CallbackQuery):
         await show_user_controls(callback, uid2)
     elif data.startswith("warn_"):
         uid2 = int(data.split("_")[-1])
-        # تحذير مباشر مع سبب افتراضي
         reason = "تحذير من لوحة الأدمن"
         new_count = await add_warning(uid2, reason, uid)
         user = await get_user(uid2)
