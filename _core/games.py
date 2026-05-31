@@ -7,12 +7,12 @@ from _core.xp import add_xp
 from _core.notify import bot, send_auto_delete
 from config import GAME_TIME_LIMIT, DEFAULT_GAME_PRIZE_MIN, DEFAULT_GAME_PRIZE_MAX, CURRENCY_NAME
 
-async def start_game_with_choice(message: Message, game_type: str):
+async def start_game_by_type(message: Message, game_type: str):
     chat_id = message.chat.id
     prize = random.randint(DEFAULT_GAME_PRIZE_MIN, DEFAULT_GAME_PRIZE_MAX)
     game = await get_random_game(prize, game_type)
     if not game:
-        await send_auto_delete(chat_id, "⚠️ لا توجد أسئلة لهذا النوع حالياً.")
+        await send_auto_delete(chat_id, "⚠️ لا توجد أسئلة لهذا النوع حالياً.", delay=30)
         return
     sent = await bot.send_message(chat_id, game['display_text'])
     await save_game_session(chat_id, sent.message_id, game['type'], game['question'], game['answer'], prize)
@@ -20,7 +20,7 @@ async def start_game_with_choice(message: Message, game_type: str):
 
 async def end_game_timeout(chat_id, msg_id, correct_answer):
     await asyncio.sleep(GAME_TIME_LIMIT)
-    await send_auto_delete(chat_id, f"⏰ انتهت المهلة! الإجابة: {correct_answer}")
+    await send_auto_delete(chat_id, f"⏰ انتهت المهلة! الإجابة: {correct_answer}", delay=30)
 
 async def handle_game_answer(message: Message):
     if not message.reply_to_message:
@@ -31,7 +31,7 @@ async def handle_game_answer(message: Message):
     if prize > 0:
         await update_user_money(message.from_user.id, prize, "فوز بلعبة", None)
         await add_xp(message.from_user.id, 25, message.chat.id, message.from_user.full_name)
-        await send_auto_delete(message.chat.id, f"🎉 فوز! +{prize:,} {CURRENCY_NAME} +25 XP")
+        await send_auto_delete(message.chat.id, f"🎉 فوز! +{prize:,} {CURRENCY_NAME} +25 XP", delay=30)
     else:
         await message.reply("❌ إجابة خاطئة")
 
