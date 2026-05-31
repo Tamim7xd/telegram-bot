@@ -1,6 +1,3 @@
-
-def register_notify_handlers(dp: Dispatcher):
-    pass
 from aiogram import Bot, Dispatcher
 from config import CURRENCY_NAME, LEVELUP_BONUS_MONEY, LEVELUP_BONUS_XP, GROUP_ID
 from _core.xp import get_xp_progress
