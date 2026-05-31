@@ -1,0 +1,157 @@
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram.ext import ContextTypes
+from shared.database import get_db
+from shared.permissions import is_admin
+from system_punishments.punishments_handler import unmute_user
+from config import GROUP_ID
+
+async def admin_panel_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    
+    if not is_admin(user_id):
+        await update.message.reply_text("❌ هذا الأمر للمشرفين فقط")
+        return
+    
+    conn = get_db()
+    cursor = conn.execute("SELECT COUNT(*) FROM users WHERE is_muted = 1 OR warnings > 0 OR is_banned = 1")
+    count = cursor.fetchone()[0]
+    conn.close()
+    
+    keyboard = [
+        [InlineKeyboardButton(f"👥 عدد المخالفين: {count}", callback_data="admin_none")],
+        [InlineKeyboardButton("🔍 ابحث", callback_data="admin_search")],
+        [InlineKeyboardButton("🔙 إغلاق", callback_data="admin_close")]
+    ]
+    
+    await update.message.reply_text(
+        "👑 **لوحة التحكم الإدارية**",
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode="Markdown"
+    )
+
+async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    
+    user_id = query.from_user.id
+    data = query.data
+    
+    if not is_admin(user_id):
+        await query.edit_message_text("❌ ليس لديك صلاحية")
+        return
+    
+    if data == "admin_close":
+        await query.edit_message_text("🔚 تم إغلاق لوحة التحكم")
+        return
+    
+    if data == "admin_search":
+        conn = get_db()
+        cursor = conn.execute("""
+            SELECT user_id, username, first_name, is_muted, warnings, is_banned 
+            FROM users 
+            WHERE is_muted = 1 OR warnings > 0 OR is_banned = 1
+            LIMIT 5
+        """)
+        offenders = cursor.fetchall()
+        conn.close()
+        
+        if not offenders:
+            await query.edit_message_text("✅ لا يوجد مخالفين حالياً")
+            return
+        
+        keyboard = []
+        for o in offenders:
+            name = o["first_name"] or o["username"] or str(o["user_id"])
+            status = ""
+            if o["is_muted"]:
+                status = "مكتوم"
+            elif o["is_banned"]:
+                status = "محظور"
+            elif o["warnings"] > 0:
+                status = f"منذر ({o['warnings']})"
+            
+            keyboard.append([InlineKeyboardButton(f"{name} - {status}", callback_data=f"admin_user_{o['user_id']}")])
+        
+        keyboard.append([InlineKeyboardButton("🔙 رجوع", callback_data="admin_back")])
+        
+        await query.edit_message_text("📋 **قائمة المخالفين:**", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
+        return
+    
+    if data.startswith("admin_user_"):
+        target_id = int(data.split("_")[2])
+        
+        conn = get_db()
+        cursor = conn.execute("SELECT user_id, first_name, username, is_muted, muted_until, warnings, is_banned FROM users WHERE user_id = ?", (target_id,))
+        user = cursor.fetchone()
+        conn.close()
+        
+        if not user:
+            await query.edit_message_text("❌ العضو غير موجود")
+            return
+        
+        name = user["first_name"] or user["username"] or str(user["user_id"])
+        
+        status_text = ""
+        if user["is_muted"]:
+            remaining = user["muted_until"] - int(__import__('time').time())
+            if remaining > 0:
+                status_text = f"🔇 مكتوم - متبقي {remaining//60} دقائق"
+            else:
+                status_text = "🔇 مكتوم (منتهي)"
+        elif user["is_banned"]:
+            status_text = "🚫 محظور"
+        else:
+            status_text = "⚠️ منذر"
+        
+        keyboard = [
+            [InlineKeyboardButton("🔓 فك المخالفة", callback_data=f"admin_unpunish_{target_id}")],
+            [InlineKeyboardButton("🔙 رجوع", callback_data="admin_search")]
+        ]
+        
+        await query.edit_message_text(
+            f"👤 **{name}**\n\n"
+            f"📊 الحالة: {status_text}\n"
+            f"⚠️ التحذيرات: {user['warnings']}\n\n"
+            f"🛠️ يمكنك فك العقوبة بالضغط على الزر أدناه",
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode="Markdown"
+        )
+        return
+    
+    if data.startswith("admin_unpunish_"):
+        target_id = int(data.split("_")[2])
+        
+        conn = get_db()
+        
+        # فك الكتم
+        await unmute_user(context, target_id)
+        
+        # حذف التحذيرات
+        conn.execute("UPDATE users SET warnings = 0 WHERE user_id = ?", (target_id,))
+        
+        # فك الحظر
+        try:
+            await context.bot.unban_chat_member(GROUP_ID, target_id)
+        except:
+            pass
+        
+        conn.execute("UPDATE users SET is_banned = 0 WHERE user_id = ?", (target_id,))
+        conn.commit()
+        conn.close()
+        
+        await query.edit_message_text("✅ **تم فك العقوبة بنجاح**")
+        return
+    
+    if data == "admin_back":
+        conn = get_db()
+        cursor = conn.execute("SELECT COUNT(*) FROM users WHERE is_muted = 1 OR warnings > 0 OR is_banned = 1")
+        count = cursor.fetchone()[0]
+        conn.close()
+        
+        keyboard = [
+            [InlineKeyboardButton(f"👥 عدد المخالفين: {count}", callback_data="admin_none")],
+            [InlineKeyboardButton("🔍 ابحث", callback_data="admin_search")],
+            [InlineKeyboardButton("🔙 إغلاق", callback_data="admin_close")]
+        ]
+        
+        await query.edit_message_text("👑 **لوحة التحكم الإدارية**", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
