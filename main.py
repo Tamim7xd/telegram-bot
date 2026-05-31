@@ -1,3 +1,4 @@
+
 import logging
 import asyncio
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters
@@ -13,7 +14,7 @@ from system_punishments.punishments_handler import mute_command, ban_command, ki
 from system_economy.economy_handler import add_balance_command, remove_balance_command, daily_reward_command
 from system_admin.admin_handler import admin_panel_command, admin_callback
 from system_owner.owner_handler import owner_panel_command, owner_callback
-from system_backup.backup_handler import start_backup_scheduler, create_backup
+from system_backup.backup_handler import create_backup
 
 logging.basicConfig(level=logging.INFO)
 
@@ -34,21 +35,21 @@ async def start(update, context):
         "📋 **الأوامر المتاحة:**\n"
         "━━━━━━━━━━━━━━━━━━━━━━\n"
         "👤 **أوامر عامة:**\n"
-        "#ملف - عرض ملفك الشخصي\n"
-        "#لعبة - فتح الألعاب\n"
-        "#سوق - فتح المتجر\n"
-        "#يومي - مكافأة يومية\n\n"
+        "/profile - عرض ملفك الشخصي\n"
+        "/game - فتح الألعاب\n"
+        "/shop - فتح المتجر\n"
+        "/daily - مكافأة يومية\n\n"
         "🛡️ **أوامر المشرفين:**\n"
-        "#تحذير سبب - تحذير عضو\n"
-        "#كتم مدة سبب - كتم عضو\n"
-        "#خصم مبلغ سبب - خصم رصيد\n"
-        "#مكافأة مبلغ سبب - إضافة رصيد\n"
-        "#مشرف - لوحة المشرفين\n\n"
+        "/warn سبب - تحذير عضو\n"
+        "/mute مدة سبب - كتم عضو\n"
+        "/deduct مبلغ سبب - خصم رصيد\n"
+        "/reward مبلغ سبب - إضافة رصيد\n"
+        "/admin - لوحة المشرفين\n\n"
         "👑 **أوامر المشرف الإداري:**\n"
-        "#حظر سبب - حظر عضو\n"
-        "#طرد سبب - طرد عضو\n\n"
+        "/ban سبب - حظر عضو\n"
+        "/kick سبب - طرد عضو\n\n"
         "⭐ **أوامر المالك:**\n"
-        "#مالك - لوحة المالك\n"
+        "/owner - لوحة المالك\n"
         "━━━━━━━━━━━━━━━━━━━━━━",
         parse_mode="Markdown"
     )
@@ -63,68 +64,47 @@ async def handle_message(update, context):
         return
 
 async def backup_loop(app):
-    """تشغيل النسخ الاحتياطي كل ساعة"""
     while True:
-        await asyncio.sleep(3600)  # كل ساعة
+        await asyncio.sleep(3600)
         await create_backup(app.bot)
 
 def main():
-    # تهيئة قاعدة البيانات
     init_db()
-    
-    # إنشاء التطبيق
     app = Application.builder().token(BOT_TOKEN).build()
     
-    # ========================================
-    # الأوامر العامة (تعمل للجميع)
-    # ========================================
+    # أوامر عامة
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("ملف", profile_command))
-    app.add_handler(CommandHandler("لعبة", game_command))
-    app.add_handler(CommandHandler("سوق", shop_command))
-    app.add_handler(CommandHandler("يومي", daily_reward_command))
+    app.add_handler(CommandHandler("profile", profile_command))
+    app.add_handler(CommandHandler("game", game_command))
+    app.add_handler(CommandHandler("shop", shop_command))
+    app.add_handler(CommandHandler("daily", daily_reward_command))
     
-    # ========================================
-    # أوامر المشرفين (تتطلب رد على الرسالة)
-    # ========================================
-    app.add_handler(CommandHandler("تحذير", warning_command))
-    app.add_handler(CommandHandler("كتم", mute_command))
-    app.add_handler(CommandHandler("خصم", add_balance_command))
-    app.add_handler(CommandHandler("مكافأة", remove_balance_command))
+    # أوامر المشرفين
+    app.add_handler(CommandHandler("warn", warning_command))
+    app.add_handler(CommandHandler("mute", mute_command))
+    app.add_handler(CommandHandler("deduct", add_balance_command))
+    app.add_handler(CommandHandler("reward", remove_balance_command))
     
-    # ========================================
     # أوامر المشرف الإداري
-    # ========================================
-    app.add_handler(CommandHandler("حظر", ban_command))
-    app.add_handler(CommandHandler("طرد", kick_command))
+    app.add_handler(CommandHandler("ban", ban_command))
+    app.add_handler(CommandHandler("kick", kick_command))
     
-    # ========================================
     # لوحات التحكم
-    # ========================================
-    app.add_handler(CommandHandler("مشرف", admin_panel_command))
-    app.add_handler(CommandHandler("مالك", owner_panel_command))
+    app.add_handler(CommandHandler("admin", admin_panel_command))
+    app.add_handler(CommandHandler("owner", owner_panel_command))
     
-    # ========================================
-    # معالجات الأزرار (Callback Queries)
-    # ========================================
+    # معالجات الأزرار
     app.add_handler(CallbackQueryHandler(game_callback, pattern="^(game_|rps_)"))
     app.add_handler(CallbackQueryHandler(shop_callback, pattern="^shop_"))
     app.add_handler(CallbackQueryHandler(admin_callback, pattern="^admin_"))
     app.add_handler(CallbackQueryHandler(owner_callback, pattern="^owner_"))
     
-    # ========================================
-    # معالج الرسائل (للألعاب)
-    # ========================================
+    # معالج الرسائل
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     
-    # ========================================
-    # تشغيل النسخ الاحتياطي في الخلفية
-    # ========================================
+    # النسخ الاحتياطي
     asyncio.create_task(backup_loop(app))
     
-    # ========================================
-    # تشغيل البوت
-    # ========================================
     print("✅ البوت شغال...")
     app.run_polling()
 
