@@ -3,7 +3,7 @@ from aiogram.types import Message
 from config import ADMIN_IDS, CURRENCY_NAME, XP_PER_MESSAGE, GROUP_ID
 from _core.users import update_user_money, get_user, set_user_status, get_or_create_user, is_admin, is_general_mod, is_admin_mod, add_general_mod, remove_general_mod, add_admin_mod, remove_admin_mod, add_warning, get_user_warnings_list, reset_warnings
 from _core.xp import add_xp, get_xp_progress, increment_message_count
-from _core.games import start_game_by_type
+# تم إزالة: from _core.games import start_game_by_type
 from _core.titles import set_user_title
 from _core.notify import send_auto_delete, send_deduction_notification, send_reward_notification, send_warning_notification, send_admin_notification
 from db import db
