@@ -26,7 +26,8 @@ async def on_user_join(event: ChatMemberUpdated):
         user = event.new_chat_member.user
         await get_or_create_user(user)
         from _core.notify import bot
-        await bot.send_message(event.chat.id, f"✨ مرحباً {user.full_name}!\nاستخدم #ملفي لعرض معلوماتك.")
+        if bot:
+            await bot.send_message(event.chat.id, f"✨ مرحباً {user.full_name}!\nاستخدم #ملفي لعرض معلوماتك.")
 
 async def main():
     bot_obj = Bot(token=BOT_TOKEN)
