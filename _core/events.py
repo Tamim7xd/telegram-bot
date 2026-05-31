@@ -26,10 +26,12 @@ async def handle_all_commands(message: Message):
     chat_id = message.chat.id
     await get_or_create_user(message.from_user)
 
+    # حذف أي أمر / غير مسموح به (ما عدا /start, /adminiq)
     if text.startswith("/") and text not in ["/start", "/adminiq"]:
         await message.delete()
         return
 
+    # معالجة أوامر الأعضاء (تبدأ بـ #)
     if not text.startswith("#"):
         return
 
