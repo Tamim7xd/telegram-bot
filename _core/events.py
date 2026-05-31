@@ -3,7 +3,7 @@ from aiogram.types import Message
 from config import ADMIN_IDS, CURRENCY_NAME, XP_PER_MESSAGE, GROUP_ID
 from _core.users import update_user_money, get_user, set_user_status, get_or_create_user, is_admin, is_general_mod, is_admin_mod, add_general_mod, remove_general_mod, add_admin_mod, remove_admin_mod, add_warning, get_user_warnings_list, reset_warnings
 from _core.xp import add_xp, get_xp_progress, increment_message_count
-from _core.games import start_game_by_type
+from _core.games import handle_game_command, handle_game_answer, set_user_game_context, clear_user_game_context, is_user_in_game
 from _core.titles import set_user_title
 from _core.notify import send_auto_delete, send_deduction_notification, send_reward_notification, send_warning_notification, send_admin_notification
 from db import db
@@ -12,21 +12,66 @@ import asyncio
 def format_number(num):
     return f"{num:,}".replace(",", " ").replace(",", ".")
 
+# حالات مؤقتة للانتظار (تغيير اللقب)
+temp_data = {}
+
 async def delete_after(msg, seconds):
     await asyncio.sleep(seconds)
-    try: await msg.delete()
-    except: pass
+    try:
+        await msg.delete()
+    except:
+        pass
 
 async def handle_all_commands(message: Message):
     text = message.text.strip()
     uid = message.from_user.id
+    chat_id = message.chat.id
     await get_or_create_user(message.from_user)
-    
-    # حذف رسالة الأمر بعد 3 ثوانٍ (للأوامر التي تبدأ بـ #)
-    if text.startswith("#"):
-        asyncio.create_task(delete_after(message, 3))
-    
-    # ====== أوامر الأعضاء العامة ======
+
+    # حذف أي أمر / غير مسموح به (ما عدا /start, /adminiq، وأوامر الألعاب بعد #لعبة)
+    if text.startswith("/"):
+        allowed = ["/start", "/adminiq"]
+        # إذا لم يكن الأمر مسموحاً ولم يكن المستخدم في حالة انتظار اختيار لعبة، احذفه فوراً
+        if text not in allowed and not is_user_in_game(uid, "waiting_choice"):
+            await message.delete()
+            return
+        # إذا كان الأمر من نوع أوامر الألعاب (يبدأ بـ /), نمرره إلى معالج الألعاب
+        if text in ["/لغز", "/سؤال_عام", "/اختيار_من_متعدد", "/سرعة", "/مثل_شعبي", "/حظ"] and is_user_in_game(uid, "waiting_choice"):
+            await handle_game_command(message, text[1:])
+            return
+
+    # معالجة الرسائل العادية (إجابات الألعاب)
+    if is_user_in_game(uid, "answering"):
+        await handle_game_answer(message)
+        return
+
+    # حالات الانتظار من لوحة الأدمن (تغيير اللقب)
+    if uid in temp_data:
+        state = temp_data[uid]
+        action = state["action"]
+        if action == "waiting_title":
+            target_id = state["target"]
+            new_title = text
+            if new_title:
+                success = await set_user_title(target_id, new_title)
+                if success:
+                    await message.reply(f"🏷️ تم تغيير اللقب إلى {new_title}")
+                    target_user = await get_user(target_id)
+                    await send_admin_notification(message.from_user.full_name, target_user['full_name'] if target_user else str(target_id), "تغيير لقب", new_title)
+                else:
+                    await message.reply(f"❌ اللقب '{new_title}' غير موجود في القائمة")
+            else:
+                await message.reply("❌ لم يتم إدخال لقب")
+            del temp_data[uid]
+            await message.delete()
+            return
+
+    # أوامر الأعضاء (تبدأ بـ #)
+    if not text.startswith("#"):
+        return
+
+    asyncio.create_task(delete_after(message, 3))
+
     if text in ["#ملفي", "#حسابي", "#معلوماتي"]:
         user = await get_user(uid)
         progress = await get_xp_progress(uid)
@@ -65,32 +110,20 @@ async def handle_all_commands(message: Message):
         return
 
     elif text in ["#لعبة", "#العب", "#العاب"]:
-        menu = """🎮 <b>قائمة الألعاب</b>
-1 🧠 لغز
-2 ❓ سؤال عام
-3 🔘 اختيار من متعدد
-4 ⚡ سرعة (معكوس كلمة)
-5 📜 مثل شعبي
-6 🎲 حظ (صندوق)
+        menu = """🎮 <b>قائمة الألعاب</b> (اضغط على الأمر لبدء اللعبة)
+/لغز
+/سؤال_عام
+/اختيار_من_متعدد
+/سرعة
+/مثل_شعبي
+/حظ
 ━━━━━━━━━━━━━
-📝 <b>أرسل رقم اللعبة (1-6) أو اسم اللعبة</b>"""
+📝 <b>اختر أحد الأوامر أعلاه</b>"""
         msg = await message.reply(menu, parse_mode="HTML")
+        # وضع المستخدم في حالة انتظار اختيار لعبة
+        set_user_game_context(uid, "waiting_choice")
+        # حذف رسالة القائمة بعد 30 ثانية
         asyncio.create_task(delete_after(msg, 30))
-        return
-
-    elif text.isdigit() and 1 <= int(text) <= 6:
-        game_map = {1:"puzzles",2:"general_qa",3:"mcq",4:"speed_words",5:"proverbs",6:"luck_boxes"}
-        await start_game_by_type(message, game_map[int(text)])
-        asyncio.create_task(delete_after(message, 1))
-        return
-    
-    # اختيار اللعبة بالاسم
-    game_names = {
-        "لغز": "puzzles", "سؤال عام": "general_qa", "اختيار من متعدد": "mcq",
-        "سرعة": "speed_words", "مثل شعبي": "proverbs", "حظ": "luck_boxes"
-    }
-    if text in game_names:
-        await start_game_by_type(message, game_names[text])
         return
 
     elif text in ["#مستواي", "#نقاطي"]:
@@ -102,7 +135,7 @@ async def handle_all_commands(message: Message):
     elif text in ["#سوق", "#محل"]:
         items = await db.fetch("SELECT id, name, price, rank_level FROM shop_items ORDER BY rank_level")
         if not items:
-            await send_auto_delete(message.chat.id, "🏪 السوق فارغ", delay=30)
+            await send_auto_delete(chat_id, "🏪 السوق فارغ", delay=30)
             return
         txt = "🏪 <b>السوق</b>\n"
         for it in items:
@@ -115,39 +148,36 @@ async def handle_all_commands(message: Message):
     elif text.startswith("#شراء"):
         parts = text.split(maxsplit=1)
         if len(parts) < 2:
-            await send_auto_delete(message.chat.id, "❌ استخدم: #شراء اسم الرتبة", delay=30)
+            await send_auto_delete(chat_id, "❌ استخدم: #شراء اسم الرتبة", delay=30)
             return
         rank = parts[1]
         item = await db.fetchrow("SELECT * FROM shop_items WHERE name = ?", rank)
         if not item:
-            await send_auto_delete(message.chat.id, "❌ الرتبة غير موجودة", delay=30)
+            await send_auto_delete(chat_id, "❌ الرتبة غير موجودة", delay=30)
             return
         user = await get_user(uid)
         if user['money'] >= item['price']:
             await update_user_money(uid, -item['price'], f"شراء {rank}", None)
             await db.execute("INSERT INTO user_purchases (user_id, item_id) VALUES (?, ?) ON CONFLICT DO NOTHING", uid, item['id'])
-            await send_auto_delete(message.chat.id, f"✅ تم شراء رتبة *{rank}* بنجاح!", delay=30)
+            await send_auto_delete(chat_id, f"✅ تم شراء رتبة *{rank}* بنجاح!", delay=30)
             await send_admin_notification("نظام", user['full_name'], "شراء رتبة", f"{rank} - {format_number(item['price'])}")
         else:
-            await send_auto_delete(message.chat.id, f"❌ رصيدك غير كافٍ (تحتاج {format_number(item['price'])} {CURRENCY_NAME})", delay=30)
+            await send_auto_delete(chat_id, f"❌ رصيدك غير كافٍ (تحتاج {format_number(item['price'])} {CURRENCY_NAME})", delay=30)
         return
 
-    # ====== الأوامر الإدارية (تتطلب صلاحيات) ======
+    # ====== الأوامر الإدارية (تبدأ بـ #، تتطلب صلاحيات) ======
     is_adm = await is_admin(uid)
     is_gen_mod = await is_general_mod(uid)
     is_adm_mod = await is_admin_mod(uid)
     if not (is_adm or is_gen_mod or is_adm_mod):
         return
 
-    # تحديد الهدف
     if message.reply_to_message:
         target = message.reply_to_message.from_user
     else:
         target = message.from_user
-
     target_name = target.full_name
     admin_name = message.from_user.full_name
-    chat_id = message.chat.id
 
     if text.startswith("#خصم") and (is_adm or is_adm_mod):
         parts = text.split(maxsplit=2)
@@ -225,7 +255,7 @@ async def handle_all_commands(message: Message):
 
 async def add_xp_handler(message: Message):
     await get_or_create_user(message.from_user)
-    if not message.text or message.text.startswith("#"):
+    if not message.text or message.text.startswith("#") or message.text.startswith("/"):
         return
     if await is_admin(message.from_user.id):
         return
