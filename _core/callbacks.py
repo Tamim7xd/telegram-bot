@@ -11,13 +11,13 @@ import asyncio
 def format_number(num):
     return f"{num:,}".replace(",", " ").replace(",", ".")
 
-async def auto_close(message, seconds=5):
-    await asyncio.sleep(seconds)
-    try:
-        await message.delete()
-    except:
-        pass
+# ========== دوال مساعدة ==========
+async def log_admin_action(admin_id, admin_name, target_id, target_name, action, detail):
+    """تسجيل الإجراءات الإدارية في جدول economy_log (يمكن استخدامه للسجل)"""
+    await db.execute("INSERT INTO economy_log (user_id, amount, reason, admin_id) VALUES (?, ?, ?, ?)",
+                     target_id, 0, f"{action}: {detail}", admin_id)
 
+# ========== لوحة الأدمن الرئيسية (لا تغلق تلقائياً) ==========
 async def admin_panel(message: Message):
     if message.from_user.id not in ADMIN_IDS:
         await message.answer("⚠️ هذه اللوحة للأدمن فقط.")
@@ -29,14 +29,14 @@ async def admin_panel(message: Message):
         [InlineKeyboardButton(text="🛡️ إدارة المشرفين", callback_data="admin_mods")],
         [InlineKeyboardButton(text="⚠️ التحذيرات", callback_data="admin_warnings")],
         [InlineKeyboardButton(text="🏪 إدارة السوق", callback_data="admin_shop")],
-        [InlineKeyboardButton(text="📋 سجل العمليات", callback_data="admin_logs")],
-        [InlineKeyboardButton(text="📣 إعلان جماعي", callback_data="admin_broadcast")],
-        [InlineKeyboardButton(text="📌 تثبيت رسالة", callback_data="admin_pin")],
+        [InlineKeyboardButton(text="📋 سجل الإدارة", callback_data="admin_logs")],
+        [InlineKeyboardButton(text="📣 إعلان/تنبيه", callback_data="admin_notify")],
+        [InlineKeyboardButton(text="📌 إرسال رسالة", callback_data="admin_send")],
         [InlineKeyboardButton(text="❌ إغلاق", callback_data="admin_close")]
     ])
-    msg = await message.reply("👑 *لوحة تحكم الأدمن*", reply_markup=kb, parse_mode="Markdown")
-    asyncio.create_task(auto_close(msg, 5))
+    await message.reply("👑 *لوحة تحكم الأدمن المتكاملة*", reply_markup=kb, parse_mode="Markdown")
 
+# ====== قائمة الأعضاء (لا تغلق تلقائياً) ======
 async def show_users(callback: CallbackQuery, page=1):
     limit = 10
     off = (page-1)*limit
@@ -57,9 +57,9 @@ async def show_users(callback: CallbackQuery, page=1):
     if nav:
         btns.append(nav)
     btns.append([InlineKeyboardButton(text="◀️ رجوع", callback_data="admin_back")])
-    msg = await callback.message.edit_text(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=btns), parse_mode="Markdown")
-    asyncio.create_task(auto_close(msg, 5))
+    await callback.message.edit_text(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=btns), parse_mode="Markdown")
 
+# ====== التحكم في عضو معين ======
 async def show_user_controls(callback: CallbackQuery, uid):
     user = await get_user(uid)
     if not user:
@@ -69,19 +69,13 @@ async def show_user_controls(callback: CallbackQuery, uid):
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="➕ +100", callback_data=f"add_{uid}_100"),
          InlineKeyboardButton(text="➖ -50", callback_data=f"sub_{uid}_50")],
-        [InlineKeyboardButton(text="🔇 كتم", callback_data=f"mute_{uid}"),
-         InlineKeyboardButton(text="🔈 فك كتم", callback_data=f"unmute_{uid}")],
-        [InlineKeyboardButton(text="🚫 حظر", callback_data=f"ban_{uid}"),
-         InlineKeyboardButton(text="✅ فك حظر", callback_data=f"unban_{uid}")],
-        [InlineKeyboardButton(text="🏷️ لقب", callback_data=f"title_{uid}"),
-         InlineKeyboardButton(text="🗑️ طرد", callback_data=f"kick_{uid}"),
-         InlineKeyboardButton(text="⚠️ تحذير", callback_data=f"warn_{uid}")],
-        [InlineKeyboardButton(text="⚠️ إعادة تعيين التحذيرات", callback_data=f"reset_warns_{uid}")],
+        [InlineKeyboardButton(text="⚠️ تحذير", callback_data=f"warn_{uid}"),
+         InlineKeyboardButton(text="⚠️ إعادة تعيين التحذيرات", callback_data=f"reset_warns_{uid}")],
+        [InlineKeyboardButton(text="🏷️ لقب", callback_data=f"title_{uid}")],
         [InlineKeyboardButton(text="📜 سجل العمليات", callback_data=f"user_log_{uid}")],
         [InlineKeyboardButton(text="◀️ رجوع", callback_data="admin_users")]
     ])
-    msg = await callback.message.edit_text(text, reply_markup=kb, parse_mode="Markdown")
-    asyncio.create_task(auto_close(msg, 5))
+    await callback.message.edit_text(text, reply_markup=kb, parse_mode="Markdown")
 
 async def show_user_log(callback: CallbackQuery, uid):
     rows = await db.fetch("SELECT * FROM economy_log WHERE user_id = ? ORDER BY timestamp DESC LIMIT 15", uid)
@@ -94,50 +88,9 @@ async def show_user_log(callback: CallbackQuery, uid):
         admin_name = admin['full_name'] if admin else "نظام"
         text += f"• {format_number(r['amount'])} {CURRENCY_NAME} - {r['reason']} (بواسطة {admin_name}) - {r['timestamp']}\n"
     back = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="◀️ رجوع", callback_data=f"user_{uid}")]])
-    msg = await callback.message.edit_text(text, reply_markup=back, parse_mode="Markdown")
-    asyncio.create_task(auto_close(msg, 5))
+    await callback.message.edit_text(text, reply_markup=back, parse_mode="Markdown")
 
-async def show_all_warnings(callback: CallbackQuery, page=1):
-    limit = 10
-    off = (page-1)*limit
-    rows = await db.fetch("SELECT telegram_id, full_name, warnings FROM users WHERE warnings > 0 ORDER BY warnings DESC LIMIT ? OFFSET ?", limit, off)
-    if not rows:
-        await callback.message.edit_text("لا يوجد أعضاء لديهم تحذيرات.")
-        return
-    text = "⚠️ *قائمة التحذيرات*\n\n"
-    btns = []
-    for r in rows:
-        text += f"• {r['full_name']} - ⚠️ {r['warnings']}/100\n"
-        btns.append([InlineKeyboardButton(text=f"{r['full_name']} ({r['warnings']})", callback_data=f"warn_details_{r['telegram_id']}")])
-    nav = []
-    if page>1:
-        nav.append(InlineKeyboardButton(text="◀️ السابق", callback_data=f"warns_page_{page-1}"))
-    if len(rows)==limit:
-        nav.append(InlineKeyboardButton(text="▶️ التالي", callback_data=f"warns_page_{page+1}"))
-    if nav:
-        btns.append(nav)
-    btns.append([InlineKeyboardButton(text="◀️ رجوع", callback_data="admin_back")])
-    msg = await callback.message.edit_text(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=btns), parse_mode="Markdown")
-    asyncio.create_task(auto_close(msg, 5))
-
-async def show_warnings_details(callback: CallbackQuery, uid):
-    user = await get_user(uid)
-    if not user:
-        await callback.answer("المستخدم غير موجود")
-        return
-    warns = await get_user_warnings_list(uid, 10)
-    if not warns:
-        await callback.message.edit_text(f"⚠️ {user['full_name']} ليس لديه تحذيرات.")
-        return
-    text = f"⚠️ *تحذيرات {user['full_name']}* (إجمالي {user['warnings']}/100)\n\n"
-    for i, w in enumerate(warns, 1):
-        admin = await get_user(w['admin_id'])
-        admin_name = admin['full_name'] if admin else "نظام"
-        text += f"{i}. {w['reason']} (بواسطة {admin_name}) - {w['created_at']}\n"
-    back = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="◀️ رجوع", callback_data="admin_warnings")]])
-    msg = await callback.message.edit_text(text, reply_markup=back, parse_mode="Markdown")
-    asyncio.create_task(auto_close(msg, 5))
-
+# ====== إدارة المشرفين ======
 async def manage_mods(callback: CallbackQuery, page=1):
     limit = 10
     off = (page-1)*limit
@@ -160,11 +113,12 @@ async def manage_mods(callback: CallbackQuery, page=1):
         nav.append(InlineKeyboardButton(text="▶️ التالي", callback_data=f"mods_page_{page+1}"))
     if nav:
         btns.append(nav)
+    # أزرار التحكم في إضافة/إزالة المشرفين
     btns.append([InlineKeyboardButton(text="➕ إضافة مشرف عادي", callback_data="add_mod_general")])
     btns.append([InlineKeyboardButton(text="➕ إضافة مشرف إداري", callback_data="add_mod_admin")])
+    btns.append([InlineKeyboardButton(text="➖ إزالة مشرف", callback_data="remove_mod")])
     btns.append([InlineKeyboardButton(text="◀️ رجوع", callback_data="admin_back")])
-    msg = await callback.message.edit_text(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=btns), parse_mode="Markdown")
-    asyncio.create_task(auto_close(msg, 5))
+    await callback.message.edit_text(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=btns), parse_mode="Markdown")
 
 async def show_mod_details(callback: CallbackQuery, uid):
     user = await get_user(uid)
@@ -178,17 +132,58 @@ async def show_mod_details(callback: CallbackQuery, uid):
     kb = InlineKeyboardMarkup(inline_keyboard=[])
     if is_gen and not is_adm:
         kb.inline_keyboard.append([InlineKeyboardButton(text="⬆️ ترقية إلى مشرف إداري", callback_data=f"promote_to_admin_{uid}")])
-        kb.inline_keyboard.append([InlineKeyboardButton(text="❌ حذف المشرف", callback_data=f"demote_{uid}")])
+        kb.inline_keyboard.append([InlineKeyboardButton(text="⬇️ تخفيض إلى مشرف عادي؟ (لا يوجد)", callback_data="none")])
+        kb.inline_keyboard.append([InlineKeyboardButton(text="❌ إزالة المشرف", callback_data=f"demote_{uid}")])
     elif is_adm:
         kb.inline_keyboard.append([InlineKeyboardButton(text="⬇️ تخفيض إلى مشرف عادي", callback_data=f"demote_to_general_{uid}")])
-        kb.inline_keyboard.append([InlineKeyboardButton(text="❌ حذف المشرف", callback_data=f"demote_{uid}")])
+        kb.inline_keyboard.append([InlineKeyboardButton(text="❌ إزالة المشرف", callback_data=f"demote_{uid}")])
     else:
         kb.inline_keyboard.append([InlineKeyboardButton(text="➕ رفع مشرف عادي", callback_data=f"make_general_{uid}")])
         kb.inline_keyboard.append([InlineKeyboardButton(text="➕ رفع مشرف إداري", callback_data=f"make_admin_{uid}")])
     kb.inline_keyboard.append([InlineKeyboardButton(text="◀️ رجوع", callback_data="admin_mods")])
-    msg = await callback.message.edit_text(text, reply_markup=kb, parse_mode="Markdown")
-    asyncio.create_task(auto_close(msg, 5))
+    await callback.message.edit_text(text, reply_markup=kb, parse_mode="Markdown")
 
+# ====== إدارة التحذيرات ======
+async def show_all_warnings(callback: CallbackQuery, page=1):
+    limit = 10
+    off = (page-1)*limit
+    rows = await db.fetch("SELECT telegram_id, full_name, warnings FROM users WHERE warnings > 0 ORDER BY warnings DESC LIMIT ? OFFSET ?", limit, off)
+    if not rows:
+        await callback.message.edit_text("لا يوجد أعضاء لديهم تحذيرات.")
+        return
+    text = "⚠️ *قائمة التحذيرات*\n\n"
+    btns = []
+    for r in rows:
+        text += f"• {r['full_name']} - ⚠️ {r['warnings']}/100\n"
+        btns.append([InlineKeyboardButton(text=f"{r['full_name']} ({r['warnings']})", callback_data=f"warn_details_{r['telegram_id']}")])
+    nav = []
+    if page>1:
+        nav.append(InlineKeyboardButton(text="◀️ السابق", callback_data=f"warns_page_{page-1}"))
+    if len(rows)==limit:
+        nav.append(InlineKeyboardButton(text="▶️ التالي", callback_data=f"warns_page_{page+1}"))
+    if nav:
+        btns.append(nav)
+    btns.append([InlineKeyboardButton(text="◀️ رجوع", callback_data="admin_back")])
+    await callback.message.edit_text(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=btns), parse_mode="Markdown")
+
+async def show_warnings_details(callback: CallbackQuery, uid):
+    user = await get_user(uid)
+    if not user:
+        await callback.answer("المستخدم غير موجود")
+        return
+    warns = await get_user_warnings_list(uid, 10)
+    if not warns:
+        await callback.message.edit_text(f"⚠️ {user['full_name']} ليس لديه تحذيرات.")
+        return
+    text = f"⚠️ *تحذيرات {user['full_name']}* (إجمالي {user['warnings']}/100)\n\n"
+    for i, w in enumerate(warns, 1):
+        admin = await get_user(w['admin_id'])
+        admin_name = admin['full_name'] if admin else "نظام"
+        text += f"{i}. {w['reason']} (بواسطة {admin_name}) - {w['created_at']}\n"
+    back = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="◀️ رجوع", callback_data="admin_warnings")]])
+    await callback.message.edit_text(text, reply_markup=back, parse_mode="Markdown")
+
+# ====== إدارة السوق ======
 async def manage_shop(callback: CallbackQuery):
     items = await db.fetch("SELECT id, name, price, rank_level FROM shop_items ORDER BY rank_level")
     text = "🏪 *إدارة السوق*\n\n"
@@ -202,17 +197,17 @@ async def manage_shop(callback: CallbackQuery):
     text += "`$تعديل سعر <id> | <السعر الجديد>`\n"
     text += "`$حذف منتج <id>`"
     kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="◀️ رجوع", callback_data="admin_back")]])
-    msg = await callback.message.edit_text(text, reply_markup=kb, parse_mode="Markdown")
-    asyncio.create_task(auto_close(msg, 5))
+    await callback.message.edit_text(text, reply_markup=kb, parse_mode="Markdown")
 
-async def show_all_logs(callback: CallbackQuery, page=1):
+# ====== سجل الإدارة (كل العمليات) ======
+async def show_admin_logs(callback: CallbackQuery, page=1):
     limit = 15
     off = (page-1)*limit
     rows = await db.fetch("SELECT * FROM economy_log ORDER BY timestamp DESC LIMIT ? OFFSET ?", limit, off)
     if not rows:
         await callback.message.edit_text("لا توجد عمليات مسجلة.")
         return
-    text = "📜 *سجل العمليات العامة*\n\n"
+    text = "📜 *سجل الإدارة*\n\n"
     for r in rows:
         admin = await get_user(r['admin_id']) if r['admin_id'] else None
         admin_name = admin['full_name'] if admin else "نظام"
@@ -226,15 +221,28 @@ async def show_all_logs(callback: CallbackQuery, page=1):
         nav.append(InlineKeyboardButton(text="▶️ التالي", callback_data=f"logs_page_{page+1}"))
     nav.append(InlineKeyboardButton(text="◀️ رجوع", callback_data="admin_back"))
     kb = InlineKeyboardMarkup(inline_keyboard=[nav] if nav else [])
-    msg = await callback.message.edit_text(text, reply_markup=kb, parse_mode="Markdown")
-    asyncio.create_task(auto_close(msg, 5))
+    await callback.message.edit_text(text, reply_markup=kb, parse_mode="Markdown")
 
-async def broadcast_message(callback: CallbackQuery):
-    await callback.message.edit_text("📣 أرسل نص الإعلان (سيختفي بعد 30 ثانية)")
+# ====== أزرار الإعلان والتنبيهات والعمليات الجماعية ======
+async def admin_notify_menu(callback: CallbackQuery):
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📣 إعلان عام (للمجموعة)", callback_data="broadcast_group")],
+        [InlineKeyboardButton(text="🔔 تنبيه منفرد (لمستخدم)", callback_data="alert_user")],
+        [InlineKeyboardButton(text="💰 خصم جماعي", callback_data="mass_deduct")],
+        [InlineKeyboardButton(text="🎁 مكافأة جماعية", callback_data="mass_reward")],
+        [InlineKeyboardButton(text="◀️ رجوع", callback_data="admin_back")]
+    ])
+    await callback.message.edit_text("📢 *إدارة الإعلانات والتنبيهات والعمليات الجماعية*", reply_markup=kb, parse_mode="Markdown")
 
-async def pin_message(callback: CallbackQuery):
-    await callback.message.edit_text("📌 أرسل النص الذي تريد تثبيته")
+async def send_message_menu(callback: CallbackQuery):
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📨 إرسال رسالة عادية", callback_data="send_normal")],
+        [InlineKeyboardButton(text="📌 إرسال رسالة مثبتة", callback_data="send_pinned")],
+        [InlineKeyboardButton(text="◀️ رجوع", callback_data="admin_back")]
+    ])
+    await callback.message.edit_text("✉️ *إرسال رسالة إلى المجموعة*", reply_markup=kb, parse_mode="Markdown")
 
+# ====== المعالج الرئيسي لأزرار لوحة الأدمن ======
 async def process_callback(callback: CallbackQuery):
     await callback.answer()
     data = callback.data
@@ -245,7 +253,7 @@ async def process_callback(callback: CallbackQuery):
     admin_name = callback.from_user.full_name
     chat_id = callback.message.chat.id
 
-    # التنقل
+    # التنقل بين الصفحات
     if data.startswith("users_page_"):
         page = int(data.split("_")[-1])
         await show_users(callback, page)
@@ -257,39 +265,37 @@ async def process_callback(callback: CallbackQuery):
         await manage_mods(callback, page)
     elif data.startswith("logs_page_"):
         page = int(data.split("_")[-1])
-        await show_all_logs(callback, page)
+        await show_admin_logs(callback, page)
 
+    # الأزرار الرئيسية
     elif data == "admin_back":
         kb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="👥 الأعضاء", callback_data="admin_users")],
+            [InlineKeyboardButton(text="👥 إدارة الأعضاء", callback_data="admin_users")],
             [InlineKeyboardButton(text="💰 الاقتصاد", callback_data="admin_economy")],
             [InlineKeyboardButton(text="📊 الإحصائيات", callback_data="admin_stats")],
-            [InlineKeyboardButton(text="🛡️ المشرفين", callback_data="admin_mods")],
+            [InlineKeyboardButton(text="🛡️ إدارة المشرفين", callback_data="admin_mods")],
             [InlineKeyboardButton(text="⚠️ التحذيرات", callback_data="admin_warnings")],
-            [InlineKeyboardButton(text="🏪 السوق", callback_data="admin_shop")],
-            [InlineKeyboardButton(text="📋 سجل العمليات", callback_data="admin_logs")],
-            [InlineKeyboardButton(text="📣 إعلان جماعي", callback_data="admin_broadcast")],
-            [InlineKeyboardButton(text="📌 تثبيت رسالة", callback_data="admin_pin")],
+            [InlineKeyboardButton(text="🏪 إدارة السوق", callback_data="admin_shop")],
+            [InlineKeyboardButton(text="📋 سجل الإدارة", callback_data="admin_logs")],
+            [InlineKeyboardButton(text="📣 إعلان/تنبيه", callback_data="admin_notify")],
+            [InlineKeyboardButton(text="📌 إرسال رسالة", callback_data="admin_send")],
             [InlineKeyboardButton(text="❌ إغلاق", callback_data="admin_close")]
         ])
-        msg = await callback.message.edit_text("👑 *لوحة تحكم الأدمن*", reply_markup=kb, parse_mode="Markdown")
-        asyncio.create_task(auto_close(msg, 5))
+        await callback.message.edit_text("👑 *لوحة تحكم الأدمن المتكاملة*", reply_markup=kb, parse_mode="Markdown")
     elif data == "admin_users":
         await show_users(callback, 1)
     elif data == "admin_economy":
         total = await db.fetchval("SELECT SUM(money) FROM users") or 0
         count = await db.fetchval("SELECT COUNT(*) FROM users") or 0
-        msg = await callback.message.edit_text(f"💰 *الاقتصاد*\nإجمالي الأموال: {format_number(total)} {CURRENCY_NAME}\n👥 عدد المستخدمين: {count}", parse_mode="Markdown")
+        await callback.message.edit_text(f"💰 *الاقتصاد*\nإجمالي الأموال: {format_number(total)} {CURRENCY_NAME}\n👥 عدد المستخدمين: {count}", parse_mode="Markdown")
         back = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="◀️ رجوع", callback_data="admin_back")]])
-        await msg.edit_reply_markup(reply_markup=back)
-        asyncio.create_task(auto_close(msg, 5))
+        await callback.message.edit_reply_markup(reply_markup=back)
     elif data == "admin_stats":
         msgs = await db.fetchval("SELECT SUM(messages_count) FROM users") or 0
         wins = await db.fetchval("SELECT SUM(wins) FROM users") or 0
-        msg = await callback.message.edit_text(f"📊 *الإحصائيات*\nالرسائل: {format_number(msgs)}\nالانتصارات: {wins}", parse_mode="Markdown")
+        await callback.message.edit_text(f"📊 *الإحصائيات*\nالرسائل: {format_number(msgs)}\nالانتصارات: {wins}", parse_mode="Markdown")
         back = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="◀️ رجوع", callback_data="admin_back")]])
-        await msg.edit_reply_markup(reply_markup=back)
-        asyncio.create_task(auto_close(msg, 5))
+        await callback.message.edit_reply_markup(reply_markup=back)
     elif data == "admin_mods":
         await manage_mods(callback, 1)
     elif data == "admin_warnings":
@@ -297,15 +303,15 @@ async def process_callback(callback: CallbackQuery):
     elif data == "admin_shop":
         await manage_shop(callback)
     elif data == "admin_logs":
-        await show_all_logs(callback, 1)
-    elif data == "admin_broadcast":
-        await broadcast_message(callback)
-    elif data == "admin_pin":
-        await pin_message(callback)
+        await show_admin_logs(callback, 1)
+    elif data == "admin_notify":
+        await admin_notify_menu(callback)
+    elif data == "admin_send":
+        await send_message_menu(callback)
     elif data == "admin_close":
         await callback.message.delete()
 
-    # أزرار الأعضاء
+    # أزرار الأعضاء والتحذيرات
     elif data.startswith("user_"):
         uid2 = int(data.split("_")[1])
         await show_user_controls(callback, uid2)
@@ -334,6 +340,8 @@ async def process_callback(callback: CallbackQuery):
         await callback.message.answer("➕ أرسل معرف العضو لرفعه مشرفاً عادياً")
     elif data == "add_mod_admin":
         await callback.message.answer("➕ أرسل معرف العضو لرفعه مشرفاً إدارياً")
+    elif data == "remove_mod":
+        await callback.message.answer("➖ أرسل معرف العضو لإزالة صلاحيات المشرف عنه")
     elif data.startswith("make_general_"):
         uid2 = int(data.split("_")[-1])
         await add_general_mod(uid2, uid)
@@ -373,7 +381,22 @@ async def process_callback(callback: CallbackQuery):
         await send_admin_notification(admin_name, user['full_name'], "❌ إزالة صلاحيات المشرف", "")
         await show_mod_details(callback, uid2)
 
-    # إجراءات التعديل على الرصيد والحظر والكتم
+    # أزرار الإعلان والعمليات الجماعية
+    elif data == "broadcast_group":
+        await callback.message.edit_text("📣 أرسل نص الإعلان (سيُرسل إلى المجموعة ويختفي بعد 30 ثانية)")
+        # سيتم التعامل معه في رسالة منفردة
+    elif data == "alert_user":
+        await callback.message.edit_text("🔔 أرسل معرف العضو وسبب التنبيه (مثال: 123456789 | سبب)")
+    elif data == "mass_deduct":
+        await callback.message.edit_text("💰 أرسل مبلغ الخصم (لجميع المستخدمين) ثم السبب في سطر جديد")
+    elif data == "mass_reward":
+        await callback.message.edit_text("🎁 أرسل مبلغ المكافأة (لجميع المستخدمين) ثم السبب في سطر جديد")
+    elif data == "send_normal":
+        await callback.message.edit_text("📨 أرسل النص الذي تريد إرساله إلى المجموعة (بدون تثبيت)")
+    elif data == "send_pinned":
+        await callback.message.edit_text("📌 أرسل النص الذي تريد تثبيته في المجموعة")
+
+    # إجراءات تعديل الرصيد واللقب
     elif data.startswith("add_"):
         _, uid2, amt = data.split("_")
         uid2, amt = int(uid2), int(amt)
@@ -390,82 +413,37 @@ async def process_callback(callback: CallbackQuery):
         await callback.message.answer(f"✅ -{format_number(amt)}")
         await send_admin_notification(admin_name, target['full_name'], "💰 خصم رصيد", f"-{format_number(amt)}")
         await show_user_controls(callback, uid2)
-    elif data.startswith("mute_"):
-        uid2 = int(data.split("_")[1])
-        target = await get_user(uid2)
-        try:
-            await callback.message.chat.restrict(uid2, permissions=ChatPermissions(can_send_messages=False))
-            await callback.message.answer("🔇 تم كتم")
-            await send_admin_notification(admin_name, target['full_name'], "🔇 كتم", "")
-            await set_user_status(uid2, "muted")
-        except Exception as e:
-            await callback.message.answer(f"⚠️ فشل الكتم: {e}")
-        await show_user_controls(callback, uid2)
-    elif data.startswith("unmute_"):
-        uid2 = int(data.split("_")[1])
-        target = await get_user(uid2)
-        try:
-            await callback.message.chat.restrict(uid2, permissions=ChatPermissions(can_send_messages=True, can_send_media_messages=True, can_send_other_messages=True))
-            await callback.message.answer("🔈 فك كتم")
-            await send_admin_notification(admin_name, target['full_name'], "🔈 فك كتم", "")
-            await set_user_status(uid2, "active")
-        except Exception as e:
-            await callback.message.answer(f"⚠️ فشل فك الكتم: {e}")
-        await show_user_controls(callback, uid2)
-    elif data.startswith("ban_"):
-        uid2 = int(data.split("_")[1])
-        target = await get_user(uid2)
-        try:
-            await callback.message.chat.ban(uid2)
-            await callback.message.answer("🚫 تم حظر")
-            await send_admin_notification(admin_name, target['full_name'], "🚫 حظر", "")
-            await set_user_status(uid2, "banned")
-        except Exception as e:
-            await callback.message.answer(f"⚠️ فشل الحظر: {e}")
-        await show_user_controls(callback, uid2)
-    elif data.startswith("unban_"):
-        uid2 = int(data.split("_")[1])
-        target = await get_user(uid2)
-        try:
-            await callback.message.chat.unban(uid2)
-            await callback.message.answer("✅ فك حظر")
-            await send_admin_notification(admin_name, target['full_name'], "✅ فك حظر", "")
-            await set_user_status(uid2, "active")
-        except Exception as e:
-            await callback.message.answer(f"⚠️ فشل فك الحظر: {e}")
-        await show_user_controls(callback, uid2)
-    elif data.startswith("kick_"):
-        uid2 = int(data.split("_")[1])
-        target = await get_user(uid2)
-        try:
-            await callback.message.chat.ban(uid2)
-            await callback.message.chat.unban(uid2)
-            await callback.message.answer("🗑️ طرد")
-            await send_admin_notification(admin_name, target['full_name'], "🗑️ طرد", "")
-        except Exception as e:
-            await callback.message.answer(f"⚠️ فشل الطرد: {e}")
-        await show_user_controls(callback, uid2)
     elif data.startswith("title_"):
         uid2 = int(data.split("_")[1])
         await callback.message.answer(f"🏷️ أرسل اللقب الجديد للمستخدم {uid2} في رسالة منفردة")
 
-async def handle_broadcast_and_pin(message: Message):
+# ====== معالجة الرسائل النصية للإعلانات والعمليات الجماعية ======
+async def handle_admin_text_commands(message: Message):
     if message.from_user.id not in ADMIN_IDS:
         return
     if message.chat.type != "private":
         return
+    text = message.text.strip()
+    if not text:
+        return
+    # هنا يمكن تنفيذ العمليات بناءً على الردود (سيتم إضافتها لاحقاً حسب الحاجة)
+    # مثال: broadcast_group, send_pinned, etc.
     if message.reply_to_message and "أرسل نص الإعلان" in message.reply_to_message.text:
-        await send_auto_delete(GROUP_ID, f"📢 *إعلان عام:*\n{message.text}")
+        await send_auto_delete(GROUP_ID, f"📢 *إعلان عام:*\n{text}")
         await message.reply("✅ تم إرسال الإشعار إلى المجموعة")
-    elif message.reply_to_message and "أرسل النص الذي تريد تثبيته" in message.reply_to_message.text:
+    elif message.reply_to_message and "أرسل النص الذي تريد إرساله إلى المجموعة" in message.reply_to_message.text:
+        await bot.send_message(GROUP_ID, text)
+        await message.reply("✅ تم إرسال الرسالة")
+    elif message.reply_to_message and "أرسل النص الذي تريد تثبيته في المجموعة" in message.reply_to_message.text:
         try:
-            sent = await bot.send_message(GROUP_ID, message.text)
+            sent = await bot.send_message(GROUP_ID, text)
             await bot.pin_chat_message(GROUP_ID, sent.message_id)
             await message.reply("✅ تم تثبيت الرسالة")
         except Exception as e:
             await message.reply(f"❌ فشل التثبيت: {e}")
+    # باقي العمليات يمكن إضافتها بشكل مماثل
 
 def register_callback_handlers(dp: Dispatcher):
     dp.message.register(admin_panel, Command("adminiq"))
     dp.callback_query.register(process_callback)
-    dp.message.register(handle_broadcast_and_pin)
+    dp.message.register(handle_admin_text_commands)
