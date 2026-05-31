@@ -5,12 +5,13 @@ from config import ADMIN_IDS, CURRENCY_NAME
 from db import db
 from _core.users import get_user, update_user_money, set_user_status, is_admin, is_general_mod, is_admin_mod, add_general_mod, remove_general_mod, add_admin_mod, remove_admin_mod, get_user_warnings_list, reset_warnings, add_warning
 from _core.titles import set_user_title
-from _core.notify import bot, send_auto_delete, send_deduction_notification, send_reward_notification, send_warning_notification
+from _core.notify import bot, send_auto_delete, send_deduction_notification, send_reward_notification, send_warning_notification, send_admin_notification
 import asyncio
 
 def format_number(num):
     return f"{num:,}".replace(",", " ").replace(",", ".")
 
+# حالة مؤقتة لانتظار إدخال اللقب من الأدمن
 temp_data = {}
 
 async def admin_panel(message: Message):
@@ -29,6 +30,7 @@ async def admin_panel(message: Message):
     ])
     await message.reply("👑 *لوحة تحكم الأدمن*", reply_markup=kb, parse_mode="Markdown")
 
+# ====== عرض الأعضاء مع رتبهم ======
 async def show_users(callback: CallbackQuery, page=1):
     limit = 10
     off = (page-1)*limit
@@ -39,8 +41,20 @@ async def show_users(callback: CallbackQuery, page=1):
     text = "👥 *الأعضاء*\n\n"
     btns = []
     for r in rows:
-        text += f"• {r['full_name']} - 💰{format_number(r['money'])} - مستوى {r['level']} - ⚠️ {r['warnings']}/100\n"
-        btns.append([InlineKeyboardButton(text=r['full_name'], callback_data=f"user_{r['telegram_id']}")])
+        # تحديد الرتبة
+        is_gen = await is_general_mod(r['telegram_id'])
+        is_adm_mod = await is_admin_mod(r['telegram_id'])
+        if is_adm_mod:
+            role_icon = "⚜️"
+            role_text = "مشرف إداري"
+        elif is_gen:
+            role_icon = "🛡️"
+            role_text = "مشرف عادي"
+        else:
+            role_icon = "👤"
+            role_text = "عضو"
+        text += f"{role_icon} {r['full_name']} - {role_text}\n💰 {format_number(r['money'])} - مستوى {r['level']} - ⚠️ {r['warnings']}/100\n"
+        btns.append([InlineKeyboardButton(text=f"{r['full_name']} ({role_text})", callback_data=f"user_{r['telegram_id']}")])
     nav = []
     if page>1:
         nav.append(InlineKeyboardButton(text="◀️ السابق", callback_data=f"users_page_{page-1}"))
@@ -60,8 +74,8 @@ async def show_user_controls(callback: CallbackQuery, uid):
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="➕ +100", callback_data=f"add_{uid}_100"),
          InlineKeyboardButton(text="➖ -50", callback_data=f"sub_{uid}_50")],
-        [InlineKeyboardButton(text="⚠️ تحذير", callback_data=f"warn_req_{uid}")],
-        [InlineKeyboardButton(text="⚠️ إعادة تعيين التحذيرات", callback_data=f"reset_warns_{uid}")],
+        [InlineKeyboardButton(text="⚠️ تحذير", callback_data=f"warn_{uid}"),
+         InlineKeyboardButton(text="⚠️ إعادة تعيين التحذيرات", callback_data=f"reset_warns_{uid}")],
         [InlineKeyboardButton(text="🏷️ تغيير اللقب", callback_data=f"title_req_{uid}")],
         [InlineKeyboardButton(text="📜 سجل العمليات", callback_data=f"user_log_{uid}")],
         [InlineKeyboardButton(text="◀️ رجوع", callback_data="admin_users")]
@@ -81,6 +95,32 @@ async def show_user_log(callback: CallbackQuery, uid):
     back = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="◀️ رجوع", callback_data=f"user_{uid}")]])
     await callback.message.edit_text(text, reply_markup=back, parse_mode="Markdown")
 
+# ====== إدارة المشرفين (رفع مشرف من قائمة الأعضاء) ======
+async def manage_mods(callback: CallbackQuery):
+    # عرض قائمة الأعضاء لاختيار من نرفعه مشرفاً
+    rows = await db.fetch("SELECT telegram_id, full_name FROM users ORDER BY created_at DESC LIMIT 20")
+    if not rows:
+        await callback.message.edit_text("لا يوجد أعضاء.")
+        return
+    text = "🛡️ *اختر العضو لرفعه مشرفاً:*\n"
+    btns = []
+    for r in rows:
+        btns.append([InlineKeyboardButton(text=r['full_name'], callback_data=f"promote_{r['telegram_id']}")])
+    btns.append([InlineKeyboardButton(text="◀️ رجوع", callback_data="admin_back")])
+    await callback.message.edit_text(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=btns), parse_mode="Markdown")
+
+async def promote_user_to(callback: CallbackQuery, user_id, role):
+    if role == "general":
+        await add_general_mod(user_id, callback.from_user.id)
+        role_name = "مشرف عادي"
+    else:
+        await add_admin_mod(user_id, callback.from_user.id)
+        role_name = "مشرف إداري"
+    user = await get_user(user_id)
+    await callback.message.edit_text(f"✅ تم رفع {user['full_name']} إلى {role_name}")
+    await send_admin_notification(callback.from_user.full_name, user['full_name'], f"رفع {role_name}", "")
+
+# ====== إدارة التحذيرات ======
 async def show_all_warnings(callback: CallbackQuery, page=1):
     limit = 10
     off = (page-1)*limit
@@ -120,26 +160,7 @@ async def show_warnings_details(callback: CallbackQuery, uid):
     back = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="◀️ رجوع", callback_data="admin_warnings")]])
     await callback.message.edit_text(text, reply_markup=back, parse_mode="Markdown")
 
-async def manage_mods(callback: CallbackQuery):
-    mods = await db.fetch("SELECT user_id, 'general' as type FROM general_mods UNION SELECT user_id, 'admin' as type FROM admin_mods")
-    text = "🛡️ *المشرفون:*\n\n"
-    for m in mods:
-        u = await get_user(m['user_id'])
-        if u:
-            type_label = "⚜️ مشرف إداري" if m['type'] == 'admin' else "🛡️ مشرف عادي"
-            text += f"{type_label} {u['full_name']} (ID: {m['user_id']})\n"
-    text += "\nلإضافة مشرف جديد، اضغط على الزر المناسب."
-    kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="➕ إضافة مشرف عادي", callback_data="add_mod_general")],
-        [InlineKeyboardButton(text="➕ إضافة مشرف إداري", callback_data="add_mod_admin")],
-        [InlineKeyboardButton(text="◀️ رجوع", callback_data="admin_back")]
-    ])
-    await callback.message.edit_text(text, reply_markup=kb, parse_mode="Markdown")
-
-async def add_mod_by_id(callback: CallbackQuery, mod_type):
-    await callback.message.edit_text(f"➕ أرسل معرف العضو (ID) لرفعه {mod_type}:")
-    temp_data[callback.from_user.id] = {"action": f"add_{mod_type}"}
-
+# ====== إدارة السوق ======
 async def manage_shop(callback: CallbackQuery):
     items = await db.fetch("SELECT id, name, price, rank_level FROM shop_items ORDER BY rank_level")
     text = "🏪 *إدارة السوق*\n\n"
@@ -155,6 +176,7 @@ async def manage_shop(callback: CallbackQuery):
     kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="◀️ رجوع", callback_data="admin_back")]])
     await callback.message.edit_text(text, reply_markup=kb, parse_mode="Markdown")
 
+# ====== سجل الإدارة ======
 async def show_admin_logs(callback: CallbackQuery, page=1):
     limit = 15
     off = (page-1)*limit
@@ -178,6 +200,7 @@ async def show_admin_logs(callback: CallbackQuery, page=1):
     kb = InlineKeyboardMarkup(inline_keyboard=[nav] if nav else [])
     await callback.message.edit_text(text, reply_markup=kb, parse_mode="Markdown")
 
+# ====== المعالج الرئيسي ======
 async def process_callback(callback: CallbackQuery):
     await callback.answer()
     data = callback.data
@@ -188,6 +211,7 @@ async def process_callback(callback: CallbackQuery):
     admin_name = callback.from_user.full_name
     chat_id = callback.message.chat.id
 
+    # التنقل
     if data.startswith("users_page_"):
         page = int(data.split("_")[-1])
         await show_users(callback, page)
@@ -197,6 +221,7 @@ async def process_callback(callback: CallbackQuery):
     elif data.startswith("logs_page_"):
         page = int(data.split("_")[-1])
         await show_admin_logs(callback, page)
+
     elif data == "admin_back":
         kb = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="👥 إدارة الأعضاء", callback_data="admin_users")],
@@ -249,20 +274,41 @@ async def process_callback(callback: CallbackQuery):
         await reset_warnings(uid2)
         await callback.message.answer(f"✅ تم إعادة تعيين تحذيرات {user['full_name']} إلى 0")
         await show_user_controls(callback, uid2)
-    elif data.startswith("warn_req_"):
+    elif data.startswith("warn_"):
         uid2 = int(data.split("_")[-1])
-        temp_data[uid] = {"action": "warn", "target": uid2}
-        await callback.message.edit_text(f"⚠️ *تحذير العضو*\nأرسل سبب التحذير للمستخدم:")
+        # تحذير مباشر مع سبب افتراضي
+        reason = "تحذير من لوحة الأدمن"
+        new_count = await add_warning(uid2, reason, uid)
+        user = await get_user(uid2)
+        await callback.message.answer(f"⚠️ تم تحذير {user['full_name']} (التحذير {new_count}/100)")
+        await send_warning_notification(chat_id, admin_name, user['full_name'], new_count, reason)
+        await show_user_controls(callback, uid2)
+
+    # تغيير اللقب (طلب إدخال اللقب)
     elif data.startswith("title_req_"):
         uid2 = int(data.split("_")[-1])
-        temp_data[uid] = {"action": "title", "target": uid2}
-        await callback.message.edit_text(f"🏷️ *تغيير اللقب*\nأرسل اللقب الجديد للمستخدم:")
+        # تخزين حالة انتظار
+        temp_data[uid] = {"action": "waiting_title", "target": uid2}
+        await callback.message.edit_text(f"🏷️ *تغيير اللقب*\nأرسل اللقب الجديد للمستخدم في رسالة نصية عادية:")
 
-    elif data == "add_mod_general":
-        await add_mod_by_id(callback, "مشرف عادي")
-    elif data == "add_mod_admin":
-        await add_mod_by_id(callback, "مشرف إداري")
+    # إضافة مشرفين من خلال قائمة الأعضاء
+    elif data.startswith("promote_"):
+        uid2 = int(data.split("_")[-1])
+        # اختيار نوع المشرف (عادي أو إداري)
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="🛡️ مشرف عادي", callback_data=f"promote_general_{uid2}")],
+            [InlineKeyboardButton(text="⚜️ مشرف إداري", callback_data=f"promote_admin_{uid2}")],
+            [InlineKeyboardButton(text="◀️ رجوع", callback_data="admin_mods")]
+        ])
+        await callback.message.edit_text(f"اختر نوع المشرف لـ {uid2}:", reply_markup=kb)
+    elif data.startswith("promote_general_"):
+        uid2 = int(data.split("_")[-1])
+        await promote_user_to(callback, uid2, "general")
+    elif data.startswith("promote_admin_"):
+        uid2 = int(data.split("_")[-1])
+        await promote_user_to(callback, uid2, "admin")
 
+    # عمليات تعديل الرصيد
     elif data.startswith("add_"):
         _, uid2, amt = data.split("_")
         uid2, amt = int(uid2), int(amt)
