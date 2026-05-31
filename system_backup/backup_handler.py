@@ -1,12 +1,12 @@
+# system_backup/backup_handler.py
+
 import json
 import sqlite3
 import time
-import asyncio
 from config import OWNER_ID
 
-async def create_backup(context):
+async def create_backup(bot):
     try:
-        # نسخ البيانات من قاعدة البيانات
         conn = sqlite3.connect("database.db")
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
@@ -39,8 +39,7 @@ async def create_backup(context):
         with open("backups/backup_current.json", "w", encoding="utf-8") as f:
             json.dump(backup_data, f, ensure_ascii=False, indent=2)
         
-        # إرسال إشعار للمالك (في الخاص فقط)
-        await context.bot.send_message(
+        await bot.send_message(
             OWNER_ID,
             f"💾 **نسخ احتياطي تلقائي**\n\n"
             f"✅ تم إنشاء نسخة جديدة\n"
@@ -52,12 +51,3 @@ async def create_backup(context):
         )
     except Exception as e:
         print(f"Backup error: {e}")
-
-def start_backup_scheduler(app):
-    async def backup_loop():
-        while True:
-            await asyncio.sleep(3600)  # كل ساعة
-            await create_backup(app.bot)
-    
-    import asyncio
-    asyncio.create_task(backup_loop())
