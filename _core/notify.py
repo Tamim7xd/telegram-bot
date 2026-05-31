@@ -11,6 +11,9 @@ def set_bot_instance(b: Bot):
     bot = b
 
 async def send_auto_delete(chat_id: int, text: str, delay: int = 30, parse_mode: str = "HTML"):
+    if bot is None:
+        print("⚠️ bot not initialized yet!")
+        return
     try:
         msg = await bot.send_message(chat_id, text, parse_mode=parse_mode)
         asyncio.create_task(delete_after(msg, delay))
