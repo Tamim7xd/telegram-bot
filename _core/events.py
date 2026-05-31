@@ -1,5 +1,5 @@
 from aiogram import Dispatcher
-from aiogram.types import Message, ChatPermissions
+from aiogram.types import Message
 from config import ADMIN_IDS, CURRENCY_NAME, XP_PER_MESSAGE, GROUP_ID
 from _core.users import update_user_money, get_user, set_user_status, get_or_create_user, is_admin, is_general_mod, is_admin_mod, add_general_mod, remove_general_mod, add_admin_mod, remove_admin_mod, add_warning, get_user_warnings_count, get_user_warnings_list, reset_warnings
 from _core.xp import add_xp, get_xp_progress, increment_message_count
@@ -17,23 +17,25 @@ async def delete_after(msg, seconds):
     try: await msg.delete()
     except: pass
 
-# ========== معالج الأوامر الرئيسي (يدعم أوامر # الإدارية والأعضاء) ==========
+# ========== المعالج الرئيسي لكل الرسائل ==========
 async def handle_all_commands(message: Message):
     text = message.text.strip()
     uid = message.from_user.id
     await get_or_create_user(message.from_user)
+    
+    # حذف رسالة الأمر بعد 3 ثوانٍ (لجميع الأوامر)
     asyncio.create_task(delete_after(message, 3))
 
     if not text:
         return
 
-    # ⚠️ التحقق من الصلاحيات للأوامر الإدارية (#)
+    # تحديد ما إذا كان المستخدم مشرفاً (لأوامر الإدارة)
     is_adm = await is_admin(uid)
     is_gen_mod = await is_general_mod(uid)
     is_adm_mod = await is_admin_mod(uid)
     has_mod_perms = is_adm or is_gen_mod or is_adm_mod
 
-    # ====== أوامر الأعضاء العادية (مفتوحة للجميع) ======
+    # ====== أوامر الأعضاء العامة (تعمل للجميع) ======
     if text in ["#ملفي", "#حسابي", "#معلوماتي"]:
         user = await get_user(uid)
         progress = await get_xp_progress(uid)
@@ -62,13 +64,13 @@ async def handle_all_commands(message: Message):
 {last_action_text}
 ━━━━━━━━━━━━━━━━━━━━━━"""
         msg = await message.reply(reply)
-        asyncio.create_task(delete_after(msg, 30))
+        asyncio.create_task(delete_after(msg, 5))
         return
 
     elif text in ["#فلوس", "#فلوسي"]:
         user = await get_user(uid)
         msg = await message.reply(f"⬅️ 💲 فلوسك: {format_number(user['money'])} {CURRENCY_NAME}")
-        asyncio.create_task(delete_after(msg, 30))
+        asyncio.create_task(delete_after(msg, 5))
         return
 
     elif text in ["#لعبة", "#العب", "#العاب"]:
@@ -82,7 +84,7 @@ async def handle_all_commands(message: Message):
 ━━━━━━━━━━━━━
 📝 أرسل رقم اللعبة (1-6)"""
         msg = await message.reply(menu)
-        asyncio.create_task(delete_after(msg, 30))
+        asyncio.create_task(delete_after(msg, 5))
         return
 
     elif text.isdigit() and 1 <= int(text) <= 6:
@@ -94,7 +96,7 @@ async def handle_all_commands(message: Message):
     elif text in ["#مستواي", "#نقاطي"]:
         progress = await get_xp_progress(uid)
         msg = await message.reply(f"📊 المستوى {progress['level']}\n{progress['bar']} {progress['percent']}%")
-        asyncio.create_task(delete_after(msg, 30))
+        asyncio.create_task(delete_after(msg, 5))
         return
 
     elif text in ["#سوق", "#محل"]:
@@ -107,7 +109,7 @@ async def handle_all_commands(message: Message):
             txt += f"🆔 {it['id']} - {it['name']} - 💰{format_number(it['price'])} - مستوى {it['rank_level']}\n"
         txt += "\nللشراء: #شراء <اسم الرتبة>"
         msg = await message.reply(txt)
-        asyncio.create_task(delete_after(msg, 30))
+        asyncio.create_task(delete_after(msg, 5))
         return
 
     elif text.startswith("#شراء"):
@@ -125,23 +127,20 @@ async def handle_all_commands(message: Message):
             await update_user_money(uid, -item['price'], f"شراء {rank}", None)
             await db.execute("INSERT INTO user_purchases (user_id, item_id) VALUES (?, ?) ON CONFLICT DO NOTHING", uid, item['id'])
             await send_auto_delete(message.chat.id, f"✅ تم شراء رتبة *{rank}* بنجاح!")
-            await send_admin_notification("نظام", user['full_name'], "شراء رتبة", f"{rank} - {format_number(item['price'])}")
         else:
             await send_auto_delete(message.chat.id, f"❌ رصيدك غير كافٍ (تحتاج {format_number(item['price'])} {CURRENCY_NAME})")
         return
 
     # ====== الأوامر الإدارية (تتطلب صلاحيات) ======
     if not has_mod_perms:
-        # إذا لم يكن مستخدمًا مخولًا ولم يتطابق أي أمر أعضاء، لا يفعل شيئًا
         return
 
-    # الآن نتعامل مع الأوامر الإدارية التي تبدأ بـ # (بعد التأكد من الصلاحيات)
-    # يجب أن تكون الأوامر الإدارية بالشكل: #خصم 10 سبب (يتم الرد على العضو)
-    if not message.reply_to_message:
-        await send_auto_delete(message.chat.id, "❌ يجب الرد على رسالة العضو المستهدف لاستخدام الأوامر الإدارية #")
-        return
+    # تحديد الهدف: إذا كان هناك رد على رسالة، الهدف هو من رُد عليه، وإلا فالهدف هو المستخدم نفسه
+    if message.reply_to_message:
+        target = message.reply_to_message.from_user
+    else:
+        target = message.from_user
 
-    target = message.reply_to_message.from_user
     target_name = target.full_name
     admin_name = message.from_user.full_name
     chat_id = message.chat.id
@@ -177,21 +176,21 @@ async def handle_all_commands(message: Message):
         await send_admin_notification(admin_name, target_name, "⚠️ تحذير", f"التحذير {new_count}/100\nالسبب: {reason}")
         return
 
-    elif text.startswith("#معلومات") and (is_adm or is_gen_mod or is_adm_mod):
+    elif text.startswith("#معلومات"):
         u = await get_user(target.id)
         if u:
             msg = await message.reply(f"📄 {u['full_name']}\n💰 {format_number(u['money'])} {CURRENCY_NAME}\n⭐ XP: {u['xp']}\n📊 المستوى: {u['level']}\n🏷️ اللقب: {u['title'] or 'لا يوجد'}\n⚠️ التحذيرات: {u['warnings']}/100")
-            asyncio.create_task(delete_after(msg, 30))
+            asyncio.create_task(delete_after(msg, 5))
         return
 
-    elif text.startswith("#فلوس_مستخدم") and (is_adm or is_gen_mod or is_adm_mod):
+    elif text.startswith("#فلوس"):
         u = await get_user(target.id)
         if u:
             msg = await message.reply(f"💰 فلوس {target_name}: {format_number(u['money'])} {CURRENCY_NAME}")
-            asyncio.create_task(delete_after(msg, 30))
+            asyncio.create_task(delete_after(msg, 5))
         return
 
-    elif text.startswith("#التحذيرات") and (is_adm or is_gen_mod or is_adm_mod):
+    elif text.startswith("#التحذيرات"):
         warns = await get_user_warnings_list(target.id, 5)
         if warns:
             txt = f"⚠️ تحذيرات {target_name}:\n"
@@ -200,7 +199,7 @@ async def handle_all_commands(message: Message):
                 admin_name = admin['full_name'] if admin else "نظام"
                 txt += f"• {w['reason']} (بواسطة {admin_name}) - {w['created_at']}\n"
             msg = await message.reply(txt)
-            asyncio.create_task(delete_after(msg, 30))
+            asyncio.create_task(delete_after(msg, 5))
         else:
             await send_auto_delete(chat_id, f"✅ {target_name} ليس لديه تحذيرات")
         return
@@ -212,7 +211,7 @@ async def handle_all_commands(message: Message):
             for r in rows:
                 log += f"• {format_number(r['amount'])} {CURRENCY_NAME} للمستخدم {r['user_id']} - {r['reason']}\n"
             msg = await message.reply(log)
-            asyncio.create_task(delete_after(msg, 30))
+            asyncio.create_task(delete_after(msg, 5))
         else:
             await send_auto_delete(chat_id, "📭 لا توجد عمليات مسجلة لك")
         return
