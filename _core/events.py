@@ -3,7 +3,6 @@ from aiogram.types import Message
 from config import ADMIN_IDS, CURRENCY_NAME, XP_PER_MESSAGE, GROUP_ID
 from _core.users import update_user_money, get_user, set_user_status, get_or_create_user, is_admin, is_general_mod, is_admin_mod, add_general_mod, remove_general_mod, add_admin_mod, remove_admin_mod, add_warning, get_user_warnings_list, reset_warnings
 from _core.xp import add_xp, get_xp_progress, increment_message_count
-# تم إزالة: from _core.games import start_game_by_type
 from _core.titles import set_user_title
 from _core.notify import send_auto_delete, send_deduction_notification, send_reward_notification, send_warning_notification, send_admin_notification
 from db import db
@@ -12,7 +11,6 @@ import asyncio
 def format_number(num):
     return f"{num:,}".replace(",", " ").replace(",", ".")
 
-# حالات مؤقتة للانتظار (تغيير اللقب)
 temp_data = {}
 
 async def delete_after(msg, seconds):
@@ -28,12 +26,10 @@ async def handle_all_commands(message: Message):
     chat_id = message.chat.id
     await get_or_create_user(message.from_user)
 
-    # حذف أي أمر / غير مسموح به (ما عدا /start, /adminiq)
     if text.startswith("/") and text not in ["/start", "/adminiq"]:
         await message.delete()
         return
 
-    # معالجة أوامر الأعضاء (تبدأ بـ #)
     if not text.startswith("#"):
         return
 
@@ -77,7 +73,6 @@ async def handle_all_commands(message: Message):
         return
 
     elif text in ["#لعبة", "#العب", "#العاب"]:
-        # عرض أزرار الألعاب (تختفي بعد 3 ثوانٍ)
         from _core.games import show_game_menu
         await show_game_menu(message)
         return
@@ -121,7 +116,7 @@ async def handle_all_commands(message: Message):
             await send_auto_delete(chat_id, f"❌ رصيدك غير كافٍ (تحتاج {format_number(item['price'])} {CURRENCY_NAME})", delay=30)
         return
 
-    # ====== الأوامر الإدارية (تبدأ بـ #، تتطلب صلاحيات) ======
+    # الأوامر الإدارية
     is_adm = await is_admin(uid)
     is_gen_mod = await is_general_mod(uid)
     is_adm_mod = await is_admin_mod(uid)
