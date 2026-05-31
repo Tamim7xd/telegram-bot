@@ -30,12 +30,13 @@ async def on_user_join(event: ChatMemberUpdated):
 
 async def main():
     bot_obj = Bot(token=BOT_TOKEN)
+    # حل التعارض: حذف أي webhook قديم
     await bot_obj.delete_webhook(drop_pending_updates=True)
     await asyncio.sleep(1)
 
     await db.connect()
     await db.init_tables()
-    set_bot_instance(bot_obj)
+    set_bot_instance(bot_obj)  # تهيئة bot في notify.py
     dp = Dispatcher()
 
     setup_bot(dp)
