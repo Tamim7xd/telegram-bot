@@ -11,7 +11,7 @@ from system_profile.profile_handler import profile_command
 from system_games.games_handler import game_command, game_callback, handle_game_answer
 from system_shop.shop_handler import shop_command, shop_callback
 from system_warnings.warnings_handler import warning_command
-from system_punishments.punishments_handler import mute_command, ban_command, kick_command
+from system_punishments.punishments_handler import mute_command, ban_command, kick_command, unmute_user
 from system_economy.economy_handler import add_balance_command, remove_balance_command, daily_reward_command
 from system_admin.admin_handler import admin_panel_command, admin_callback
 from system_owner.owner_handler import owner_panel_command, owner_callback, handle_owner_input
@@ -56,31 +56,28 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def handle_all_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """معالج جميع الرسائل"""
-    user_id = update.effective_user.id
+    """معالج جميع الرسائل - يدعم الأوامر العربية"""
     text = update.message.text.strip()
     
-    print(f"Received: {text}")  # للتصحيح
-    
-    # ========== الأوامر العربية ==========
+    print(f"Received: {text}")
     
     # أوامر الملف الشخصي
-    if text == "#ملف" or text == "#ملفي" or text == "#الملف" or text == "#معلومات" or text == "#معلوماتي" or text == "#المعلومات":
+    if text in ["#ملف", "#ملفي", "#الملف", "#معلومات", "#معلوماتي", "#المعلومات"]:
         await profile_command(update, context)
         return
     
     # أوامر الألعاب
-    if text == "#لعبة" or text == "#العاب" or text == "#لعب" or text == "#العب":
+    if text in ["#لعبة", "#العاب", "#لعب", "#العب"]:
         await game_command(update, context)
         return
     
     # أوامر السوق
-    if text == "#سوق" or text == "#محل" or text == "#شراء" or text == "#اشتري" or text == "#اسواق" or text == "#المتجر":
+    if text in ["#سوق", "#محل", "#شراء", "#اشتري", "#اسواق", "#المتجر"]:
         await shop_command(update, context)
         return
     
     # المكافأة اليومية
-    if text == "#يومي" or text == "#مكافأةيومية" or text == "#يومية":
+    if text in ["#يومي", "#مكافأةيومية", "#يومية"]:
         await daily_reward_command(update, context)
         return
     
@@ -145,16 +142,16 @@ async def handle_all_messages(update: Update, context: ContextTypes.DEFAULT_TYPE
         return
     
     # لوحة المشرفين
-    if text == "#مشرف" or text == "#ادمن" or text == "#الادمن":
+    if text in ["#مشرف", "#ادمن", "#الادمن"]:
         await admin_panel_command(update, context)
         return
     
     # لوحة المالك
-    if text == "#مالك" or text == "#المالك":
+    if text in ["#مالك", "#المالك"]:
         await owner_panel_command(update, context)
         return
     
-    # ========== معالجة إجابات الألعاب ==========
+    # معالجة إجابات الألعاب
     if context.user_data.get('waiting_guess') or \
        context.user_data.get('waiting_question') or \
        context.user_data.get('waiting_reverse') or \
@@ -162,7 +159,7 @@ async def handle_all_messages(update: Update, context: ContextTypes.DEFAULT_TYPE
         await handle_game_answer(update, context)
         return
     
-    # ========== معالجة إدخالات المالك ==========
+    # معالجة إدخالات المالك
     if context.user_data.get('waiting_add_admin') or \
        context.user_data.get('waiting_add_super') or \
        context.user_data.get('waiting_remove_admin') or \
@@ -171,7 +168,6 @@ async def handle_all_messages(update: Update, context: ContextTypes.DEFAULT_TYPE
        context.user_data.get('waiting_edit_name') or \
        context.user_data.get('waiting_edit_price') or \
        context.user_data.get('waiting_warn_all') or \
-       context.user_data.get('waiting_set_max_warnings') or \
        context.user_data.get('waiting_warn_reason') or \
        context.user_data.get('waiting_deduct_amount') or \
        context.user_data.get('waiting_reward_amount') or \
@@ -221,7 +217,7 @@ def main():
     app.add_handler(CallbackQueryHandler(admin_callback, pattern="^admin_"))
     app.add_handler(CallbackQueryHandler(owner_callback, pattern="^owner_"))
     
-    # معالج جميع الرسائل
+    # معالج جميع الرسائل (الأوامر العربية)
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_all_messages))
     
     # النسخ الاحتياطي
