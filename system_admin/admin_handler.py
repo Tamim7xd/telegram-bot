@@ -1,3 +1,4 @@
+
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes
 from shared.database import get_db
@@ -34,11 +35,12 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     
     user_id = query.from_user.id
-    data = query.data
     
     if not is_admin(user_id):
         await query.edit_message_text("❌ ليس لديك صلاحية")
         return
+    
+    data = query.data
     
     if data == "admin_close":
         await query.edit_message_text("🔚 تم إغلاق لوحة التحكم")
@@ -47,10 +49,10 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if data == "admin_search":
         conn = get_db()
         cursor = conn.execute("""
-            SELECT user_id, username, first_name, is_muted, warnings, is_banned 
+            SELECT user_id, first_name, username, is_muted, warnings, is_banned 
             FROM users 
             WHERE is_muted = 1 OR warnings > 0 OR is_banned = 1
-            LIMIT 5
+            LIMIT 10
         """)
         offenders = cursor.fetchall()
         conn.close()
@@ -95,13 +97,13 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if user["is_muted"]:
             remaining = user["muted_until"] - int(__import__('time').time())
             if remaining > 0:
-                status_text = f"🔇 مكتوم - متبقي {remaining//60} دقائق"
+                status_text = f"🔇 مكتوم - متبقي {remaining//60} دقيقة"
             else:
                 status_text = "🔇 مكتوم (منتهي)"
         elif user["is_banned"]:
             status_text = "🚫 محظور"
         else:
-            status_text = "⚠️ منذر"
+            status_text = f"⚠️ منذر - {user['warnings']} تحذيرات"
         
         keyboard = [
             [InlineKeyboardButton("🔓 فك المخالفة", callback_data=f"admin_unpunish_{target_id}")],
@@ -112,7 +114,7 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"👤 **{name}**\n\n"
             f"📊 الحالة: {status_text}\n"
             f"⚠️ التحذيرات: {user['warnings']}\n\n"
-            f"🛠️ يمكنك فك العقوبة بالضغط على الزر أدناه",
+            f"🛠️ يمكنك فك العقوبة بالضغط على الزر",
             reply_markup=InlineKeyboardMarkup(keyboard),
             parse_mode="Markdown"
         )
@@ -121,12 +123,11 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if data.startswith("admin_unpunish_"):
         target_id = int(data.split("_")[2])
         
-        conn = get_db()
-        
         # فك الكتم
         await unmute_user(context, target_id)
         
         # حذف التحذيرات
+        conn = get_db()
         conn.execute("UPDATE users SET warnings = 0 WHERE user_id = ?", (target_id,))
         
         # فك الحظر
