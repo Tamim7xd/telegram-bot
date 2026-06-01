@@ -1,7 +1,6 @@
-from telegram import Update
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 from shared.database import get_db
-from shared.message_builder import send_and_delete
 from config import MESSAGE_TO_LEVEL, LEVEL_REWARD, MAX_WARNINGS
 
 async def profile_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -9,15 +8,25 @@ async def profile_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     username = update.effective_user.username or "لا يوجد"
     first_name = update.effective_user.first_name or "مستخدم"
     
+    # التحقق مما إذا كان الأمر جاء من رد على رسالة (لعرض ملف عضو آخر)
+    target_id = user_id
+    target_name = first_name
+    target_username = username
+    
+    if update.message.reply_to_message:
+        # إذا كان رداً على رسالة، اعرض ملف العضو الآخر
+        target = update.message.reply_to_message.from_user
+        target_id = target.id
+        target_name = target.first_name or "مستخدم"
+        target_username = target.username or "لا يوجد"
+    
     conn = get_db()
     
-    # إضافة المستخدم إذا لم يكن موجوداً
     conn.execute("INSERT OR IGNORE INTO users (user_id, username, first_name) VALUES (?, ?, ?)", 
-                 (user_id, username, first_name))
+                 (target_id, target_username, target_name))
     conn.commit()
     
-    # جلب البيانات
-    cursor = conn.execute("SELECT balance, warnings, messages, level, title FROM users WHERE user_id = ?", (user_id,))
+    cursor = conn.execute("SELECT balance, warnings, messages, level, title FROM users WHERE user_id = ?", (target_id,))
     user = cursor.fetchone()
     
     if not user:
@@ -25,18 +34,15 @@ async def profile_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         balance, warnings, messages, level, title = user
     
-    # حساب المستوى الجديد
     new_level = (messages // MESSAGE_TO_LEVEL) + 1
-    if new_level > level:
+    if new_level > level and target_id == user_id:
         reward = (new_level - level) * LEVEL_REWARD
         conn.execute("UPDATE users SET level = ?, balance = balance + ? WHERE user_id = ?", 
-                     (new_level, reward, user_id))
+                     (new_level, reward, target_id))
         balance += reward
         level = new_level
         conn.commit()
-        await send_and_delete(context, update.effective_chat.id, f"🎉 مبروك! وصلت للمستوى {level}\n💰 +{reward} عملة", timeout=5)
     
-    # شريط التقدم
     current = messages % MESSAGE_TO_LEVEL
     total = MESSAGE_TO_LEVEL
     percent = int((current / total) * 10)
@@ -44,7 +50,7 @@ async def profile_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     title_text = f"🏆 {title}" if title else ""
     
-    text = f"""👤 **{first_name}** (@{username})
+    text = f"""👤 **{target_name}** (@{target_username})
 
 💰 الرصيد: {balance} 🪙
 ⚠️ التحذيرات: {warnings}/{MAX_WARNINGS}
@@ -57,4 +63,15 @@ async def profile_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     conn.close()
     
-    await send_and_delete(context, update.effective_chat.id, text, timeout=5, reply_markup=None)
+    # إذا كان المشرف يشاهد ملف عضو آخر، أضف أزرار إدارة
+    if update.message.reply_to_message and is_admin(user_id):
+        keyboard = [
+            [InlineKeyboardButton("⚠️ تحذير", callback_data=f"warn_{target_id}")],
+            [InlineKeyboardButton("🔇 كتم", callback_data=f"mute_{target_id}")],
+            [InlineKeyboardButton("🔙 إغلاق", callback_data="close")]
+        ]
+        await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
+    else:
+        await update.message.reply_text(text, parse_mode="Markdown")
+
+from shared.permissions import is_admin
