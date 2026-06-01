@@ -1,4 +1,4 @@
-SHOP_TIMEOUT = 3
+SHOP_TIMEOUT = 5
 
 TITLES = {
     1: {"name": "عضو جديد 🌱", "price": 1000},
