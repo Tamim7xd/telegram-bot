@@ -2,7 +2,7 @@ import time
 from telegram import Update
 from telegram.ext import ContextTypes
 from shared.database import get_db
-from shared.permissions import is_admin, is_super_admin
+from shared.permissions import is_admin
 from shared.logger import log_action
 from config import GROUP_ID, DAILY_REWARD
 
@@ -45,7 +45,7 @@ async def add_balance_command(update: Update, context: ContextTypes.DEFAULT_TYPE
     conn.commit()
     conn.close()
     
-    await context.bot.send_message(GROUP_ID, f"🎁 **مكافأة**\n\n👤 {target_name}\n💰 +{amount} عملة\n📝 {reason}\n💵 الرصيد الجديد: {new_balance}\n\n👮 بواسطة: {admin_name}", parse_mode="Markdown")
+    await context.bot.send_message(GROUP_ID, f"🎁 مكافأة\n\n👤 {target_name}\n💰 +{amount} عملة\n📝 {reason}\n💵 الرصيد الجديد: {new_balance}\n\n👮 بواسطة: {admin_name}")
 
 async def remove_balance_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -86,7 +86,7 @@ async def remove_balance_command(update: Update, context: ContextTypes.DEFAULT_T
     conn.commit()
     conn.close()
     
-    await context.bot.send_message(GROUP_ID, f"💰 **خصم**\n\n👤 {target_name}\n💰 -{amount} عملة\n📝 {reason}\n💵 الرصيد الجديد: {new_balance}\n\n👮 بواسطة: {admin_name}", parse_mode="Markdown")
+    await context.bot.send_message(GROUP_ID, f"💰 خصم\n\n👤 {target_name}\n💰 -{amount} عملة\n📝 {reason}\n💵 الرصيد الجديد: {new_balance}\n\n👮 بواسطة: {admin_name}")
 
 async def daily_reward_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -106,4 +106,4 @@ async def daily_reward_command(update: Update, context: ContextTypes.DEFAULT_TYP
     conn.commit()
     conn.close()
     
-    await update.message.reply_text(f"🎁 **المكافأة اليومية**\n\n💰 +{DAILY_REWARD} عملة\n📅 عودة غداً", parse_mode="Markdown")
+    await update.message.reply_text(f"🎁 المكافأة اليومية\n\n💰 +{DAILY_REWARD} عملة\n📅 عودة غداً")
