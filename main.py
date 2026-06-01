@@ -58,76 +58,90 @@ async def start(update, context):
 async def handle_arabic_commands(update, context):
     """معالجة الأوامر العربية مثل #ملف #لعبة #سوق"""
     text = update.message.text.strip()
+    user_id = update.effective_user.id
     
-    # الأوامر العربية
-    if text == "#ملف" or text == "#ملفي" or text == "#الملف" or text == "#معلومات" or text == "#معلوماتي":
+    print(f"Received: {text}")  # للتصحيح
+    
+    # أوامر عامة
+    if text in ["#ملف", "#ملفي", "#الملف", "#معلومات", "#معلوماتي"]:
         await profile_command(update, context)
+        return
     
-    elif text == "#لعبة" or text == "#العاب" or text == "#العب":
+    if text in ["#لعبة", "#العاب", "#العب"]:
         await game_command(update, context)
+        return
     
-    elif text == "#سوق" or text == "#محل" or text == "#شراء" or text == "#اشتري" or text == "#اسواق":
+    if text in ["#سوق", "#محل", "#شراء", "#اشتري", "#اسواق"]:
         await shop_command(update, context)
+        return
     
-    elif text == "#يومي" or text == "#مكافأةيومية":
+    if text in ["#يومي", "#مكافأةيومية"]:
         await daily_reward_command(update, context)
+        return
     
-    elif text.startswith("#تحذير"):
+    # أوامر المشرفين
+    if text.startswith("#تحذير"):
         parts = text.split(maxsplit=1)
-        if len(parts) > 1:
-            update.message.text = f"/warn {parts[1]}"
-        else:
-            update.message.text = "/warn"
+        reason = parts[1] if len(parts) > 1 else "لا يوجد سبب"
+        update.message.text = f"/warn {reason}"
         await warning_command(update, context)
+        return
     
-    elif text.startswith("#كتم"):
+    if text.startswith("#كتم"):
         parts = text.split(maxsplit=2)
-        if len(parts) > 1:
-            reason = parts[2] if len(parts) > 2 else ""
-            update.message.text = f"/mute {parts[1]} {reason}"
+        if len(parts) >= 2:
+            duration = parts[1]
+            reason = parts[2] if len(parts) > 2 else "لا يوجد سبب"
+            update.message.text = f"/mute {duration} {reason}"
         else:
             update.message.text = "/mute"
         await mute_command(update, context)
+        return
     
-    elif text.startswith("#حظر"):
+    if text.startswith("#حظر"):
         parts = text.split(maxsplit=1)
-        if len(parts) > 1:
-            update.message.text = f"/ban {parts[1]}"
-        else:
-            update.message.text = "/ban"
+        reason = parts[1] if len(parts) > 1 else "لا يوجد سبب"
+        update.message.text = f"/ban {reason}"
         await ban_command(update, context)
+        return
     
-    elif text.startswith("#طرد"):
+    if text.startswith("#طرد"):
         parts = text.split(maxsplit=1)
-        if len(parts) > 1:
-            update.message.text = f"/kick {parts[1]}"
-        else:
-            update.message.text = "/kick"
+        reason = parts[1] if len(parts) > 1 else "لا يوجد سبب"
+        update.message.text = f"/kick {reason}"
         await kick_command(update, context)
+        return
     
-    elif text.startswith("#خصم"):
+    if text.startswith("#خصم"):
         parts = text.split(maxsplit=2)
-        if len(parts) > 1:
-            reason = parts[2] if len(parts) > 2 else ""
-            update.message.text = f"/deduct {parts[1]} {reason}"
+        if len(parts) >= 2:
+            amount = parts[1]
+            reason = parts[2] if len(parts) > 2 else "لا يوجد سبب"
+            update.message.text = f"/deduct {amount} {reason}"
         else:
             update.message.text = "/deduct"
         await add_balance_command(update, context)
+        return
     
-    elif text.startswith("#مكافأة"):
+    if text.startswith("#مكافأة"):
         parts = text.split(maxsplit=2)
-        if len(parts) > 1:
-            reason = parts[2] if len(parts) > 2 else ""
-            update.message.text = f"/reward {parts[1]} {reason}"
+        if len(parts) >= 2:
+            amount = parts[1]
+            reason = parts[2] if len(parts) > 2 else "لا يوجد سبب"
+            update.message.text = f"/reward {amount} {reason}"
         else:
             update.message.text = "/reward"
         await remove_balance_command(update, context)
+        return
     
-    elif text == "#مشرف" or text == "#ادمن":
+    # لوحات التحكم
+    if text in ["#مشرف", "#ادمن"]:
         await admin_panel_command(update, context)
+        return
     
-    elif text == "#مالك":
+    if text == "#مالك":
         await owner_panel_command(update, context)
+        return
 
 async def handle_message(update, context):
     # معالجة الألعاب
@@ -164,24 +178,18 @@ def main():
     init_db()
     app = Application.builder().token(BOT_TOKEN).post_init(post_init).build()
     
-    # الأوامر العامة (إنجليزية)
+    # أوامر إنجليزية
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("profile", profile_command))
     app.add_handler(CommandHandler("game", game_command))
     app.add_handler(CommandHandler("shop", shop_command))
     app.add_handler(CommandHandler("daily", daily_reward_command))
-    
-    # أوامر المشرفين (إنجليزية)
     app.add_handler(CommandHandler("warn", warning_command))
     app.add_handler(CommandHandler("mute", mute_command))
     app.add_handler(CommandHandler("deduct", add_balance_command))
     app.add_handler(CommandHandler("reward", remove_balance_command))
-    
-    # أوامر المشرف الإداري (إنجليزية)
     app.add_handler(CommandHandler("ban", ban_command))
     app.add_handler(CommandHandler("kick", kick_command))
-    
-    # لوحات التحكم (إنجليزية)
     app.add_handler(CommandHandler("admin", admin_panel_command))
     app.add_handler(CommandHandler("owner", owner_panel_command))
     
@@ -191,10 +199,7 @@ def main():
     app.add_handler(CallbackQueryHandler(admin_callback, pattern="^admin_"))
     app.add_handler(CallbackQueryHandler(owner_callback, pattern="^owner_"))
     
-    # معالج الرسائل
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-    
-    # معالج الأوامر العربية (يأتي بعد المعالج العام)
+    # معالج الأوامر العربية (يجب أن يأتي قبل المعالج العام)
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_arabic_commands))
     
     # النسخ الاحتياطي
