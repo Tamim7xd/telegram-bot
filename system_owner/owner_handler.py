@@ -6,7 +6,7 @@ from telegram.ext import ContextTypes
 from shared.database import get_db
 from shared.permissions import is_owner, is_admin, add_admin, remove_admin, get_all_admins
 from system_punishments.punishments_handler import unmute_user
-from config import GROUP_ID, MAX_WARNINGS
+from config import GROUP_ID, OWNER_ID, MAX_WARNINGS
 
 # قائمة الألقاب الافتراضية
 TITLES = {
@@ -91,6 +91,25 @@ async def owner_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text("✅ تم إزالة المستخدم من المشرفين")
         await asyncio.sleep(2)
         await show_admins_panel(update, context, query)
+        return
+    
+    if data.startswith("admin_upgrade_"):
+        target_id = int(data.split("_")[2])
+        await upgrade_admin(update, context, query, target_id)
+        return
+    
+    if data.startswith("admin_downgrade_"):
+        target_id = int(data.split("_")[2])
+        await downgrade_admin(update, context, query, target_id)
+        return
+    
+    if data == "admin_remove_all":
+        await remove_all_admins(update, context, query)
+        return
+    
+    if data == "admin_reward_all":
+        await query.edit_message_text("🎁 أرسل المبلغ المراد إضافته لكل مشرف:")
+        context.user_data['waiting_admin_reward_amount'] = True
         return
     
     # ========== إدارة السوق ==========
@@ -215,56 +234,19 @@ async def owner_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     if data == "bulk_unmute":
-        conn = get_db()
-        cursor = conn.execute("SELECT user_id FROM users WHERE is_muted = 1")
-        muted = cursor.fetchall()
-        for u in muted:
-            await unmute_user(context, u["user_id"])
-        conn.close()
-        await query.edit_message_text("✅ تم فك الكتم عن جميع الأعضاء")
-        await context.bot.send_message(GROUP_ID, "🔓 تم فك الكتم عن جميع الأعضاء\n👮 بواسطة: المالك")
-        await asyncio.sleep(2)
-        await show_bulk_panel(update, context, query)
+        await bulk_unmute(update, context, query)
         return
     
     if data == "bulk_unban":
-        conn = get_db()
-        cursor = conn.execute("SELECT user_id FROM users WHERE is_banned = 1")
-        banned = cursor.fetchall()
-        for u in banned:
-            try:
-                await context.bot.unban_chat_member(GROUP_ID, u["user_id"])
-            except:
-                pass
-        conn.execute("UPDATE users SET is_banned = 0")
-        conn.commit()
-        conn.close()
-        await query.edit_message_text("✅ تم فك الحظر عن جميع الأعضاء")
-        await context.bot.send_message(GROUP_ID, "🔓 تم فك الحظر عن جميع الأعضاء\n👮 بواسطة: المالك")
-        await asyncio.sleep(2)
-        await show_bulk_panel(update, context, query)
+        await bulk_unban(update, context, query)
         return
     
     if data == "bulk_clear_warns":
-        conn = get_db()
-        conn.execute("UPDATE users SET warnings = 0")
-        conn.commit()
-        conn.close()
-        await query.edit_message_text("✅ تم حذف جميع التحذيرات")
-        await context.bot.send_message(GROUP_ID, "🗑 تم حذف جميع التحذيرات\n👮 بواسطة: المالك")
-        await asyncio.sleep(2)
-        await show_bulk_panel(update, context, query)
+        await bulk_clear_warns(update, context, query)
         return
     
     if data == "bulk_reset_economy":
-        conn = get_db()
-        conn.execute("UPDATE users SET balance = 1000, level = 1, messages = 0")
-        conn.commit()
-        conn.close()
-        await query.edit_message_text("✅ تم إعادة ضبط الاقتصاد")
-        await context.bot.send_message(GROUP_ID, "💰 تم إعادة ضبط الاقتصاد (الرصيد 1000، المستوى 1)\n👮 بواسطة: المالك")
-        await asyncio.sleep(2)
-        await show_bulk_panel(update, context, query)
+        await bulk_reset_economy(update, context, query)
         return
     
     # ========== إعلان متحرك ==========
@@ -283,21 +265,7 @@ async def owner_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # ========== السجلات ==========
     if data == "owner_logs":
-        conn = get_db()
-        cursor = conn.execute("SELECT * FROM logs ORDER BY timestamp DESC LIMIT 30")
-        logs = cursor.fetchall()
-        conn.close()
-        
-        if not logs:
-            await query.edit_message_text("📊 السجلات\n\nلا توجد سجلات حالياً")
-            return
-        
-        text = "📊 آخر 30 عملية:\n\n"
-        for log in logs:
-            text += f"• {log['action']} - {log['target_name'] or log['target_id']}\n   👮 {log['admin_name']} - 🕐 {time.strftime('%Y-%m-%d %H:%M', time.localtime(log['timestamp']))}\n\n"
-        
-        keyboard = [[InlineKeyboardButton("🔙 رجوع", callback_data="owner_back")]]
-        await query.edit_message_text(text[:4000], reply_markup=InlineKeyboardMarkup(keyboard))
+        await show_logs(update, context, query)
         return
     
     # ========== الأعضاء ==========
@@ -348,7 +316,7 @@ async def owner_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ]
         await query.edit_message_text("👑 لوحة المالك\n\nاختر الإجراء:", reply_markup=InlineKeyboardMarkup(keyboard))
 
-# ==================== دوال المساعدة ====================
+# ==================== دوال إدارة المشرفين المتقدمة ====================
 
 async def show_admins_panel(update, context, query):
     admins = get_all_admins()
@@ -358,16 +326,49 @@ async def show_admins_panel(update, context, query):
         role = "👑 مشرف إداري" if a["is_super_admin"] else "🛡️ مشرف عادي"
         text += f"• {a['username'] or a['user_id']} - {role}\n"
     
-    keyboard = [
-        [InlineKeyboardButton("➕ إضافة مشرف جديد", callback_data="admin_add_user")],
-        [InlineKeyboardButton("🔙 رجوع", callback_data="owner_back")]
-    ]
-    
+    keyboard = []
     for a in admins:
         name = a["username"] or str(a["user_id"])
-        keyboard.insert(-1, [InlineKeyboardButton(f"➖ إزالة {name}", callback_data=f"admin_remove_{a['user_id']}")])
+        if a["is_super_admin"]:
+            keyboard.append([InlineKeyboardButton(f"⬇️ خفض {name} (مشرف إداري)", callback_data=f"admin_downgrade_{a['user_id']}")])
+        else:
+            keyboard.append([InlineKeyboardButton(f"⬆️ ترقية {name} (مشرف عادي)", callback_data=f"admin_upgrade_{a['user_id']}")])
+    
+    keyboard.append([InlineKeyboardButton("➕ إضافة مشرف جديد", callback_data="admin_add_user")])
+    keyboard.append([InlineKeyboardButton("🎁 مكافأة للمشرفين", callback_data="admin_reward_all")])
+    keyboard.append([InlineKeyboardButton("🗑 حذف جميع المشرفين", callback_data="admin_remove_all")])
+    keyboard.append([InlineKeyboardButton("🔙 رجوع", callback_data="owner_back")])
     
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
+
+async def upgrade_admin(update, context, query, target_id):
+    conn = get_db()
+    conn.execute("UPDATE admins SET is_super_admin = 1 WHERE user_id = ?", (target_id,))
+    conn.commit()
+    conn.close()
+    await query.edit_message_text("✅ تم ترقية المشرف إلى مشرف إداري")
+    await asyncio.sleep(2)
+    await show_admins_panel(update, context, query)
+
+async def downgrade_admin(update, context, query, target_id):
+    conn = get_db()
+    conn.execute("UPDATE admins SET is_super_admin = 0 WHERE user_id = ?", (target_id,))
+    conn.commit()
+    conn.close()
+    await query.edit_message_text("✅ تم خفض المشرف إلى مشرف عادي")
+    await asyncio.sleep(2)
+    await show_admins_panel(update, context, query)
+
+async def remove_all_admins(update, context, query):
+    conn = get_db()
+    conn.execute("DELETE FROM admins WHERE user_id != ?", (OWNER_ID,))
+    conn.commit()
+    conn.close()
+    await query.edit_message_text("✅ تم حذف جميع المشرفين (باستثناء المالك)")
+    await asyncio.sleep(2)
+    await show_admins_panel(update, context, query)
+
+# ==================== دوال عرض المستخدمين ====================
 
 async def show_users_for_admin(update, context, query, page):
     users_per_page = 10
@@ -414,6 +415,8 @@ async def show_admin_type_select(update, context, query, target_id):
     ]
     await query.edit_message_text(f"👤 {name}\n\nاختر نوع المشرف:", reply_markup=InlineKeyboardMarkup(keyboard))
 
+# ==================== دوال إدارة السوق ====================
+
 async def show_shop_panel(update, context, query):
     keyboard = [
         [InlineKeyboardButton("📋 عرض الألقاب", callback_data="shop_view")],
@@ -444,6 +447,8 @@ async def show_shop_delete_list(update, context, query):
         keyboard.append([InlineKeyboardButton(title['name'], callback_data=f"shop_delete_title_{tid}")])
     keyboard.append([InlineKeyboardButton("🔙 رجوع", callback_data="owner_shop")])
     await query.edit_message_text("🗑 اختر اللقب للحذف:", reply_markup=InlineKeyboardMarkup(keyboard))
+
+# ==================== دوال إدارة التحذيرات ====================
 
 async def show_warnings_panel(update, context, query):
     keyboard = [
@@ -489,6 +494,8 @@ async def show_user_warnings(update, context, query, target_id):
     ]
     await query.edit_message_text(f"👤 {name}\n⚠️ التحذيرات: {warnings}", reply_markup=InlineKeyboardMarkup(keyboard))
 
+# ==================== دوال العمليات الجماعية ====================
+
 async def show_bulk_panel(update, context, query):
     keyboard = [
         [InlineKeyboardButton("🔓 فك الكتم للجميع", callback_data="bulk_unmute")],
@@ -498,6 +505,68 @@ async def show_bulk_panel(update, context, query):
         [InlineKeyboardButton("🔙 رجوع", callback_data="owner_back")]
     ]
     await query.edit_message_text("🧹 العمليات الجماعية\n⚠️ لا يمكن التراجع عنها", reply_markup=InlineKeyboardMarkup(keyboard))
+
+async def bulk_unmute(update, context, query):
+    conn = get_db()
+    cursor = conn.execute("SELECT user_id FROM users WHERE is_muted = 1")
+    muted = cursor.fetchall()
+    for u in muted:
+        await unmute_user(context, u["user_id"])
+    conn.close()
+    await query.edit_message_text("✅ تم فك الكتم عن جميع الأعضاء")
+    await context.bot.send_message(GROUP_ID, "🔓 تم فك الكتم عن جميع الأعضاء\n👮 بواسطة: المالك")
+
+async def bulk_unban(update, context, query):
+    conn = get_db()
+    cursor = conn.execute("SELECT user_id FROM users WHERE is_banned = 1")
+    banned = cursor.fetchall()
+    for u in banned:
+        try:
+            await context.bot.unban_chat_member(GROUP_ID, u["user_id"])
+        except:
+            pass
+    conn.execute("UPDATE users SET is_banned = 0")
+    conn.commit()
+    conn.close()
+    await query.edit_message_text("✅ تم فك الحظر عن جميع الأعضاء")
+    await context.bot.send_message(GROUP_ID, "🔓 تم فك الحظر عن جميع الأعضاء\n👮 بواسطة: المالك")
+
+async def bulk_clear_warns(update, context, query):
+    conn = get_db()
+    conn.execute("UPDATE users SET warnings = 0")
+    conn.commit()
+    conn.close()
+    await query.edit_message_text("✅ تم حذف جميع التحذيرات")
+    await context.bot.send_message(GROUP_ID, "🗑 تم حذف جميع التحذيرات\n👮 بواسطة: المالك")
+
+async def bulk_reset_economy(update, context, query):
+    conn = get_db()
+    conn.execute("UPDATE users SET balance = 1000, level = 1, messages = 0")
+    conn.commit()
+    conn.close()
+    await query.edit_message_text("✅ تم إعادة ضبط الاقتصاد")
+    await context.bot.send_message(GROUP_ID, "💰 تم إعادة ضبط الاقتصاد (الرصيد 1000، المستوى 1)\n👮 بواسطة: المالك")
+
+# ==================== دوال السجلات ====================
+
+async def show_logs(update, context, query):
+    conn = get_db()
+    cursor = conn.execute("SELECT * FROM logs ORDER BY timestamp DESC LIMIT 30")
+    logs = cursor.fetchall()
+    conn.close()
+    
+    if not logs:
+        await query.edit_message_text("📊 السجلات\n\nلا توجد سجلات حالياً")
+        return
+    
+    text = "📊 آخر 30 عملية:\n\n"
+    for log in logs:
+        text += f"• {log['action']} - {log['target_name'] or log['target_id']}\n   👮 {log['admin_name']} - 🕐 {time.strftime('%Y-%m-%d %H:%M', time.localtime(log['timestamp']))}\n\n"
+    
+    keyboard = [[InlineKeyboardButton("🔙 رجوع", callback_data="owner_back")]]
+    await query.edit_message_text(text[:4000], reply_markup=InlineKeyboardMarkup(keyboard))
+
+# ==================== دوال عرض الأعضاء ====================
 
 async def show_users_list(update, context, query, page):
     users_per_page = 10
@@ -566,6 +635,8 @@ async def show_user_details(update, context, query, target_id):
         [InlineKeyboardButton("🔙 رجوع", callback_data="owner_users")]
     ]
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
+
+# ==================== دوال تنفيذ الإجراءات على الأعضاء ====================
 
 async def execute_user_action(update, context, query, target_id, action):
     admin_name = update.effective_user.first_name
@@ -674,6 +745,47 @@ async def handle_owner_input(update: Update, context: ContextTypes.DEFAULT_TYPE)
     
     text = update.message.text.strip()
     
+    # مكافأة للمشرفين - انتظار المبلغ
+    if context.user_data.get('waiting_admin_reward_amount'):
+        try:
+            amount = int(text)
+            context.user_data['admin_reward_amount'] = amount
+            await update.message.reply_text("✏️ أرسل سبب المكافأة:")
+            context.user_data['waiting_admin_reward_reason'] = True
+            context.user_data['waiting_admin_reward_amount'] = False
+        except:
+            await update.message.reply_text("❌ المبلغ يجب أن يكون رقماً")
+            context.user_data['waiting_admin_reward_amount'] = False
+        return
+    
+    # مكافأة للمشرفين - انتظار السبب
+    if context.user_data.get('waiting_admin_reward_reason'):
+        reason = text
+        amount = context.user_data.get('admin_reward_amount', 0)
+        
+        admins = get_all_admins()
+        rewarded = []
+        
+        for admin in admins:
+            admin_id = admin["user_id"]
+            conn = get_db()
+            conn.execute("UPDATE users SET balance = balance + ? WHERE user_id = ?", (amount, admin_id))
+            conn.commit()
+            conn.close()
+            rewarded.append(admin_id)
+            
+            try:
+                await context.bot.send_message(admin_id, f"🎁 مكافأة من المالك\n💰 +{amount} عملة\n📝 السبب: {reason}")
+            except:
+                pass
+        
+        await context.bot.send_message(GROUP_ID, f"🎁 مكافأة للمشرفين\n💰 المبلغ: {amount} عملة لكل مشرف\n📝 السبب: {reason}\n👮 بواسطة: المالك")
+        await update.message.reply_text(f"✅ تم إرسال {amount} عملة إلى {len(rewarded)} مشرف")
+        
+        context.user_data['waiting_admin_reward_reason'] = False
+        context.user_data['admin_reward_amount'] = None
+        return
+    
     # إضافة لقب - انتظار الاسم
     if context.user_data.get('waiting_shop_name'):
         context.user_data['new_shop_name'] = text
@@ -779,7 +891,7 @@ async def handle_owner_input(update: Update, context: ContextTypes.DEFAULT_TYPE)
         context.user_data['waiting_reward_amount'] = None
         return
     
-    # إعلان متحرك - ملف
+    # إعلان متحرك - انتظار الملف
     if context.user_data.get('waiting_broadcast_media'):
         if update.message.animation or update.message.document or update.message.sticker or update.message.video:
             context.user_data['broadcast_media'] = update.message
@@ -787,10 +899,10 @@ async def handle_owner_input(update: Update, context: ContextTypes.DEFAULT_TYPE)
             context.user_data['waiting_broadcast_text'] = True
             context.user_data['waiting_broadcast_media'] = False
         else:
-            await update.message.reply_text("❌ أرسل ملف متحرك")
+            await update.message.reply_text("❌ أرسل ملف متحرك (GIF، ملصق، فيديو)")
         return
     
-    # إعلان متحرك - نص
+    # إعلان متحرك - انتظار النص
     if context.user_data.get('waiting_broadcast_text'):
         media_msg = context.user_data.get('broadcast_media')
         caption = f"📢 إعــــلان\n\n{text}\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n👮 صادر عن: المالك\n🕐 {time.strftime('%Y-%m-%d %H:%M')}"
@@ -803,9 +915,9 @@ async def handle_owner_input(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 await context.bot.send_message(GROUP_ID, caption)
             elif media_msg.video:
                 await context.bot.send_video(GROUP_ID, media_msg.video.file_id, caption=caption)
-            await update.message.reply_text("✅ تم الإرسال")
+            await update.message.reply_text("✅ تم إرسال الإعلان المتحرك")
         except Exception as e:
-            await update.message.reply_text(f"❌ فشل: {e}")
+            await update.message.reply_text(f"❌ فشل الإرسال: {e}")
         
         context.user_data['broadcast_media'] = None
         context.user_data['waiting_broadcast_text'] = False
