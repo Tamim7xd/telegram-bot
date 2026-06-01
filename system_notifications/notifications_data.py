@@ -1,3 +1,4 @@
+
 NOTIFICATION_CONFIG = {
     "timeout": 5,
     "border": "═",
@@ -34,4 +35,11 @@ def build_warning_notification(user_name, reason, warnings_count, admin_name):
 
 👮 {admin_name}"""
 
-def
+def build_mute_notification(user_name, duration, reason, admin_name):
+    return f"""🔇 **كتم**
+
+👤 {user_name}
+⏱️ {duration}
+📝 {reason}
+
+👮 {admin_name}"""
