@@ -22,7 +22,7 @@ async def admin_panel_command(update: Update, context: ContextTypes.DEFAULT_TYPE
         [InlineKeyboardButton("🔍 ابحث", callback_data="admin_search")],
         [InlineKeyboardButton("🔙 إغلاق", callback_data="admin_close")]
     ]
-    await update.message.reply_text("👑 **لوحة التحكم الإدارية**", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
+    await update.message.reply_text("👑 لوحة التحكم الإدارية", reply_markup=InlineKeyboardMarkup(keyboard))
 
 async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -56,13 +56,13 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             status = "مكتوم" if o["is_muted"] else ("محظور" if o["is_banned"] else f"منذر ({o['warnings']})")
             keyboard.append([InlineKeyboardButton(f"{name} - {status}", callback_data=f"admin_user_{o['user_id']}")])
         keyboard.append([InlineKeyboardButton("🔙 رجوع", callback_data="admin_back")])
-        await query.edit_message_text("📋 **المخالفين:**", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
+        await query.edit_message_text("📋 المخالفين:", reply_markup=InlineKeyboardMarkup(keyboard))
         return
     
     if data.startswith("admin_user_"):
         target_id = int(data.split("_")[2])
         keyboard = [[InlineKeyboardButton("🔓 فك العقوبة", callback_data=f"admin_unpunish_{target_id}")], [InlineKeyboardButton("🔙 رجوع", callback_data="admin_search")]]
-        await query.edit_message_text("👤 **المستخدم**\n\nهل تريد فك العقوبة؟", reply_markup=InlineKeyboardMarkup(keyboard))
+        await query.edit_message_text("👤 المستخدم\n\nهل تريد فك العقوبة؟", reply_markup=InlineKeyboardMarkup(keyboard))
         return
     
     if data.startswith("admin_unpunish_"):
@@ -87,4 +87,4 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         count = cursor.fetchone()[0]
         conn.close()
         keyboard = [[InlineKeyboardButton(f"👥 عدد المخالفين: {count}", callback_data="admin_none")], [InlineKeyboardButton("🔍 ابحث", callback_data="admin_search")], [InlineKeyboardButton("🔙 إغلاق", callback_data="admin_close")]]
-        await query.edit_message_text("👑 **لوحة التحكم الإدارية**", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
+        await query.edit_message_text("👑 لوحة التحكم الإدارية", reply_markup=InlineKeyboardMarkup(keyboard))
