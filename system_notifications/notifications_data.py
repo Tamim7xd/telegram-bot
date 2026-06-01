@@ -1,7 +1,5 @@
-# كل إشعارات البوت في مكان واحد
-
 NOTIFICATION_CONFIG = {
-    "timeout": 3,
+    "timeout": 5,
     "border": "═",
     "icons": {
         "warning": "⚠️",
@@ -9,42 +7,31 @@ NOTIFICATION_CONFIG = {
         "ban": "🚫",
         "kick": "👢",
         "reward": "🎁",
+        "unmute": "🔓",
+        "unban": "🔓",
         "success": "✅",
         "error": "❌",
         "info": "📢",
+        "backup": "💾",
+        "game": "🎮",
+        "shop": "🛒",
     }
 }
 
-def build_mute_notification(user_name, duration, reason, admin_name):
-    return f"""🔇 **كتم**
+def build_notification(title, icon, content, admin_name):
+    return f"""{icon} **{title}**
 
-👤 العضو: {user_name}
-⏱️ المدة: {duration}
-📝 السبب: {reason}
-
-👮 بواسطة: {admin_name}"""
-
-def build_ban_notification(user_name, reason, admin_name):
-    return f"""🚫 **حظر**
-
-👤 العضو: {user_name}
-📝 السبب: {reason}
+{content}
 
 👮 بواسطة: {admin_name}"""
 
 def build_warning_notification(user_name, reason, warnings_count, admin_name):
     return f"""⚠️ **تحذير**
 
-👤 العضو: {user_name}
-📝 السبب: {reason}
-🔢 عدد التحذيرات: {warnings_count}
+👤 {user_name}
+📝 {reason}
+🔢 {warnings_count}
 
-👮 بواسطة: {admin_name}"""
+👮 {admin_name}"""
 
-def build_reward_notification(user_name, amount, admin_name):
-    return f"""🎁 **مكافأة**
-
-👤 العضو: {user_name}
-💰 المبلغ: {amount} عملة
-
-👮 بواسطة: {admin_name}"""
+def
