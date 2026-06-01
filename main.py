@@ -2,7 +2,8 @@ import logging
 import threading
 import time
 import asyncio
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters
+from telegram import Update
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
 from config import BOT_TOKEN
 from shared.database import init_db
 
@@ -18,7 +19,7 @@ from system_backup.backup_handler import create_backup
 
 logging.basicConfig(level=logging.INFO)
 
-async def start(update, context):
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     username = update.effective_user.username or "لا يوجد"
     first_name = update.effective_user.first_name or "مستخدم"
@@ -54,27 +55,36 @@ async def start(update, context):
         parse_mode="Markdown"
     )
 
-async def handle_message(update, context):
+async def handle_all_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """معالج جميع الرسائل"""
     user_id = update.effective_user.id
     text = update.message.text.strip()
     
+    print(f"Received: {text}")  # للتصحيح
+    
     # ========== الأوامر العربية ==========
-    if text in ["#ملف", "#ملفي", "#الملف", "#معلومات", "#معلوماتي", "#المعلومات"]:
+    
+    # أوامر الملف الشخصي
+    if text == "#ملف" or text == "#ملفي" or text == "#الملف" or text == "#معلومات" or text == "#معلوماتي" or text == "#المعلومات":
         await profile_command(update, context)
         return
     
-    if text in ["#لعبة", "#العاب", "#لعب", "#العب"]:
+    # أوامر الألعاب
+    if text == "#لعبة" or text == "#العاب" or text == "#لعب" or text == "#العب":
         await game_command(update, context)
         return
     
-    if text in ["#سوق", "#محل", "#شراء", "#اشتري", "#اسواق", "#المتجر"]:
+    # أوامر السوق
+    if text == "#سوق" or text == "#محل" or text == "#شراء" or text == "#اشتري" or text == "#اسواق" or text == "#المتجر":
         await shop_command(update, context)
         return
     
-    if text in ["#يومي", "#مكافأةيومية", "#يومية"]:
+    # المكافأة اليومية
+    if text == "#يومي" or text == "#مكافأةيومية" or text == "#يومية":
         await daily_reward_command(update, context)
         return
     
+    # التحذير
     if text.startswith("#تحذير"):
         parts = text.split(maxsplit=1)
         reason = parts[1] if len(parts) > 1 else "لا يوجد سبب"
@@ -82,6 +92,7 @@ async def handle_message(update, context):
         await warning_command(update, context)
         return
     
+    # كتم
     if text.startswith("#كتم"):
         parts = text.split(maxsplit=2)
         if len(parts) >= 2:
@@ -93,6 +104,7 @@ async def handle_message(update, context):
         await mute_command(update, context)
         return
     
+    # حظر
     if text.startswith("#حظر"):
         parts = text.split(maxsplit=1)
         reason = parts[1] if len(parts) > 1 else "لا يوجد سبب"
@@ -100,6 +112,7 @@ async def handle_message(update, context):
         await ban_command(update, context)
         return
     
+    # طرد
     if text.startswith("#طرد"):
         parts = text.split(maxsplit=1)
         reason = parts[1] if len(parts) > 1 else "لا يوجد سبب"
@@ -107,6 +120,7 @@ async def handle_message(update, context):
         await kick_command(update, context)
         return
     
+    # خصم
     if text.startswith("#خصم"):
         parts = text.split(maxsplit=2)
         if len(parts) >= 2:
@@ -118,6 +132,7 @@ async def handle_message(update, context):
         await add_balance_command(update, context)
         return
     
+    # مكافأة
     if text.startswith("#مكافأة"):
         parts = text.split(maxsplit=2)
         if len(parts) >= 2:
@@ -129,11 +144,13 @@ async def handle_message(update, context):
         await remove_balance_command(update, context)
         return
     
-    if text in ["#مشرف", "#ادمن", "#الادمن"]:
+    # لوحة المشرفين
+    if text == "#مشرف" or text == "#ادمن" or text == "#الادمن":
         await admin_panel_command(update, context)
         return
     
-    if text == "#مالك":
+    # لوحة المالك
+    if text == "#مالك" or text == "#المالك":
         await owner_panel_command(update, context)
         return
     
@@ -149,9 +166,6 @@ async def handle_message(update, context):
     if context.user_data.get('waiting_add_admin') or \
        context.user_data.get('waiting_add_super') or \
        context.user_data.get('waiting_remove_admin') or \
-       context.user_data.get('waiting_broadcast') or \
-       context.user_data.get('waiting_broadcast_media') or \
-       context.user_data.get('waiting_broadcast_text') or \
        context.user_data.get('waiting_shop_name') or \
        context.user_data.get('waiting_shop_price') or \
        context.user_data.get('waiting_edit_name') or \
@@ -160,7 +174,9 @@ async def handle_message(update, context):
        context.user_data.get('waiting_set_max_warnings') or \
        context.user_data.get('waiting_warn_reason') or \
        context.user_data.get('waiting_deduct_amount') or \
-       context.user_data.get('waiting_reward_amount'):
+       context.user_data.get('waiting_reward_amount') or \
+       context.user_data.get('waiting_broadcast_media') or \
+       context.user_data.get('waiting_broadcast_text'):
         await handle_owner_input(update, context)
         return
 
@@ -182,7 +198,6 @@ async def post_init(app):
 def main():
     init_db()
     
-    # بناء التطبيق مع تجاهل التحديثات المعلقة
     app = Application.builder().token(BOT_TOKEN).post_init(post_init).build()
     
     # أوامر إنجليزية
@@ -206,16 +221,14 @@ def main():
     app.add_handler(CallbackQueryHandler(admin_callback, pattern="^admin_"))
     app.add_handler(CallbackQueryHandler(owner_callback, pattern="^owner_"))
     
-    # معالج الرسائل (جميع الرسائل)
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    # معالج جميع الرسائل
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_all_messages))
     
     # النسخ الاحتياطي
     backup = threading.Thread(target=backup_thread, args=(app.bot,), daemon=True)
     backup.start()
     
     print("✅ البوت شغال...")
-    
-    # تشغيل البوت مع تجاهل التحديثات المعلقة
     app.run_polling(drop_pending_updates=True)
 
 if __name__ == "__main__":
