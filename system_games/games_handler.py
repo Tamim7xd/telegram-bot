@@ -10,7 +10,7 @@ async def game_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [[InlineKeyboardButton(g["name"], callback_data=f"game_{g['callback']}")] for g in GAMES_MENU]
     keyboard.append([InlineKeyboardButton("🔙 إغلاق", callback_data="game_close")])
     
-    await update.message.reply_text("🎮 **اختر لعبتك:**", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
+    await update.message.reply_text("🎮 اختر لعبتك:", reply_markup=InlineKeyboardMarkup(keyboard))
 
 async def game_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -115,7 +115,7 @@ async def game_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == "game_back":
         keyboard = [[InlineKeyboardButton(g["name"], callback_data=f"game_{g['callback']}")] for g in GAMES_MENU]
         keyboard.append([InlineKeyboardButton("🔙 إغلاق", callback_data="game_close")])
-        await query.edit_message_text("🎮 **اختر لعبتك:**", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
+        await query.edit_message_text("🎮 اختر لعبتك:", reply_markup=InlineKeyboardMarkup(keyboard))
 
 async def handle_game_answer(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
