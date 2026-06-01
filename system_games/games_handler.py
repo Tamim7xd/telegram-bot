@@ -1,10 +1,12 @@
 import random
+import time
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes
 from shared.database import get_db
-from shared.text_normalizer import normalize_text, is_correct_answer
+from shared.text_normalizer import is_correct
+from shared.message_builder import send_and_delete
 from .games_data import (
-    GAMES_MENU, GAME_REWARD, QUESTIONS, REVERSE_WORDS, 
+    GAMES_MENU, GAME_REWARD, QUESTIONS, REVERSE_WORDS,
     LUCKY_NUMBER_CONFIG, LUCKY_BOX_CONFIG
 )
 
@@ -32,7 +34,7 @@ async def game_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == "game_guess_number":
         number = random.randint(1, 100)
         context.user_data['guess_number'] = number
-        await query.edit_message_text(f"🔢 خمن الرقم بين 1 و 100\n(أكتب رقمك في الرد على هذه الرسالة)")
+        await query.edit_message_text(f"🔢 خمن الرقم بين 1 و 100\n(أكتب رقمك في الرد)")
         context.user_data['waiting_guess'] = True
     
     elif data == "game_rps":
@@ -63,32 +65,30 @@ async def game_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if reward > 0:
             conn = get_db()
             conn.execute("UPDATE users SET balance = balance + ? WHERE user_id = ?", (reward, user_id))
-            conn.execute("UPDATE users SET messages = messages + 1 WHERE user_id = ?", (user_id,))
             conn.commit()
             conn.close()
         
-        await query.edit_message_text(f"أنت: {user_choice}\nالبوت: {bot_choice}\n\n{result}\n💰 {reward} عملة")
+        await query.edit_message_text(f"أنت: {user_choice}\nالبوت: {bot_choice}\n\n{result}\n💰 +{reward} عملة")
     
     elif data == "game_questions":
         q = random.choice(QUESTIONS)
         context.user_data['current_question'] = q
-        await query.edit_message_text(f"❓ {q['q']}\n\n(أكتب إجابتك في الرد على هذه الرسالة)")
+        await query.edit_message_text(f"❓ {q['q']}\n\n(أكتب إجابتك في الرد)")
         context.user_data['waiting_question'] = True
     
     elif data == "game_reverse_words":
         word = random.choice(REVERSE_WORDS)
         context.user_data['current_reverse'] = word
-        await query.edit_message_text(f"🔄 اكتب الكلمة بشكل معكوس:\n{word['word']}\n\n(أكتب إجابتك في الرد على هذه الرسالة)")
+        await query.edit_message_text(f"🔄 اكتب الكلمة بشكل معكوس:\n{word['word']}\n\n(أكتب إجابتك في الرد)")
         context.user_data['waiting_reverse'] = True
     
     elif data == "game_lucky_number":
         num = random.randint(1, 10)
-        await query.edit_message_text(f"🎲 اختر رقم حظك من 1 إلى 10\n(أكتب رقمك في الرد على هذه الرسالة)")
+        await query.edit_message_text(f"🎲 اختر رقم حظك من 1 إلى 10\n(أكتب رقمك في الرد)")
         context.user_data['waiting_lucky'] = True
         context.user_data['lucky_number'] = num
     
     elif data == "game_lucky_box":
-        import time
         last_box = context.user_data.get('last_lucky_box', 0)
         box_count = context.user_data.get('lucky_box_count', 0)
         today = time.strftime("%Y-%m-%d")
@@ -100,11 +100,11 @@ async def game_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         if time.time() - last_box < LUCKY_BOX_CONFIG["cooldown_minutes"] * 60:
             remaining = int(LUCKY_BOX_CONFIG["cooldown_minutes"] * 60 - (time.time() - last_box))
-            await query.edit_message_text(f"⏳ يجب الانتظار {remaining//60} دقائق و {remaining%60} ثواني بين كل محاولة")
+            await query.edit_message_text(f"⏳ انتظر {remaining//60} دقيقة و {remaining%60} ثانية")
             return
         
         if box_count >= LUCKY_BOX_CONFIG["max_per_day"]:
-            await query.edit_message_text("😭 لقد وصلت للحد الأقصى اليومي (10 محاولات)")
+            await query.edit_message_text("😭 وصلت للحد الأقصى اليومي (10 محاولات)")
             return
         
         rand = random.randint(1, 100)
@@ -154,12 +154,12 @@ async def handle_game_answer(update: Update, context: ContextTypes.DEFAULT_TYPE)
             else:
                 await update.message.reply_text(f"❌ خطأ! الرقم كان {number}")
         except:
-            await update.message.reply_text("❌ يرجى إرسال رقم صحيح")
+            await update.message.reply_text("❌ أرسل رقماً صحيحاً")
         context.user_data['waiting_guess'] = False
     
     elif context.user_data.get('waiting_question'):
         q = context.user_data.get('current_question')
-        if q and is_correct_answer(message_text, q['a']):
+        if q and is_correct(message_text, q['a']):
             reward = GAME_REWARD
             conn = get_db()
             conn.execute("UPDATE users SET balance = balance + ? WHERE user_id = ?", (reward, user_id))
@@ -168,12 +168,12 @@ async def handle_game_answer(update: Update, context: ContextTypes.DEFAULT_TYPE)
             conn.close()
             await update.message.reply_text(f"✅ إجابة صحيحة!\n💰 +{reward} عملة")
         else:
-            await update.message.reply_text(f"❌ إجابة خاطئة! الإجابة الصحيحة: {q['a']}")
+            await update.message.reply_text(f"❌ خطأ! الإجابة الصحيحة: {q['a']}")
         context.user_data['waiting_question'] = False
     
     elif context.user_data.get('waiting_reverse'):
         word = context.user_data.get('current_reverse')
-        if word and is_correct_answer(message_text, word['reverse']):
+        if word and is_correct(message_text, word['reverse']):
             reward = GAME_REWARD
             conn = get_db()
             conn.execute("UPDATE users SET balance = balance + ? WHERE user_id = ?", (reward, user_id))
@@ -200,5 +200,5 @@ async def handle_game_answer(update: Update, context: ContextTypes.DEFAULT_TYPE)
             else:
                 await update.message.reply_text(f"❌ خسرت! رقم الحظ كان {number}")
         except:
-            await update.message.reply_text("❌ يرجى إرسال رقم صحيح")
+            await update.message.reply_text("❌ أرسل رقماً صحيحاً")
         context.user_data['waiting_lucky'] = False
