@@ -1,7 +1,7 @@
 import time
 import asyncio
 import telegram
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes
 from shared.database import get_db
 from shared.permissions import is_owner, is_admin, add_admin, remove_admin, get_all_admins
@@ -16,8 +16,6 @@ TITLES = {
     4: {"name": "VIP 💎", "price": 10000},
     5: {"name": "أسطوري 🔥", "price": 20000},
 }
-
-# ==================== الأوامر الرئيسية ====================
 
 async def owner_panel_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -36,9 +34,7 @@ async def owner_panel_command(update: Update, context: ContextTypes.DEFAULT_TYPE
         [InlineKeyboardButton("👤 الأعضاء", callback_data="owner_users")],
         [InlineKeyboardButton("🔙 إغلاق", callback_data="owner_close")]
     ]
-    await update.message.reply_text("👑 **لوحة المالك**\n\nاختر الإجراء:", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
-
-# ==================== معالج الأزرار الرئيسية ====================
+    await update.message.reply_text("👑 لوحة المالك\n\nاختر الإجراء:", reply_markup=InlineKeyboardMarkup(keyboard))
 
 async def owner_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -56,7 +52,7 @@ async def owner_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text("🔚 تم إغلاق لوحة المالك")
         return
     
-    # ========== 1. إدارة المشرفين ==========
+    # ========== إدارة المشرفين ==========
     if data == "owner_admins":
         await show_admins_panel(update, context, query)
         return
@@ -97,7 +93,7 @@ async def owner_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await show_admins_panel(update, context, query)
         return
     
-    # ========== 2. إدارة السوق ==========
+    # ========== إدارة السوق ==========
     if data == "owner_shop":
         await show_shop_panel(update, context, query)
         return
@@ -149,7 +145,7 @@ async def owner_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await show_shop_panel(update, context, query)
         return
     
-    # ========== 3. إدارة التحذيرات ==========
+    # ========== إدارة التحذيرات ==========
     if data == "owner_warnings":
         await show_warnings_panel(update, context, query)
         return
@@ -172,7 +168,7 @@ async def owner_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         conn.commit()
         conn.close()
         await query.edit_message_text(f"✅ تم إضافة تحذير\n👤 {user['first_name']}\n⚠️ العدد: {user['warnings']}")
-        await context.bot.send_message(GROUP_ID, f"⚠️ **تحذير**\n\n👤 {user['first_name']}\n🔢 {user['warnings']}\n\n👮 بواسطة: المالك", parse_mode="Markdown")
+        await context.bot.send_message(GROUP_ID, f"⚠️ تحذير\n\n👤 {user['first_name']}\n🔢 {user['warnings']}\n\n👮 بواسطة: المالك")
         await asyncio.sleep(2)
         await show_warnings_panel(update, context, query)
         return
@@ -210,10 +206,10 @@ async def owner_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     if data == "warn_settings":
         keyboard = [[InlineKeyboardButton("🔙 رجوع", callback_data="owner_back")]]
-        await query.edit_message_text(f"⚙️ **إعدادات التحذيرات**\n\nالحد الأقصى: {MAX_WARNINGS}", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
+        await query.edit_message_text(f"⚙️ إعدادات التحذيرات\n\nالحد الأقصى: {MAX_WARNINGS}", reply_markup=InlineKeyboardMarkup(keyboard))
         return
     
-    # ========== 4. عمليات جماعية ==========
+    # ========== عمليات جماعية ==========
     if data == "owner_bulk":
         await show_bulk_panel(update, context, query)
         return
@@ -271,13 +267,13 @@ async def owner_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await show_bulk_panel(update, context, query)
         return
     
-    # ========== 5. إعلان متحرك ==========
+    # ========== إعلان متحرك ==========
     if data == "owner_broadcast":
         keyboard = [
             [InlineKeyboardButton("📤 إرسال ملصق/صورة متحركة", callback_data="broadcast_media")],
             [InlineKeyboardButton("🔙 رجوع", callback_data="owner_back")]
         ]
-        await query.edit_message_text("🎬 **إعلان متحرك**", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
+        await query.edit_message_text("🎬 إعلان متحرك", reply_markup=InlineKeyboardMarkup(keyboard))
         return
     
     if data == "broadcast_media":
@@ -285,7 +281,7 @@ async def owner_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data['waiting_broadcast_media'] = True
         return
     
-    # ========== 6. السجلات ==========
+    # ========== السجلات ==========
     if data == "owner_logs":
         conn = get_db()
         cursor = conn.execute("SELECT * FROM logs ORDER BY timestamp DESC LIMIT 30")
@@ -293,18 +289,18 @@ async def owner_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         conn.close()
         
         if not logs:
-            await query.edit_message_text("📊 **السجلات**\n\nلا توجد سجلات حالياً", parse_mode="Markdown")
+            await query.edit_message_text("📊 السجلات\n\nلا توجد سجلات حالياً")
             return
         
-        text = "📊 **آخر 30 عملية:**\n\n"
+        text = "📊 آخر 30 عملية:\n\n"
         for log in logs:
             text += f"• {log['action']} - {log['target_name'] or log['target_id']}\n   👮 {log['admin_name']} - 🕐 {time.strftime('%Y-%m-%d %H:%M', time.localtime(log['timestamp']))}\n\n"
         
         keyboard = [[InlineKeyboardButton("🔙 رجوع", callback_data="owner_back")]]
-        await query.edit_message_text(text[:4000], reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
+        await query.edit_message_text(text[:4000], reply_markup=InlineKeyboardMarkup(keyboard))
         return
     
-    # ========== 7. الأعضاء ==========
+    # ========== الأعضاء ==========
     if data == "owner_users":
         await show_users_list(update, context, query, 0)
         return
@@ -350,14 +346,14 @@ async def owner_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [InlineKeyboardButton("👤 الأعضاء", callback_data="owner_users")],
             [InlineKeyboardButton("🔙 إغلاق", callback_data="owner_close")]
         ]
-        await query.edit_message_text("👑 **لوحة المالك**\n\nاختر الإجراء:", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
+        await query.edit_message_text("👑 لوحة المالك\n\nاختر الإجراء:", reply_markup=InlineKeyboardMarkup(keyboard))
 
 # ==================== دوال المساعدة ====================
 
 async def show_admins_panel(update, context, query):
     admins = get_all_admins()
     
-    text = "📋 **قائمة المشرفين:**\n\n"
+    text = "📋 قائمة المشرفين:\n\n"
     for a in admins:
         role = "👑 مشرف إداري" if a["is_super_admin"] else "🛡️ مشرف عادي"
         text += f"• {a['username'] or a['user_id']} - {role}\n"
@@ -371,7 +367,7 @@ async def show_admins_panel(update, context, query):
         name = a["username"] or str(a["user_id"])
         keyboard.insert(-1, [InlineKeyboardButton(f"➖ إزالة {name}", callback_data=f"admin_remove_{a['user_id']}")])
     
-    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
+    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
 
 async def show_users_for_admin(update, context, query, page):
     users_per_page = 10
@@ -385,7 +381,7 @@ async def show_users_for_admin(update, context, query, page):
     total = cursor.fetchone()[0]
     conn.close()
     
-    text = f"👥 **اختر عضواً** (الصفحة {page + 1})\n\n"
+    text = f"👥 اختر عضواً (الصفحة {page + 1})\n\n"
     keyboard = []
     
     for u in users:
@@ -401,7 +397,7 @@ async def show_users_for_admin(update, context, query, page):
         keyboard.append(nav)
     
     keyboard.append([InlineKeyboardButton("🔙 رجوع", callback_data="owner_admins")])
-    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
+    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
 
 async def show_admin_type_select(update, context, query, target_id):
     conn = get_db()
@@ -416,7 +412,7 @@ async def show_admin_type_select(update, context, query, target_id):
         [InlineKeyboardButton("👑 مشرف إداري", callback_data=f"admin_set_{target_id}_super")],
         [InlineKeyboardButton("🔙 رجوع", callback_data="owner_admins")]
     ]
-    await query.edit_message_text(f"👤 **{name}**\n\nاختر نوع المشرف:", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
+    await query.edit_message_text(f"👤 {name}\n\nاختر نوع المشرف:", reply_markup=InlineKeyboardMarkup(keyboard))
 
 async def show_shop_panel(update, context, query):
     keyboard = [
@@ -426,28 +422,28 @@ async def show_shop_panel(update, context, query):
         [InlineKeyboardButton("🗑 حذف لقب", callback_data="shop_delete")],
         [InlineKeyboardButton("🔙 رجوع", callback_data="owner_back")]
     ]
-    await query.edit_message_text("🛒 **إدارة السوق**", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
+    await query.edit_message_text("🛒 إدارة السوق", reply_markup=InlineKeyboardMarkup(keyboard))
 
 async def show_shop_items(update, context, query):
-    text = "🏷️ **الألقاب الحالية:**\n\n"
+    text = "🏷️ الألقاب الحالية:\n\n"
     for tid, title in TITLES.items():
         text += f"{tid}. {title['name']} - {title['price']} 🪙\n"
     keyboard = [[InlineKeyboardButton("🔙 رجوع", callback_data="owner_shop")]]
-    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
+    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
 
 async def show_shop_edit_list(update, context, query):
     keyboard = []
     for tid, title in TITLES.items():
         keyboard.append([InlineKeyboardButton(title['name'], callback_data=f"shop_edit_title_{tid}")])
     keyboard.append([InlineKeyboardButton("🔙 رجوع", callback_data="owner_shop")])
-    await query.edit_message_text("✏️ **اختر اللقب لتعديله:**", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
+    await query.edit_message_text("✏️ اختر اللقب لتعديله:", reply_markup=InlineKeyboardMarkup(keyboard))
 
 async def show_shop_delete_list(update, context, query):
     keyboard = []
     for tid, title in TITLES.items():
         keyboard.append([InlineKeyboardButton(title['name'], callback_data=f"shop_delete_title_{tid}")])
     keyboard.append([InlineKeyboardButton("🔙 رجوع", callback_data="owner_shop")])
-    await query.edit_message_text("🗑 **اختر اللقب للحذف:**", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
+    await query.edit_message_text("🗑 اختر اللقب للحذف:", reply_markup=InlineKeyboardMarkup(keyboard))
 
 async def show_warnings_panel(update, context, query):
     keyboard = [
@@ -457,7 +453,7 @@ async def show_warnings_panel(update, context, query):
         [InlineKeyboardButton("🗑 حذف كل التحذيرات", callback_data="bulk_clear_warns")],
         [InlineKeyboardButton("🔙 رجوع", callback_data="owner_back")]
     ]
-    await query.edit_message_text("⚠️ **إدارة التحذيرات**", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
+    await query.edit_message_text("⚠️ إدارة التحذيرات", reply_markup=InlineKeyboardMarkup(keyboard))
 
 async def show_warnings_list(update, context, query):
     conn = get_db()
@@ -474,7 +470,7 @@ async def show_warnings_list(update, context, query):
         name = w["first_name"] or w["username"] or str(w["user_id"])
         keyboard.append([InlineKeyboardButton(f"{name} - {w['warnings']}", callback_data=f"warn_user_{w['user_id']}")])
     keyboard.append([InlineKeyboardButton("🔙 رجوع", callback_data="owner_warnings")])
-    await query.edit_message_text("⚠️ **قائمة المنذرين:**", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
+    await query.edit_message_text("⚠️ قائمة المنذرين:", reply_markup=InlineKeyboardMarkup(keyboard))
 
 async def show_user_warnings(update, context, query, target_id):
     conn = get_db()
@@ -491,7 +487,7 @@ async def show_user_warnings(update, context, query, target_id):
         [InlineKeyboardButton("🗑 حذف الكل", callback_data=f"warn_clear_{target_id}")],
         [InlineKeyboardButton("🔙 رجوع", callback_data="warnings_list")]
     ]
-    await query.edit_message_text(f"👤 **{name}**\n⚠️ التحذيرات: {warnings}", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
+    await query.edit_message_text(f"👤 {name}\n⚠️ التحذيرات: {warnings}", reply_markup=InlineKeyboardMarkup(keyboard))
 
 async def show_bulk_panel(update, context, query):
     keyboard = [
@@ -501,7 +497,7 @@ async def show_bulk_panel(update, context, query):
         [InlineKeyboardButton("💰 إعادة ضبط الاقتصاد", callback_data="bulk_reset_economy")],
         [InlineKeyboardButton("🔙 رجوع", callback_data="owner_back")]
     ]
-    await query.edit_message_text("🧹 **العمليات الجماعية**\n⚠️ لا يمكن التراجع عنها", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
+    await query.edit_message_text("🧹 العمليات الجماعية\n⚠️ لا يمكن التراجع عنها", reply_markup=InlineKeyboardMarkup(keyboard))
 
 async def show_users_list(update, context, query, page):
     users_per_page = 10
@@ -519,7 +515,7 @@ async def show_users_list(update, context, query, page):
         await query.edit_message_text("❌ لا يوجد أعضاء")
         return
     
-    text = f"👥 **قائمة الأعضاء** (الصفحة {page + 1})\n\n"
+    text = f"👥 قائمة الأعضاء (الصفحة {page + 1})\n\n"
     keyboard = []
     
     for u in users:
@@ -535,7 +531,7 @@ async def show_users_list(update, context, query, page):
         keyboard.append(nav)
     
     keyboard.append([InlineKeyboardButton("🔙 رجوع", callback_data="owner_back")])
-    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
+    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
 
 async def show_user_details(update, context, query, target_id):
     conn = get_db()
@@ -551,7 +547,7 @@ async def show_user_details(update, context, query, target_id):
     title_text = f"🏆 {user['title']}" if user['title'] else ""
     
     text = f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-    text += f"👤 **{name}**\n"
+    text += f"👤 {name}\n"
     text += f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
     text += f"💰 الرصيد: {user['balance']} 🪙\n"
     text += f"⚠️ التحذيرات: {user['warnings']}\n"
@@ -559,7 +555,7 @@ async def show_user_details(update, context, query, target_id):
     text += f"🎖️ المستوى: {user['level']}\n"
     text += f"{title_text}\n\n"
     text += f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-    text += f"🔧 **الإجراءات:**\n"
+    text += f"🔧 الإجراءات:\n"
     
     keyboard = [
         [InlineKeyboardButton("🔇 كتم", callback_data=f"user_action_mute_{target_id}"), InlineKeyboardButton("🔓 فك كتم", callback_data=f"user_action_unmute_{target_id}")],
@@ -569,7 +565,7 @@ async def show_user_details(update, context, query, target_id):
         [InlineKeyboardButton("📜 سجل العمليات", callback_data=f"user_logs_{target_id}")],
         [InlineKeyboardButton("🔙 رجوع", callback_data="owner_users")]
     ]
-    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
+    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
 
 async def execute_user_action(update, context, query, target_id, action):
     admin_name = update.effective_user.first_name
@@ -589,7 +585,7 @@ async def execute_user_action(update, context, query, target_id, action):
     elif action == "unmute":
         await unmute_user(context, target_id)
         await query.edit_message_text(f"✅ تم فك الكتم عن {target_name}")
-        await context.bot.send_message(GROUP_ID, f"🔓 **فك كتم**\n\n👤 {target_name}\n\n👮 بواسطة: {admin_name}", parse_mode="Markdown")
+        await context.bot.send_message(GROUP_ID, f"🔓 فك كتم\n\n👤 {target_name}\n\n👮 بواسطة: {admin_name}")
     
     elif action == "ban":
         await query.edit_message_text(f"🚫 أرسل سبب حظر {target_name}:")
@@ -606,7 +602,7 @@ async def execute_user_action(update, context, query, target_id, action):
         conn.commit()
         conn.close()
         await query.edit_message_text(f"✅ تم فك الحظر عن {target_name}")
-        await context.bot.send_message(GROUP_ID, f"🔓 **فك حظر**\n\n👤 {target_name}\n\n👮 بواسطة: {admin_name}", parse_mode="Markdown")
+        await context.bot.send_message(GROUP_ID, f"🔓 فك حظر\n\n👤 {target_name}\n\n👮 بواسطة: {admin_name}")
     
     elif action == "warn":
         await query.edit_message_text(f"⚠️ أرسل سبب تحذير {target_name}:")
@@ -651,7 +647,7 @@ async def show_user_logs(update, context, query, target_id, page):
         await query.edit_message_text("📜 لا توجد سجلات لهذا العضو")
         return
     
-    text = f"📜 **سجل العمليات** (الصفحة {page + 1})\n\n"
+    text = f"📜 سجل العمليات (الصفحة {page + 1})\n\n"
     for log in logs:
         text += f"• {log['action']} - {log['reason']}\n"
         text += f"  👮 {log['admin_name']} - 🕐 {time.strftime('%Y-%m-%d %H:%M', time.localtime(log['timestamp']))}\n\n"
@@ -666,12 +662,11 @@ async def show_user_logs(update, context, query, target_id, page):
         keyboard.append(nav)
     
     keyboard.append([InlineKeyboardButton("🔙 رجوع", callback_data=f"user_actions_{target_id}")])
-    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
+    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
 
 # ==================== معالج الإدخالات ====================
 
 async def handle_owner_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """معالج الإدخالات النصية من المالك"""
     user_id = update.effective_user.id
     
     if not is_owner(user_id):
@@ -729,7 +724,7 @@ async def handle_owner_input(update: Update, context: ContextTypes.DEFAULT_TYPE)
     
     # تحذير للجميع
     if context.user_data.get('waiting_warn_all'):
-        await context.bot.send_message(GROUP_ID, f"⚠️ **تحذير عام**\n\n📝 {text}\n\n👮 صادر عن: المالك", parse_mode="Markdown")
+        await context.bot.send_message(GROUP_ID, f"⚠️ تحذير عام\n\n📝 {text}\n\n👮 صادر عن: المالك")
         await update.message.reply_text("✅ تم الإرسال")
         context.user_data['waiting_warn_all'] = False
         return
@@ -743,7 +738,7 @@ async def handle_owner_input(update: Update, context: ContextTypes.DEFAULT_TYPE)
         user = cursor.fetchone()
         conn.commit()
         conn.close()
-        await context.bot.send_message(GROUP_ID, f"⚠️ **تحذير**\n\n👤 {user['first_name']}\n📝 {text}\n🔢 {user['warnings']}\n\n👮 بواسطة: المالك", parse_mode="Markdown")
+        await context.bot.send_message(GROUP_ID, f"⚠️ تحذير\n\n👤 {user['first_name']}\n📝 {text}\n🔢 {user['warnings']}\n\n👮 بواسطة: المالك")
         await update.message.reply_text(f"✅ تم الإضافة\n⚠️ العدد: {user['warnings']}")
         context.user_data['waiting_warn_reason'] = None
         return
@@ -759,7 +754,7 @@ async def handle_owner_input(update: Update, context: ContextTypes.DEFAULT_TYPE)
             user = cursor.fetchone()
             conn.commit()
             conn.close()
-            await context.bot.send_message(GROUP_ID, f"💰 **خصم**\n\n👤 {user['first_name']}\n💰 -{amount} عملة\n💵 الرصيد الجديد: {user['balance']}\n\n👮 بواسطة: المالك", parse_mode="Markdown")
+            await context.bot.send_message(GROUP_ID, f"💰 خصم\n\n👤 {user['first_name']}\n💰 -{amount} عملة\n💵 الرصيد الجديد: {user['balance']}\n\n👮 بواسطة: المالك")
             await update.message.reply_text(f"✅ تم خصم {amount}")
         except:
             await update.message.reply_text("❌ خطأ")
@@ -777,7 +772,7 @@ async def handle_owner_input(update: Update, context: ContextTypes.DEFAULT_TYPE)
             user = cursor.fetchone()
             conn.commit()
             conn.close()
-            await context.bot.send_message(GROUP_ID, f"🎁 **مكافأة**\n\n👤 {user['first_name']}\n💰 +{amount} عملة\n💵 الرصيد الجديد: {user['balance']}\n\n👮 بواسطة: المالك", parse_mode="Markdown")
+            await context.bot.send_message(GROUP_ID, f"🎁 مكافأة\n\n👤 {user['first_name']}\n💰 +{amount} عملة\n💵 الرصيد الجديد: {user['balance']}\n\n👮 بواسطة: المالك")
             await update.message.reply_text(f"✅ تم إضافة {amount}")
         except:
             await update.message.reply_text("❌ خطأ")
@@ -798,16 +793,16 @@ async def handle_owner_input(update: Update, context: ContextTypes.DEFAULT_TYPE)
     # إعلان متحرك - نص
     if context.user_data.get('waiting_broadcast_text'):
         media_msg = context.user_data.get('broadcast_media')
-        caption = f"📢 **إعــــلان**\n\n{text}\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n👮 صادر عن: المالك\n🕐 {time.strftime('%Y-%m-%d %H:%M')}"
+        caption = f"📢 إعــــلان\n\n{text}\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n👮 صادر عن: المالك\n🕐 {time.strftime('%Y-%m-%d %H:%M')}"
         
         try:
             if media_msg.animation:
-                await context.bot.send_animation(GROUP_ID, media_msg.animation.file_id, caption=caption, parse_mode="Markdown")
+                await context.bot.send_animation(GROUP_ID, media_msg.animation.file_id, caption=caption)
             elif media_msg.sticker:
                 await context.bot.send_sticker(GROUP_ID, media_msg.sticker.file_id)
-                await context.bot.send_message(GROUP_ID, caption, parse_mode="Markdown")
+                await context.bot.send_message(GROUP_ID, caption)
             elif media_msg.video:
-                await context.bot.send_video(GROUP_ID, media_msg.video.file_id, caption=caption, parse_mode="Markdown")
+                await context.bot.send_video(GROUP_ID, media_msg.video.file_id, caption=caption)
             await update.message.reply_text("✅ تم الإرسال")
         except Exception as e:
             await update.message.reply_text(f"❌ فشل: {e}")
@@ -835,7 +830,7 @@ async def handle_owner_input(update: Update, context: ContextTypes.DEFAULT_TYPE)
         conn.commit()
         conn.close()
         
-        await context.bot.send_message(GROUP_ID, f"🔇 **كتم**\n\n👤 {user['first_name']}\n⏱️ {duration_str}\n\n👮 بواسطة: المالك", parse_mode="Markdown")
+        await context.bot.send_message(GROUP_ID, f"🔇 كتم\n\n👤 {user['first_name']}\n⏱️ {duration_str}\n\n👮 بواسطة: المالك")
         await update.message.reply_text(f"✅ تم كتم {user['first_name']}")
         context.user_data['waiting_mute_duration'] = None
         return
@@ -857,7 +852,7 @@ async def handle_owner_input(update: Update, context: ContextTypes.DEFAULT_TYPE)
         conn.commit()
         conn.close()
         
-        await context.bot.send_message(GROUP_ID, f"🚫 **حظر**\n\n👤 {user['first_name']}\n📝 {reason}\n\n👮 بواسطة: المالك", parse_mode="Markdown")
+        await context.bot.send_message(GROUP_ID, f"🚫 حظر\n\n👤 {user['first_name']}\n📝 {reason}\n\n👮 بواسطة: المالك")
         await update.message.reply_text(f"✅ تم حظر {user['first_name']}")
         context.user_data['waiting_ban_reason'] = None
         return
@@ -865,7 +860,6 @@ async def handle_owner_input(update: Update, context: ContextTypes.DEFAULT_TYPE)
 # ==================== معالج الأزرار الإضافية للمشرفين ====================
 
 async def handle_admin_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """معالج الأزرار التي تظهر في ملف العضو للمشرفين"""
     query = update.callback_query
     await query.answer()
     
@@ -900,7 +894,6 @@ async def handle_admin_buttons(update: Update, context: ContextTypes.DEFAULT_TYP
         return
 
 async def handle_admin_inputs(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """معالج الإدخالات من أزرار المشرفين"""
     user_id = update.effective_user.id
     text = update.message.text.strip()
     
@@ -916,7 +909,7 @@ async def handle_admin_inputs(update: Update, context: ContextTypes.DEFAULT_TYPE
         user = cursor.fetchone()
         conn.commit()
         conn.close()
-        await context.bot.send_message(GROUP_ID, f"⚠️ **تحذير**\n\n👤 {user['first_name']}\n📝 {text}\n🔢 {user['warnings']}\n\n👮 بواسطة: {update.effective_user.first_name}", parse_mode="Markdown")
+        await context.bot.send_message(GROUP_ID, f"⚠️ تحذير\n\n👤 {user['first_name']}\n📝 {text}\n🔢 {user['warnings']}\n\n👮 بواسطة: {update.effective_user.first_name}")
         await update.message.reply_text(f"✅ تم")
         context.user_data['admin_warn_target'] = None
         return
@@ -939,7 +932,7 @@ async def handle_admin_inputs(update: Update, context: ContextTypes.DEFAULT_TYPE
         user = cursor.fetchone()
         conn.commit()
         conn.close()
-        await context.bot.send_message(GROUP_ID, f"🔇 **كتم**\n\n👤 {user['first_name']}\n⏱️ {duration_str}\n\n👮 بواسطة: {update.effective_user.first_name}", parse_mode="Markdown")
+        await context.bot.send_message(GROUP_ID, f"🔇 كتم\n\n👤 {user['first_name']}\n⏱️ {duration_str}\n\n👮 بواسطة: {update.effective_user.first_name}")
         await update.message.reply_text(f"✅ تم")
         context.user_data['admin_mute_target'] = None
         return
@@ -955,7 +948,7 @@ async def handle_admin_inputs(update: Update, context: ContextTypes.DEFAULT_TYPE
             user = cursor.fetchone()
             conn.commit()
             conn.close()
-            await context.bot.send_message(GROUP_ID, f"💰 **خصم**\n\n👤 {user['first_name']}\n💰 -{amount}\n💵 {user['balance']}\n\n👮 بواسطة: {update.effective_user.first_name}", parse_mode="Markdown")
+            await context.bot.send_message(GROUP_ID, f"💰 خصم\n\n👤 {user['first_name']}\n💰 -{amount}\n💵 {user['balance']}\n\n👮 بواسطة: {update.effective_user.first_name}")
             await update.message.reply_text(f"✅ تم")
         except:
             await update.message.reply_text("❌ خطأ")
