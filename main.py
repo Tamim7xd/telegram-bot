@@ -58,33 +58,23 @@ async def handle_message(update, context):
     user_id = update.effective_user.id
     text = update.message.text.strip()
     
-    print(f"Received message: {text}")  # للتصحيح
-    
     # ========== الأوامر العربية ==========
-    
-    # أوامر الملف الشخصي
     if text in ["#ملف", "#ملفي", "#الملف", "#معلومات", "#معلوماتي", "#المعلومات"]:
-        print("Profile command detected")  # للتصحيح
         await profile_command(update, context)
         return
     
-    # أوامر الألعاب
     if text in ["#لعبة", "#العاب", "#لعب", "#العب"]:
-        print("Game command detected")  # للتصحيح
         await game_command(update, context)
         return
     
-    # أوامر السوق
     if text in ["#سوق", "#محل", "#شراء", "#اشتري", "#اسواق", "#المتجر"]:
         await shop_command(update, context)
         return
     
-    # المكافأة اليومية
     if text in ["#يومي", "#مكافأةيومية", "#يومية"]:
         await daily_reward_command(update, context)
         return
     
-    # التحذير
     if text.startswith("#تحذير"):
         parts = text.split(maxsplit=1)
         reason = parts[1] if len(parts) > 1 else "لا يوجد سبب"
@@ -92,7 +82,6 @@ async def handle_message(update, context):
         await warning_command(update, context)
         return
     
-    # كتم
     if text.startswith("#كتم"):
         parts = text.split(maxsplit=2)
         if len(parts) >= 2:
@@ -104,7 +93,6 @@ async def handle_message(update, context):
         await mute_command(update, context)
         return
     
-    # حظر
     if text.startswith("#حظر"):
         parts = text.split(maxsplit=1)
         reason = parts[1] if len(parts) > 1 else "لا يوجد سبب"
@@ -112,7 +100,6 @@ async def handle_message(update, context):
         await ban_command(update, context)
         return
     
-    # طرد
     if text.startswith("#طرد"):
         parts = text.split(maxsplit=1)
         reason = parts[1] if len(parts) > 1 else "لا يوجد سبب"
@@ -120,7 +107,6 @@ async def handle_message(update, context):
         await kick_command(update, context)
         return
     
-    # خصم
     if text.startswith("#خصم"):
         parts = text.split(maxsplit=2)
         if len(parts) >= 2:
@@ -132,7 +118,6 @@ async def handle_message(update, context):
         await add_balance_command(update, context)
         return
     
-    # مكافأة
     if text.startswith("#مكافأة"):
         parts = text.split(maxsplit=2)
         if len(parts) >= 2:
@@ -144,12 +129,10 @@ async def handle_message(update, context):
         await remove_balance_command(update, context)
         return
     
-    # لوحة المشرفين
     if text in ["#مشرف", "#ادمن", "#الادمن"]:
         await admin_panel_command(update, context)
         return
     
-    # لوحة المالك
     if text == "#مالك":
         await owner_panel_command(update, context)
         return
@@ -198,6 +181,8 @@ async def post_init(app):
 
 def main():
     init_db()
+    
+    # بناء التطبيق مع تجاهل التحديثات المعلقة
     app = Application.builder().token(BOT_TOKEN).post_init(post_init).build()
     
     # أوامر إنجليزية
@@ -229,7 +214,9 @@ def main():
     backup.start()
     
     print("✅ البوت شغال...")
-    app.run_polling()
+    
+    # تشغيل البوت مع تجاهل التحديثات المعلقة
+    app.run_polling(drop_pending_updates=True)
 
 if __name__ == "__main__":
     main()
