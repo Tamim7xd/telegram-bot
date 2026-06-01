@@ -7,11 +7,12 @@ from telegram.ext import Application, CommandHandler, CallbackQueryHandler, Mess
 from config import BOT_TOKEN
 from shared.database import init_db
 
+# استيراد جميع المعالجات
 from system_profile.profile_handler import profile_command
 from system_games.games_handler import game_command, game_callback, handle_game_answer
 from system_shop.shop_handler import shop_command, shop_callback
 from system_warnings.warnings_handler import warning_command
-from system_punishments.punishments_handler import mute_command, ban_command, kick_command, unmute_user
+from system_punishments.punishments_handler import mute_command, ban_command, kick_command
 from system_economy.economy_handler import add_balance_command, remove_balance_command, daily_reward_command
 from system_admin.admin_handler import admin_panel_command, admin_callback
 from system_owner.owner_handler import owner_panel_command, owner_callback, handle_owner_input
@@ -56,10 +57,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def handle_all_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """معالج جميع الرسائل - يدعم الأوامر العربية"""
     text = update.message.text.strip()
-    
-    print(f"Received: {text}")
+    print(f"📩 Received: {text}")
     
     # أوامر الملف الشخصي
     if text in ["#ملف", "#ملفي", "#الملف", "#معلومات", "#معلوماتي", "#المعلومات"]:
@@ -152,27 +151,12 @@ async def handle_all_messages(update: Update, context: ContextTypes.DEFAULT_TYPE
         return
     
     # معالجة إجابات الألعاب
-    if context.user_data.get('waiting_guess') or \
-       context.user_data.get('waiting_question') or \
-       context.user_data.get('waiting_reverse') or \
-       context.user_data.get('waiting_lucky'):
+    if context.user_data.get('waiting_guess') or context.user_data.get('waiting_question') or context.user_data.get('waiting_reverse') or context.user_data.get('waiting_lucky'):
         await handle_game_answer(update, context)
         return
     
     # معالجة إدخالات المالك
-    if context.user_data.get('waiting_add_admin') or \
-       context.user_data.get('waiting_add_super') or \
-       context.user_data.get('waiting_remove_admin') or \
-       context.user_data.get('waiting_shop_name') or \
-       context.user_data.get('waiting_shop_price') or \
-       context.user_data.get('waiting_edit_name') or \
-       context.user_data.get('waiting_edit_price') or \
-       context.user_data.get('waiting_warn_all') or \
-       context.user_data.get('waiting_warn_reason') or \
-       context.user_data.get('waiting_deduct_amount') or \
-       context.user_data.get('waiting_reward_amount') or \
-       context.user_data.get('waiting_broadcast_media') or \
-       context.user_data.get('waiting_broadcast_text'):
+    if context.user_data.get('waiting_shop_name') or context.user_data.get('waiting_shop_price') or context.user_data.get('waiting_edit_name') or context.user_data.get('waiting_edit_price') or context.user_data.get('waiting_warn_all') or context.user_data.get('waiting_warn_reason') or context.user_data.get('waiting_deduct_amount') or context.user_data.get('waiting_reward_amount') or context.user_data.get('waiting_broadcast_media') or context.user_data.get('waiting_broadcast_text') or context.user_data.get('waiting_mute_duration') or context.user_data.get('waiting_ban_reason'):
         await handle_owner_input(update, context)
         return
 
@@ -193,7 +177,6 @@ async def post_init(app):
 
 def main():
     init_db()
-    
     app = Application.builder().token(BOT_TOKEN).post_init(post_init).build()
     
     # أوامر إنجليزية
@@ -211,7 +194,7 @@ def main():
     app.add_handler(CommandHandler("admin", admin_panel_command))
     app.add_handler(CommandHandler("owner", owner_panel_command))
     
-    # معالجات الأزرار
+    # أزرار الألعاب
     app.add_handler(CallbackQueryHandler(game_callback, pattern="^(game_|rps_)"))
     app.add_handler(CallbackQueryHandler(shop_callback, pattern="^shop_"))
     app.add_handler(CallbackQueryHandler(admin_callback, pattern="^admin_"))
