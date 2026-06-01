@@ -14,7 +14,9 @@ async def owner_panel_command(update: Update, context: ContextTypes.DEFAULT_TYPE
     
     keyboard = [
         [InlineKeyboardButton("👥 إدارة المشرفين", callback_data="owner_admins")],
+        [InlineKeyboardButton("🛒 إدارة السوق", callback_data="owner_shop")],
         [InlineKeyboardButton("🧹 عمليات جماعية", callback_data="owner_bulk")],
+        [InlineKeyboardButton("📊 السجلات", callback_data="owner_logs")],
         [InlineKeyboardButton("🔙 إغلاق", callback_data="owner_close")]
     ]
     
@@ -57,6 +59,49 @@ async def owner_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
         return
     
+    if data == "owner_shop":
+        conn = get_db()
+        cursor = conn.execute("SELECT title FROM users WHERE title IS NOT NULL")
+        titles = cursor.fetchall()
+        conn.close()
+        
+        text = "🛒 **إدارة السوق**\n\n"
+        for t in titles:
+            text += f"• {t['title']}\n"
+        text += "\nقيد التطوير..."
+        
+        keyboard = [[InlineKeyboardButton("🔙 رجوع", callback_data="owner_back")]]
+        await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
+        return
+    
+    if data == "owner_bulk":
+        keyboard = [
+            [InlineKeyboardButton("🔓 فك الكتم للجميع", callback_data="owner_unmute_all")],
+            [InlineKeyboardButton("🗑 حذف كل التحذيرات", callback_data="owner_clear_warnings")],
+            [InlineKeyboardButton("💰 إعادة ضبط الاقتصاد", callback_data="owner_reset_economy")],
+            [InlineKeyboardButton("🔙 رجوع", callback_data="owner_back")]
+        ]
+        
+        await query.edit_message_text("🧹 **العمليات الجماعية**\n⚠️ هذه العمليات لا يمكن التراجع عنها", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
+        return
+    
+    if data == "owner_logs":
+        conn = get_db()
+        cursor = conn.execute("SELECT * FROM logs ORDER BY timestamp DESC LIMIT 20")
+        logs = cursor.fetchall()
+        conn.close()
+        
+        if not logs:
+            text = "📊 **السجلات**\n\nلا توجد سجلات حالياً"
+        else:
+            text = "📊 **آخر 20 عملية:**\n\n"
+            for log in logs:
+                text += f"• {log['action']} - {log['target_name'] or log['target_id']}\n"
+        
+        keyboard = [[InlineKeyboardButton("🔙 رجوع", callback_data="owner_back")]]
+        await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
+        return
+    
     if data == "owner_add_admin":
         await query.edit_message_text("➕ أرسل معرف العضو (user_id) أو قم بالرد على رسالته")
         context.user_data['waiting_add_admin'] = True
@@ -70,16 +115,6 @@ async def owner_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if data == "owner_remove_admin":
         await query.edit_message_text("➖ أرسل معرف العضو لإزالته من المشرفين")
         context.user_data['waiting_remove_admin'] = True
-        return
-    
-    if data == "owner_bulk":
-        keyboard = [
-            [InlineKeyboardButton("🔓 فك الكتم للجميع", callback_data="owner_unmute_all")],
-            [InlineKeyboardButton("🗑 حذف كل التحذيرات", callback_data="owner_clear_warnings")],
-            [InlineKeyboardButton("🔙 رجوع", callback_data="owner_back")]
-        ]
-        
-        await query.edit_message_text("🧹 **العمليات الجماعية**\n⚠️ هذه العمليات لا يمكن التراجع عنها", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
         return
     
     if data == "owner_unmute_all":
@@ -102,10 +137,20 @@ async def owner_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text("✅ **تم حذف جميع التحذيرات**")
         return
     
+    if data == "owner_reset_economy":
+        conn = get_db()
+        conn.execute("UPDATE users SET balance = 1000, level = 1, messages = 0")
+        conn.commit()
+        conn.close()
+        await query.edit_message_text("✅ **تم إعادة ضبط الاقتصاد**")
+        return
+    
     if data == "owner_back":
         keyboard = [
             [InlineKeyboardButton("👥 إدارة المشرفين", callback_data="owner_admins")],
+            [InlineKeyboardButton("🛒 إدارة السوق", callback_data="owner_shop")],
             [InlineKeyboardButton("🧹 عمليات جماعية", callback_data="owner_bulk")],
+            [InlineKeyboardButton("📊 السجلات", callback_data="owner_logs")],
             [InlineKeyboardButton("🔙 إغلاق", callback_data="owner_close")]
         ]
         
