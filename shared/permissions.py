@@ -37,10 +37,3 @@ def get_all_admins():
     result = cursor.fetchall()
     conn.close()
     return result
-
-def get_admin_info(user_id):
-    conn = get_db()
-    cursor = conn.execute("SELECT user_id, username, is_super_admin FROM admins WHERE user_id = ?", (user_id,))
-    result = cursor.fetchone()
-    conn.close()
-    return result
