@@ -20,7 +20,7 @@ def is_super_admin(user_id):
 
 def add_admin(user_id, username, is_super=False):
     conn = get_db()
-    conn.execute("INSERT OR IGNORE INTO admins (user_id, username, is_super_admin) VALUES (?, ?, ?)", 
+    conn.execute("INSERT OR REPLACE INTO admins (user_id, username, is_super_admin) VALUES (?, ?, ?)", 
                  (user_id, username, 1 if is_super else 0))
     conn.commit()
     conn.close()
@@ -35,5 +35,12 @@ def get_all_admins():
     conn = get_db()
     cursor = conn.execute("SELECT user_id, username, is_super_admin FROM admins")
     result = cursor.fetchall()
+    conn.close()
+    return result
+
+def get_admin_info(user_id):
+    conn = get_db()
+    cursor = conn.execute("SELECT user_id, username, is_super_admin FROM admins WHERE user_id = ?", (user_id,))
+    result = cursor.fetchone()
     conn.close()
     return result
