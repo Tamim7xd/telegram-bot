@@ -9,7 +9,6 @@ async def profile_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     username = update.effective_user.username or "لا يوجد"
     first_name = update.effective_user.first_name or "مستخدم"
     
-    # التحقق إذا كان رداً على رسالة (لعرض ملف عضو آخر)
     if update.message.reply_to_message:
         target = update.message.reply_to_message.from_user
         target_id = target.id
@@ -21,13 +20,10 @@ async def profile_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         target_username = username
     
     conn = get_db()
-    
-    # إضافة المستخدم إذا لم يكن موجوداً
     conn.execute("INSERT OR IGNORE INTO users (user_id, username, first_name) VALUES (?, ?, ?)", 
                  (target_id, target_username, target_name))
     conn.commit()
     
-    # جلب البيانات
     cursor = conn.execute("SELECT balance, warnings, messages, level, title FROM users WHERE user_id = ?", (target_id,))
     user = cursor.fetchone()
     
@@ -36,7 +32,6 @@ async def profile_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         balance, warnings, messages, level, title = user
     
-    # حساب المستوى الجديد
     new_level = (messages // MESSAGE_TO_LEVEL) + 1
     if new_level > level and target_id == user_id:
         reward = (new_level - level) * LEVEL_REWARD
@@ -46,12 +41,8 @@ async def profile_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         level = new_level
         conn.commit()
     
-    # شريط التقدم
     current = messages % MESSAGE_TO_LEVEL
-    total = MESSAGE_TO_LEVEL
-    percent = int((current / total) * 10)
-    progress = "█" * percent + "░" * (10 - percent)
-    
+    progress = "█" * (current // 10) + "░" * (10 - (current // 10))
     title_text = f"🏆 {title}" if title else ""
     
     text = f"""👤 **{target_name}** (@{target_username})
@@ -61,10 +52,9 @@ async def profile_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 📨 الرسائل: {messages}
 🎖️ المستوى: {level}
 
-{progress} {current}/{total}
+{progress} {current}/{MESSAGE_TO_LEVEL}
 
 {title_text}"""
     
     conn.close()
-    
     await update.message.reply_text(text, parse_mode="Markdown")
