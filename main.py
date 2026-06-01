@@ -7,7 +7,6 @@ from telegram.ext import Application, CommandHandler, CallbackQueryHandler, Mess
 from config import BOT_TOKEN
 from shared.database import init_db
 
-# استيراد جميع المعالجات
 from system_profile.profile_handler import profile_command
 from system_games.games_handler import game_command, game_callback, handle_game_answer
 from system_shop.shop_handler import shop_command, shop_callback
@@ -57,30 +56,32 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def handle_all_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """معالج جميع الرسائل - يدعم الأوامر العربية"""
     text = update.message.text.strip()
+    
     print(f"📩 Received: {text}")
     
-    # أوامر الملف الشخصي
+    # ========== أوامر الملف الشخصي ==========
     if text in ["#ملف", "#ملفي", "#الملف", "#معلومات", "#معلوماتي", "#المعلومات"]:
         await profile_command(update, context)
         return
     
-    # أوامر الألعاب
+    # ========== أوامر الألعاب ==========
     if text in ["#لعبة", "#العاب", "#لعب", "#العب"]:
         await game_command(update, context)
         return
     
-    # أوامر السوق
+    # ========== أوامر السوق ==========
     if text in ["#سوق", "#محل", "#شراء", "#اشتري", "#اسواق", "#المتجر"]:
         await shop_command(update, context)
         return
     
-    # المكافأة اليومية
+    # ========== المكافأة اليومية ==========
     if text in ["#يومي", "#مكافأةيومية", "#يومية"]:
         await daily_reward_command(update, context)
         return
     
-    # التحذير
+    # ========== أوامر المشرفين ==========
     if text.startswith("#تحذير"):
         parts = text.split(maxsplit=1)
         reason = parts[1] if len(parts) > 1 else "لا يوجد سبب"
@@ -88,7 +89,6 @@ async def handle_all_messages(update: Update, context: ContextTypes.DEFAULT_TYPE
         await warning_command(update, context)
         return
     
-    # كتم
     if text.startswith("#كتم"):
         parts = text.split(maxsplit=2)
         if len(parts) >= 2:
@@ -100,7 +100,6 @@ async def handle_all_messages(update: Update, context: ContextTypes.DEFAULT_TYPE
         await mute_command(update, context)
         return
     
-    # حظر
     if text.startswith("#حظر"):
         parts = text.split(maxsplit=1)
         reason = parts[1] if len(parts) > 1 else "لا يوجد سبب"
@@ -108,7 +107,6 @@ async def handle_all_messages(update: Update, context: ContextTypes.DEFAULT_TYPE
         await ban_command(update, context)
         return
     
-    # طرد
     if text.startswith("#طرد"):
         parts = text.split(maxsplit=1)
         reason = parts[1] if len(parts) > 1 else "لا يوجد سبب"
@@ -116,7 +114,6 @@ async def handle_all_messages(update: Update, context: ContextTypes.DEFAULT_TYPE
         await kick_command(update, context)
         return
     
-    # خصم
     if text.startswith("#خصم"):
         parts = text.split(maxsplit=2)
         if len(parts) >= 2:
@@ -128,7 +125,6 @@ async def handle_all_messages(update: Update, context: ContextTypes.DEFAULT_TYPE
         await add_balance_command(update, context)
         return
     
-    # مكافأة
     if text.startswith("#مكافأة"):
         parts = text.split(maxsplit=2)
         if len(parts) >= 2:
@@ -140,23 +136,36 @@ async def handle_all_messages(update: Update, context: ContextTypes.DEFAULT_TYPE
         await remove_balance_command(update, context)
         return
     
-    # لوحة المشرفين
+    # ========== لوحات التحكم ==========
     if text in ["#مشرف", "#ادمن", "#الادمن"]:
         await admin_panel_command(update, context)
         return
     
-    # لوحة المالك
     if text in ["#مالك", "#المالك"]:
         await owner_panel_command(update, context)
         return
     
-    # معالجة إجابات الألعاب
-    if context.user_data.get('waiting_guess') or context.user_data.get('waiting_question') or context.user_data.get('waiting_reverse') or context.user_data.get('waiting_lucky'):
+    # ========== معالجة إجابات الألعاب ==========
+    if context.user_data.get('waiting_guess') or \
+       context.user_data.get('waiting_question') or \
+       context.user_data.get('waiting_reverse') or \
+       context.user_data.get('waiting_lucky'):
         await handle_game_answer(update, context)
         return
     
-    # معالجة إدخالات المالك
-    if context.user_data.get('waiting_shop_name') or context.user_data.get('waiting_shop_price') or context.user_data.get('waiting_edit_name') or context.user_data.get('waiting_edit_price') or context.user_data.get('waiting_warn_all') or context.user_data.get('waiting_warn_reason') or context.user_data.get('waiting_deduct_amount') or context.user_data.get('waiting_reward_amount') or context.user_data.get('waiting_broadcast_media') or context.user_data.get('waiting_broadcast_text') or context.user_data.get('waiting_mute_duration') or context.user_data.get('waiting_ban_reason'):
+    # ========== معالجة إدخالات المالك ==========
+    if context.user_data.get('waiting_shop_name') or \
+       context.user_data.get('waiting_shop_price') or \
+       context.user_data.get('waiting_edit_name') or \
+       context.user_data.get('waiting_edit_price') or \
+       context.user_data.get('waiting_warn_all') or \
+       context.user_data.get('waiting_warn_reason') or \
+       context.user_data.get('waiting_deduct_amount') or \
+       context.user_data.get('waiting_reward_amount') or \
+       context.user_data.get('waiting_broadcast_media') or \
+       context.user_data.get('waiting_broadcast_text') or \
+       context.user_data.get('waiting_mute_duration') or \
+       context.user_data.get('waiting_ban_reason'):
         await handle_owner_input(update, context)
         return
 
@@ -177,6 +186,7 @@ async def post_init(app):
 
 def main():
     init_db()
+    
     app = Application.builder().token(BOT_TOKEN).post_init(post_init).build()
     
     # أوامر إنجليزية
@@ -194,13 +204,13 @@ def main():
     app.add_handler(CommandHandler("admin", admin_panel_command))
     app.add_handler(CommandHandler("owner", owner_panel_command))
     
-    # أزرار الألعاب
+    # معالجات الأزرار
     app.add_handler(CallbackQueryHandler(game_callback, pattern="^(game_|rps_)"))
     app.add_handler(CallbackQueryHandler(shop_callback, pattern="^shop_"))
     app.add_handler(CallbackQueryHandler(admin_callback, pattern="^admin_"))
     app.add_handler(CallbackQueryHandler(owner_callback, pattern="^owner_"))
     
-    # معالج جميع الرسائل (الأوامر العربية)
+    # ⭐⭐⭐ أهم سطر: معالج الأوامر العربية ⭐⭐⭐
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_all_messages))
     
     # النسخ الاحتياطي
