@@ -4,7 +4,6 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 GROUP_ID = int(os.getenv("GROUP_ID", 0))
 OWNER_ID = int(os.getenv("OWNER_ID", 0))
 
-# إعدادات عامة
 MAX_WARNINGS = 5
 DEFAULT_BALANCE = 1000
 MESSAGE_TO_LEVEL = 100
@@ -14,4 +13,3 @@ DAILY_REWARD = 100
 MESSAGE_TIMEOUT = 5
 
 CURRENCY_ICON = "🪙"
-DEFAULT_TITLE = None
