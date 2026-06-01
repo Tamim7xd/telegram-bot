@@ -49,4 +49,18 @@ async def warning_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"⚠️ **تحذير**\n\n"
         f"👤 العضو: {target_name}\n"
         f"📝 السبب: {reason}\n"
-        f"🔢 عدد التحذيرات: {warnings}/{MAX_W
+        f"🔢 عدد التحذيرات: {warnings}/{MAX_WARNINGS}\n\n"
+        f"👮 بواسطة: {admin_name}",
+        parse_mode="Markdown"
+    )
+    
+    # التحقق من الحد الأقصى
+    if warnings >= MAX_WARNINGS:
+        await ban_user(context, target_id, f"تجاوز {MAX_WARNINGS} تحذيرات")
+        await context.bot.send_message(
+            GROUP_ID,
+            f"🚫 **تم حظر {target_name} تلقائياً**\nالسبب: تجاوز {MAX_WARNINGS} تحذيرات"
+        )
+    
+    conn.commit()
+    conn.close()
