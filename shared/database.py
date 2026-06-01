@@ -1,5 +1,5 @@
 import sqlite3
-import os
+import time
 
 DB_PATH = "database.db"
 
@@ -11,7 +11,6 @@ def get_db():
 def init_db():
     conn = get_db()
     
-    # جدول المستخدمين
     conn.execute('''
         CREATE TABLE IF NOT EXISTS users (
             user_id INTEGER PRIMARY KEY,
@@ -29,7 +28,6 @@ def init_db():
         )
     ''')
     
-    # جدول المشرفين
     conn.execute('''
         CREATE TABLE IF NOT EXISTS admins (
             user_id INTEGER PRIMARY KEY,
@@ -38,7 +36,6 @@ def init_db():
         )
     ''')
     
-    # جدول الألقاب المشتراة
     conn.execute('''
         CREATE TABLE IF NOT EXISTS user_titles (
             user_id INTEGER,
@@ -48,7 +45,6 @@ def init_db():
         )
     ''')
     
-    # جدول السجلات
     conn.execute('''
         CREATE TABLE IF NOT EXISTS logs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -62,7 +58,6 @@ def init_db():
         )
     ''')
     
-    # إضافة المالك كمشرف إداري
     from config import OWNER_ID
     conn.execute("INSERT OR IGNORE INTO admins (user_id, is_super_admin) VALUES (?, 1)", (OWNER_ID,))
     
