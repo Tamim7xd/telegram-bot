@@ -1,6 +1,7 @@
 import logging
 import threading
 import time
+import asyncio
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters
 from config import BOT_TOKEN
 from shared.database import init_db
@@ -13,7 +14,7 @@ from system_warnings.warnings_handler import warning_command
 from system_punishments.punishments_handler import mute_command, ban_command, kick_command
 from system_economy.economy_handler import add_balance_command, remove_balance_command, daily_reward_command
 from system_admin.admin_handler import admin_panel_command, admin_callback
-from system_owner.owner_handler import owner_panel_command, owner_callback
+from system_owner.owner_handler import owner_panel_command, owner_callback, handle_owner_input
 from system_backup.backup_handler import create_backup
 
 logging.basicConfig(level=logging.INFO)
@@ -21,7 +22,7 @@ logging.basicConfig(level=logging.INFO)
 async def start(update, context):
     user_id = update.effective_user.id
     username = update.effective_user.username or "لا يوجد"
-    first_name = update.effective_user.first_name or ""
+    first_name = update.effective_user.first_name or "مستخدم"
     
     from shared.database import get_db
     conn = get_db()
@@ -55,18 +56,25 @@ async def start(update, context):
     )
 
 async def handle_message(update, context):
+    # معالجة الألعاب
     if context.user_data.get('waiting_guess') or \
        context.user_data.get('waiting_question') or \
        context.user_data.get('waiting_reverse') or \
        context.user_data.get('waiting_lucky'):
         await handle_game_answer(update, context)
         return
+    
+    # معالجة إدخالات المالك
+    if context.user_data.get('waiting_add_admin') or \
+       context.user_data.get('waiting_add_super') or \
+       context.user_data.get('waiting_remove_admin'):
+        await handle_owner_input(update, context)
+        return
 
 def backup_thread(bot):
     while True:
         time.sleep(3600)
         try:
-            import asyncio
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             loop.run_until_complete(create_backup(bot))
@@ -75,8 +83,6 @@ def backup_thread(bot):
             print(f"Backup error: {e}")
 
 async def post_init(app):
-    """تشغيل بعد بدء التطبيق"""
-    # حذف أي webhook موجود
     await app.bot.delete_webhook()
     print("✅ Webhook deleted")
 
