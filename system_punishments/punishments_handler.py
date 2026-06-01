@@ -42,7 +42,7 @@ async def mute_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     conn.commit()
     conn.close()
     
-    await context.bot.send_message(GROUP_ID, f"🔇 **كتم**\n\n👤 {target_name}\n⏱️ {duration_str}\n📝 {reason}\n\n👮 بواسطة: {admin_name}", parse_mode="Markdown")
+    await context.bot.send_message(GROUP_ID, f"🔇 كتم\n\n👤 {target_name}\n⏱️ {duration_str}\n📝 {reason}\n\n👮 بواسطة: {admin_name}")
 
 async def ban_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -73,7 +73,7 @@ async def ban_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     conn.commit()
     conn.close()
     
-    await context.bot.send_message(GROUP_ID, f"🚫 **حظر**\n\n👤 {target_name}\n📝 {reason}\n\n👮 بواسطة: {admin_name}", parse_mode="Markdown")
+    await context.bot.send_message(GROUP_ID, f"🚫 حظر\n\n👤 {target_name}\n📝 {reason}\n\n👮 بواسطة: {admin_name}")
 
 async def kick_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -104,7 +104,7 @@ async def kick_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     conn.commit()
     conn.close()
     
-    await context.bot.send_message(GROUP_ID, f"👢 **طرد**\n\n👤 {target_name}\n📝 {reason}\n\n👮 بواسطة: {admin_name}", parse_mode="Markdown")
+    await context.bot.send_message(GROUP_ID, f"👢 طرد\n\n👤 {target_name}\n📝 {reason}\n\n👮 بواسطة: {admin_name}")
 
 async def unmute_user(context, user_id):
     try:
