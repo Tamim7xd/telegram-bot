@@ -1,8 +1,7 @@
-# system_backup/backup_handler.py
-
 import json
 import sqlite3
 import time
+import os
 from config import OWNER_ID
 
 async def create_backup(bot):
@@ -33,7 +32,6 @@ async def create_backup(bot):
             "logs": logs
         }
         
-        import os
         os.makedirs("backups", exist_ok=True)
         
         with open("backups/backup_current.json", "w", encoding="utf-8") as f:
@@ -41,13 +39,54 @@ async def create_backup(bot):
         
         await bot.send_message(
             OWNER_ID,
-            f"💾 **نسخ احتياطي تلقائي**\n\n"
+            f"💾 **نسخ احتياطي**\n\n"
             f"✅ تم إنشاء نسخة جديدة\n"
-            f"🕛 الوقت: {time.strftime('%Y-%m-%d %H:%M:%S')}\n"
-            f"👥 مستخدمين: {len(users)}\n"
-            f"🛡️ مشرفين: {len(admins)}\n\n"
-            f"📁 الملف: backups/backup_current.json",
+            f"🕛 {time.strftime('%Y-%m-%d %H:%M:%S')}\n"
+            f"👥 مستخدمين: {len(users)}\n\n"
+            f"📁 backups/backup_current.json",
             parse_mode="Markdown"
         )
     except Exception as e:
         print(f"Backup error: {e}")
+
+async def restore_backup(bot):
+    try:
+        with open("backups/backup_current.json", "r", encoding="utf-8") as f:
+            data = json.load(f)
+        
+        conn = sqlite3.connect("database.db")
+        
+        # مسح الجداول
+        conn.execute("DELETE FROM users")
+        conn.execute("DELETE FROM admins")
+        conn.execute("DELETE FROM user_titles")
+        conn.execute("DELETE FROM logs")
+        
+        # استعادة البيانات
+        for user in data.get("users", []):
+            conn.execute("INSERT OR REPLACE INTO users VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", 
+                         (user.get("user_id"), user.get("username"), user.get("first_name"),
+                          user.get("balance", 1000), user.get("warnings", 0), user.get("messages", 0),
+                          user.get("level", 1), user.get("title"), user.get("is_muted", 0),
+                          user.get("muted_until", 0), user.get("is_banned", 0), user.get("last_daily")))
+        
+        for admin in data.get("admins", []):
+            conn.execute("INSERT OR REPLACE INTO admins VALUES (?, ?, ?)", 
+                         (admin.get("user_id"), admin.get("username"), admin.get("is_super_admin", 0)))
+        
+        for title in data.get("user_titles", []):
+            conn.execute("INSERT OR REPLACE INTO user_titles VALUES (?, ?, ?)", 
+                         (title.get("user_id"), title.get("title"), title.get("purchased_at")))
+        
+        for log in data.get("logs", []):
+            conn.execute("INSERT OR REPLACE INTO logs VALUES (?, ?, ?, ?, ?, ?, ?, ?)", 
+                         (log.get("id"), log.get("admin_id"), log.get("admin_name"),
+                          log.get("action"), log.get("target_id"), log.get("target_name"),
+                          log.get("reason"), log.get("timestamp")))
+        
+        conn.commit()
+        conn.close()
+        
+        await bot.send_message(OWNER_ID, "✅ **تم استعادة النسخة الاحتياطية بنجاح**", parse_mode="Markdown")
+    except Exception as e:
+        await bot.send_message(OWNER_ID, f"❌ فشل الاستعادة: {e}")
