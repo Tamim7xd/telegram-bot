@@ -11,7 +11,7 @@ async def shop_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     await update.message.reply_text(
         "🛒 **السوق - اختر لقبك:**\n\n"
-        "اضغط على اللقب لشرائه. إذا كنت تملكه بالفعل، ستحصل عليه مجاناً!",
+        "اضغط على اللقب لشرائه",
         reply_markup=InlineKeyboardMarkup(keyboard),
         parse_mode="Markdown"
     )
@@ -21,6 +21,7 @@ async def shop_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     
     user_id = query.from_user.id
+    username = query.from_user.username or "لا يوجد"
     data = query.data
     
     if data == "shop_close":
@@ -40,51 +41,46 @@ async def shop_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         conn = get_db()
         
-        # التحقق إذا كان المستخدم يملك اللقب بالفعل
+        # التحقق إذا كان المستخدم يملك اللقب
         cursor = conn.execute("SELECT title FROM users WHERE user_id = ?", (user_id,))
         current = cursor.fetchone()
         
-        # التحقق من الألقاب المشتراة سابقاً
         cursor = conn.execute("SELECT title FROM user_titles WHERE user_id = ? AND title = ?", (user_id, title_name))
         already_owned = cursor.fetchone()
         
         if already_owned:
-            # يملكه بالفعل - مجاناً
-            await query.edit_message_text(f"🎁 **لديك هذا اللقب بالفعل!**\n\n🏆 {title_name}\n💰 متوفر لك مجاناً")
+            await query.edit_message_text(f"🎁 **لديك هذا اللقب بالفعل!**\n\n🏆 {title_name}\n💰 متوفر مجاناً")
             conn.close()
             return
         
-        # التحقق من الرصيد
         cursor = conn.execute("SELECT balance FROM users WHERE user_id = ?", (user_id,))
         user = cursor.fetchone()
         
         if not user:
-            await query.edit_message_text("❌ يرجى كتابة #ملف أولاً لتفعيل حسابك")
-            conn.close()
-            return
-        
-        balance = user["balance"]
+            conn.execute("INSERT INTO users (user_id, username) VALUES (?, ?)", (user_id, username))
+            balance = 1000
+        else:
+            balance = user["balance"]
         
         if balance >= title_price:
-            # خصم الرصيد وحفظ اللقب
             new_balance = balance - title_price
             conn.execute("UPDATE users SET balance = ?, title = ? WHERE user_id = ?", (new_balance, title_name, user_id))
-            conn.execute("INSERT INTO user_titles (user_id, title) VALUES (?, ?)", (user_id, title_name))
+            conn.execute("INSERT INTO user_titles (user_id, title, purchased_at) VALUES (?, ?, ?)", 
+                         (user_id, title_name, int(__import__('time').time())))
             conn.commit()
             
             await query.edit_message_text(
                 f"🎉 **تهانينا!**\n\n"
                 f"✅ تم شراء اللقب: {title_name}\n"
                 f"💰 تم خصم {title_price} عملة\n"
-                f"💵 رصيدك المتبقي: {new_balance} عملة\n\n"
-                f"🏆 ظهرك الآن في ملفك الشخصي"
+                f"💵 رصيدك: {new_balance} عملة"
             )
         else:
             await query.edit_message_text(
                 f"❌ **رصيدك غير كافٍ!**\n\n"
                 f"🏷️ السعر: {title_price} عملة\n"
                 f"💵 رصيدك: {balance} عملة\n"
-                f"📉 تحتاج: {title_price - balance} عملة إضافية"
+                f"📉 تحتاج: {title_price - balance} عملة"
             )
         
         conn.close()
