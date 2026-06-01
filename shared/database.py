@@ -24,7 +24,8 @@ def init_db():
             title TEXT,
             is_muted INTEGER DEFAULT 0,
             muted_until INTEGER DEFAULT 0,
-            is_banned INTEGER DEFAULT 0
+            is_banned INTEGER DEFAULT 0,
+            last_daily TEXT
         )
     ''')
     
@@ -42,6 +43,7 @@ def init_db():
         CREATE TABLE IF NOT EXISTS user_titles (
             user_id INTEGER,
             title TEXT,
+            purchased_at INTEGER,
             PRIMARY KEY (user_id, title)
         )
     ''')
@@ -51,8 +53,10 @@ def init_db():
         CREATE TABLE IF NOT EXISTS logs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             admin_id INTEGER,
+            admin_name TEXT,
             action TEXT,
             target_id INTEGER,
+            target_name TEXT,
             reason TEXT,
             timestamp INTEGER
         )
