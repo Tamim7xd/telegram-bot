@@ -14,7 +14,7 @@ from system_warnings.warnings_handler import warning_command
 from system_punishments.punishments_handler import mute_command, ban_command, kick_command
 from system_economy.economy_handler import add_balance_command, remove_balance_command, daily_reward_command
 from system_admin.admin_handler import admin_panel_command, admin_callback
-from system_owner.owner_handler import owner_panel_command, owner_callback, handle_owner_input
+from system_owner.owner_handler import owner_panel_command, owner_callback, handle_owner_input, handle_admin_buttons, handle_admin_inputs
 from system_backup.backup_handler import create_backup
 
 logging.basicConfig(level=logging.INFO)
@@ -32,56 +32,54 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     conn.close()
     
     await update.message.reply_text(
-        "✅ **البوت يعمل!**\n\n"
-        "📋 **الأوامر المتاحة:**\n"
+        "✅ البوت يعمل!\n\n"
+        "📋 الأوامر المتاحة:\n"
         "━━━━━━━━━━━━━━━━━━━━━━\n"
-        "👤 **أوامر عامة:**\n"
+        "👤 أوامر عامة:\n"
         "#ملف - عرض ملفك الشخصي\n"
         "#لعبة - فتح الألعاب\n"
         "#سوق - فتح المتجر\n"
         "#يومي - مكافأة يومية\n\n"
-        "🛡️ **أوامر المشرفين:**\n"
+        "🛡️ أوامر المشرفين:\n"
         "#تحذير سبب - تحذير عضو\n"
         "#كتم مدة سبب - كتم عضو\n"
         "#خصم مبلغ سبب - خصم رصيد\n"
         "#مكافأة مبلغ سبب - إضافة رصيد\n"
         "#مشرف - لوحة المشرفين\n\n"
-        "👑 **أوامر المشرف الإداري:**\n"
+        "👑 أوامر المشرف الإداري:\n"
         "#حظر سبب - حظر عضو\n"
         "#طرد سبب - طرد عضو\n\n"
-        "⭐ **أوامر المالك:**\n"
+        "⭐ أوامر المالك:\n"
         "#مالك - لوحة المالك\n"
-        "━━━━━━━━━━━━━━━━━━━━━━",
-        parse_mode="Markdown"
+        "━━━━━━━━━━━━━━━━━━━━━━"
     )
 
 async def handle_all_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """معالج جميع الرسائل - يدعم الأوامر العربية"""
     text = update.message.text.strip()
     
     print(f"📩 Received: {text}")
     
-    # ========== أوامر الملف الشخصي ==========
+    # أوامر الملف الشخصي
     if text in ["#ملف", "#ملفي", "#الملف", "#معلومات", "#معلوماتي", "#المعلومات"]:
         await profile_command(update, context)
         return
     
-    # ========== أوامر الألعاب ==========
+    # أوامر الألعاب
     if text in ["#لعبة", "#العاب", "#لعب", "#العب"]:
         await game_command(update, context)
         return
     
-    # ========== أوامر السوق ==========
+    # أوامر السوق
     if text in ["#سوق", "#محل", "#شراء", "#اشتري", "#اسواق", "#المتجر"]:
         await shop_command(update, context)
         return
     
-    # ========== المكافأة اليومية ==========
+    # المكافأة اليومية
     if text in ["#يومي", "#مكافأةيومية", "#يومية"]:
         await daily_reward_command(update, context)
         return
     
-    # ========== أوامر المشرفين ==========
+    # التحذير
     if text.startswith("#تحذير"):
         parts = text.split(maxsplit=1)
         reason = parts[1] if len(parts) > 1 else "لا يوجد سبب"
@@ -89,6 +87,7 @@ async def handle_all_messages(update: Update, context: ContextTypes.DEFAULT_TYPE
         await warning_command(update, context)
         return
     
+    # كتم
     if text.startswith("#كتم"):
         parts = text.split(maxsplit=2)
         if len(parts) >= 2:
@@ -100,6 +99,7 @@ async def handle_all_messages(update: Update, context: ContextTypes.DEFAULT_TYPE
         await mute_command(update, context)
         return
     
+    # حظر
     if text.startswith("#حظر"):
         parts = text.split(maxsplit=1)
         reason = parts[1] if len(parts) > 1 else "لا يوجد سبب"
@@ -107,6 +107,7 @@ async def handle_all_messages(update: Update, context: ContextTypes.DEFAULT_TYPE
         await ban_command(update, context)
         return
     
+    # طرد
     if text.startswith("#طرد"):
         parts = text.split(maxsplit=1)
         reason = parts[1] if len(parts) > 1 else "لا يوجد سبب"
@@ -114,6 +115,7 @@ async def handle_all_messages(update: Update, context: ContextTypes.DEFAULT_TYPE
         await kick_command(update, context)
         return
     
+    # خصم
     if text.startswith("#خصم"):
         parts = text.split(maxsplit=2)
         if len(parts) >= 2:
@@ -125,6 +127,7 @@ async def handle_all_messages(update: Update, context: ContextTypes.DEFAULT_TYPE
         await add_balance_command(update, context)
         return
     
+    # مكافأة
     if text.startswith("#مكافأة"):
         parts = text.split(maxsplit=2)
         if len(parts) >= 2:
@@ -136,37 +139,29 @@ async def handle_all_messages(update: Update, context: ContextTypes.DEFAULT_TYPE
         await remove_balance_command(update, context)
         return
     
-    # ========== لوحات التحكم ==========
+    # لوحة المشرفين
     if text in ["#مشرف", "#ادمن", "#الادمن"]:
         await admin_panel_command(update, context)
         return
     
+    # لوحة المالك
     if text in ["#مالك", "#المالك"]:
         await owner_panel_command(update, context)
         return
     
-    # ========== معالجة إجابات الألعاب ==========
-    if context.user_data.get('waiting_guess') or \
-       context.user_data.get('waiting_question') or \
-       context.user_data.get('waiting_reverse') or \
-       context.user_data.get('waiting_lucky'):
+    # معالجة إجابات الألعاب
+    if context.user_data.get('waiting_guess') or context.user_data.get('waiting_question') or context.user_data.get('waiting_reverse') or context.user_data.get('waiting_lucky'):
         await handle_game_answer(update, context)
         return
     
-    # ========== معالجة إدخالات المالك ==========
-    if context.user_data.get('waiting_shop_name') or \
-       context.user_data.get('waiting_shop_price') or \
-       context.user_data.get('waiting_edit_name') or \
-       context.user_data.get('waiting_edit_price') or \
-       context.user_data.get('waiting_warn_all') or \
-       context.user_data.get('waiting_warn_reason') or \
-       context.user_data.get('waiting_deduct_amount') or \
-       context.user_data.get('waiting_reward_amount') or \
-       context.user_data.get('waiting_broadcast_media') or \
-       context.user_data.get('waiting_broadcast_text') or \
-       context.user_data.get('waiting_mute_duration') or \
-       context.user_data.get('waiting_ban_reason'):
+    # معالجة إدخالات المالك
+    if context.user_data.get('waiting_shop_name') or context.user_data.get('waiting_shop_price') or context.user_data.get('waiting_edit_name') or context.user_data.get('waiting_edit_price') or context.user_data.get('waiting_warn_all') or context.user_data.get('waiting_warn_reason') or context.user_data.get('waiting_deduct_amount') or context.user_data.get('waiting_reward_amount') or context.user_data.get('waiting_broadcast_media') or context.user_data.get('waiting_broadcast_text') or context.user_data.get('waiting_mute_duration') or context.user_data.get('waiting_ban_reason') or context.user_data.get('waiting_admin_reward_amount') or context.user_data.get('waiting_admin_reward_reason'):
         await handle_owner_input(update, context)
+        return
+    
+    # معالجة إدخالات المشرفين
+    if context.user_data.get('admin_warn_target') or context.user_data.get('admin_mute_target') or context.user_data.get('admin_deduct_target'):
+        await handle_admin_inputs(update, context)
         return
 
 def backup_thread(bot):
@@ -209,8 +204,9 @@ def main():
     app.add_handler(CallbackQueryHandler(shop_callback, pattern="^shop_"))
     app.add_handler(CallbackQueryHandler(admin_callback, pattern="^admin_"))
     app.add_handler(CallbackQueryHandler(owner_callback, pattern="^owner_"))
+    app.add_handler(CallbackQueryHandler(handle_admin_buttons, pattern="^(admin_warn_|admin_mute_|admin_deduct_|close)"))
     
-    # ⭐⭐⭐ أهم سطر: معالج الأوامر العربية ⭐⭐⭐
+    # معالج الأوامر العربية
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_all_messages))
     
     # النسخ الاحتياطي
