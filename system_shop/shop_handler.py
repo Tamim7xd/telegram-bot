@@ -15,7 +15,7 @@ async def shop_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [[InlineKeyboardButton(f"{t['name']} - {t['price']} 🪙", callback_data=f"shop_{tid}")] for tid, t in TITLES.items()]
     keyboard.append([InlineKeyboardButton("🔙 إغلاق", callback_data="shop_close")])
     
-    await update.message.reply_text("🛒 **السوق - اختر لقبك:**", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
+    await update.message.reply_text("🛒 السوق - اختر لقبك:", reply_markup=InlineKeyboardMarkup(keyboard))
 
 async def shop_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -36,7 +36,7 @@ async def shop_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         cursor = conn.execute("SELECT title FROM user_titles WHERE user_id = ? AND title = ?", (user_id, title['name']))
         if cursor.fetchone():
-            await query.edit_message_text(f"🎁 **لديك هذا اللقب بالفعل!**\n\n{title['name']}\n💰 متوفر مجاناً")
+            await query.edit_message_text(f"🎁 لديك هذا اللقب بالفعل!\n\n{title['name']}\n💰 متوفر مجاناً")
             conn.close()
             return
         
@@ -56,16 +56,8 @@ async def shop_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             conn.execute("INSERT INTO user_titles (user_id, title, purchased_at) VALUES (?, ?, ?)", (user_id, title['name'], int(time.time())))
             conn.commit()
             
-            # تغيير اسم العضو في المجموعة
-            try:
-                from config import GROUP_ID
-                new_name = f"{title['name']} {user['first_name']}"
-                await context.bot.set_chat_member_title(GROUP_ID, user_id, new_name)
-            except:
-                pass
-            
-            await query.edit_message_text(f"🎉 **تهانينا!**\n\n✅ تم شراء: {title['name']}\n💰 -{title['price']} عملة\n💵 رصيدك: {new_balance} عملة")
+            await query.edit_message_text(f"🎉 تهانينا!\n\n✅ تم شراء: {title['name']}\n💰 -{title['price']} عملة\n💵 رصيدك: {new_balance} عملة")
         else:
-            await query.edit_message_text(f"❌ **رصيدك غير كافٍ!**\n\n🏷️ السعر: {title['price']}\n💵 رصيدك: {balance}\n📉 تحتاج: {title['price'] - balance} عملة")
+            await query.edit_message_text(f"❌ رصيدك غير كافٍ!\n\n🏷️ السعر: {title['price']}\n💵 رصيدك: {balance}\n📉 تحتاج: {title['price'] - balance} عملة")
         
         conn.close()
