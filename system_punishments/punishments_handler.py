@@ -10,39 +10,98 @@ from shared.logger import log_action
 from config import GROUP_ID
 
 def parse_duration(duration_str):
+    """تحويل النص إلى ثواني - يدعم: ث، د، س، ساعة، ساعات، يوم"""
     if not duration_str:
         return 600
+    
     duration_str = duration_str.strip()
+    
+    # ثواني (مثال: 30ث، 45ثانية)
+    if duration_str.endswith('ث'):
+        try:
+            num = int(duration_str[:-1])
+            return num
+        except:
+            pass
+    if duration_str.endswith('ثانية'):
+        try:
+            num = int(duration_str.replace('ثانية', ''))
+            return num
+        except:
+            pass
+    if duration_str.endswith('ثواني'):
+        try:
+            num = int(duration_str.replace('ثواني', ''))
+            return num
+        except:
+            pass
+    
+    # دقائق (مثال: 1د، 5دقيقة، 10دقائق)
     if duration_str.endswith('د'):
         try:
             num = int(duration_str[:-1])
             return num * 60
         except:
             pass
+    if duration_str.endswith('دقيقة'):
+        try:
+            num = int(duration_str.replace('دقيقة', ''))
+            return num * 60
+        except:
+            pass
+    if duration_str.endswith('دقائق'):
+        try:
+            num = int(duration_str.replace('دقائق', ''))
+            return num * 60
+        except:
+            pass
+    
+    # ساعات (مثال: 1س، 2ساعة، 3ساعات)
     if duration_str.endswith('س'):
         try:
             num = int(duration_str[:-1])
             return num * 3600
         except:
             pass
+    if duration_str.endswith('ساعة'):
+        try:
+            num = int(duration_str.replace('ساعة', ''))
+            return num * 3600
+        except:
+            pass
+    if duration_str.endswith('ساعات'):
+        try:
+            num = int(duration_str.replace('ساعات', ''))
+            return num * 3600
+        except:
+            pass
+    
+    # أيام
     if duration_str == 'يوم':
         return 86400
+    
+    # رقم فقط (يعتبر دقائق)
     try:
         num = int(duration_str)
         return num * 60
     except:
         pass
-    return 600
+    
+    return 600  # افتراضي 10 دقائق
 
 def format_duration(seconds):
+    """تحويل الثواني إلى نص مفهوم"""
     if seconds >= 86400:
-        return f"{seconds // 86400} يوم"
+        days = seconds // 86400
+        return f"{days} يوم" + ("ين" if days == 2 else "")
     elif seconds >= 3600:
-        return f"{seconds // 3600} ساعة"
+        hours = seconds // 3600
+        return f"{hours} ساعة" + ("ات" if hours >= 3 else ("ين" if hours == 2 else ""))
     elif seconds >= 60:
-        return f"{seconds // 60} دقيقة"
+        minutes = seconds // 60
+        return f"{minutes} دقيقة" + ("ق" if minutes >= 3 else ("تين" if minutes == 2 else "ة"))
     else:
-        return f"{seconds} ثانية"
+        return f"{seconds} ثانية" + ("تين" if seconds == 2 else ("ت" if seconds >= 3 else "ة"))
 
 DEFAULT_MUTE_DURATION = 600
 
@@ -72,7 +131,13 @@ async def mute_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     if len(parts) >= 2:
         time_part = parts[1]
-        time_patterns = [r'^\d+د$', r'^\d+س$', r'^يوم$']
+        # أنماط الوقت المدعومة
+        time_patterns = [
+            r'^\d+ث$', r'^\d+ثانية$', r'^\d+ثواني$',
+            r'^\d+د$', r'^\d+دقيقة$', r'^\d+دقائق$',
+            r'^\d+س$', r'^\d+ساعة$', r'^\d+ساعات$',
+            r'^يوم$'
+        ]
         is_time = False
         for pattern in time_patterns:
             if re.match(pattern, time_part):
@@ -81,11 +146,11 @@ async def mute_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         if is_time:
             duration_seconds = parse_duration(time_part)
-            duration_str = time_part
+            duration_str = format_duration(duration_seconds)
             reason = parts[2] if len(parts) > 2 else "لا يوجد سبب"
         else:
             reason = time_part
-            duration_str = "10د"
+            duration_str = "10 دقائق"
             duration_seconds = 600
     
     if not reason:
@@ -219,37 +284,17 @@ async def unmute_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     target_name = target.first_name
     target_username = target.username or "لا يوجد"
     
-    # فك الكتم - استخدام الصلاحيات الصحيحة
     try:
         await context.bot.restrict_chat_member(
             GROUP_ID, 
             target_id, 
-            permissions=telegram.ChatPermissions(
-                can_send_messages=True,
-                can_send_media_messages=True,
-                can_send_polls=True,
-                can_send_other_messages=True,
-                can_add_web_page_previews=True,
-                can_change_info=True,
-                can_invite_users=True,
-                can_pin_messages=True
-            )
+            permissions=telegram.ChatPermissions(can_send_messages=True)
         )
     except Exception as e:
         print(f"Unmute error: {e}")
-        # محاولة بديلة بصلاحيات أبسط
-        try:
-            await context.bot.restrict_chat_member(
-                GROUP_ID, 
-                target_id, 
-                permissions=telegram.ChatPermissions(can_send_messages=True)
-            )
-        except Exception as e2:
-            print(f"Alternative unmute error: {e2}")
-            await update.message.reply_text(f"❌ فشل فك الكتم: {e}")
-            return
+        await update.message.reply_text(f"❌ فشل فك الكتم: {e}")
+        return
     
-    # تحديث قاعدة البيانات
     conn = get_db()
     conn.execute("UPDATE users SET is_muted = 0, muted_until = 0 WHERE user_id = ?", (target_id,))
     conn.commit()
@@ -269,29 +314,11 @@ async def unmute_user(context, user_id, send_notification=True):
         await context.bot.restrict_chat_member(
             GROUP_ID, 
             user_id, 
-            permissions=telegram.ChatPermissions(
-                can_send_messages=True,
-                can_send_media_messages=True,
-                can_send_polls=True,
-                can_send_other_messages=True,
-                can_add_web_page_previews=True,
-                can_change_info=True,
-                can_invite_users=True,
-                can_pin_messages=True
-            )
+            permissions=telegram.ChatPermissions(can_send_messages=True)
         )
         print(f"✅ Unmuted user {user_id} successfully")
     except Exception as e:
         print(f"Unmute error: {e}")
-        try:
-            await context.bot.restrict_chat_member(
-                GROUP_ID, 
-                user_id, 
-                permissions=telegram.ChatPermissions(can_send_messages=True)
-            )
-            print(f"✅ Unmuted user {user_id} with alternative method")
-        except Exception as e2:
-            print(f"Alternative unmute error: {e2}")
     
     conn = get_db()
     conn.execute("UPDATE users SET is_muted = 0, muted_until = 0 WHERE user_id = ?", (user_id,))
@@ -306,7 +333,7 @@ async def unmute_user(context, user_id, send_notification=True):
         username = user["username"] or "لا يوجد"
         await context.bot.send_message(
             GROUP_ID,
-            f"🔓 **تم فك الكتم**\n\n"
+            f"🔓 **انتهاء عقوبة الكتم**\n\n"
             f"👤 العضو: {name} (@{username})\n"
             f"✅ انتهت فترة العقوبة ويمكنه التحدث مرة أخرى"
         )
