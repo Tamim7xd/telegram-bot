@@ -185,15 +185,13 @@ async def handle_arabic_commands(update: Update, context: ContextTypes.DEFAULT_T
         await handle_admin_inputs(update, context)
         return
 
-def check_mutes_thread(bot):
-    """مهمة فحص انتهاء الكتم في خيط منفصل"""
+async def check_mutes_loop(app: Application):
+    """حلقة فحص انتهاء الكتم باستخدام asyncio"""
     while True:
-        time.sleep(60)
+        await asyncio.sleep(60)  # كل دقيقة
         try:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            loop.run_until_complete(check_expired_mutes(bot))
-            loop.close()
+            print("🔍 Running check_expired_mutes...")
+            await check_expired_mutes(app)
         except Exception as e:
             print(f"Check mutes error: {e}")
 
@@ -208,9 +206,13 @@ def backup_thread(bot):
         except Exception as e:
             print(f"Backup error: {e}")
 
-async def post_init(app):
+async def post_init(app: Application):
     await app.bot.delete_webhook()
     print("✅ Webhook deleted")
+    
+    # بدء مهمة فحص انتهاء الكتم
+    asyncio.create_task(check_mutes_loop(app))
+    print("✅ Mute checker started")
 
 def main():
     init_db()
@@ -241,10 +243,6 @@ def main():
     
     # معالج الأوامر العربية
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_arabic_commands))
-    
-    # تشغيل مهمة فحص انتهاء الكتم
-    check_mutes = threading.Thread(target=check_mutes_thread, args=(app.bot,), daemon=True)
-    check_mutes.start()
     
     # النسخ الاحتياطي
     backup = threading.Thread(target=backup_thread, args=(app.bot,), daemon=True)
