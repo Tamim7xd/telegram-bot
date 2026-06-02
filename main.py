@@ -62,7 +62,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def handle_all_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """معالج جميع الرسائل - يسجل المستخدم ثم يعالج الأوامر"""
-    # تسجيل المستخدم أولاً (حتى لو لم يكتب أمراً)
     await register_user(update)
     
     text = update.message.text.strip()
@@ -248,7 +247,8 @@ def main():
     app.add_handler(CommandHandler("admin", admin_panel_command))
     app.add_handler(CommandHandler("owner", owner_panel_command))
     
-    # ========== معالجات الأزرار (الأهم) ==========
+    # ========== معالجات الأزرار (كل الأزرار في جميع الأقسام) ==========
+    
     # أزرار الألعاب
     app.add_handler(CallbackQueryHandler(game_callback, pattern="^(game_|rps_)"))
     
