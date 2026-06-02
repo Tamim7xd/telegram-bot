@@ -60,7 +60,7 @@ async def handle_arabic_commands(update: Update, context: ContextTypes.DEFAULT_T
     
     print(f"📩 Received: {text}")
     
-    # ========== أوامر عامة (بدون رد) ==========
+    # أوامر عامة (بدون رد)
     if text in ["#ملف", "#ملفي", "#الملف", "#معلومات", "#معلوماتي", "#المعلومات"]:
         await profile_command(update, context)
         return
@@ -85,159 +85,111 @@ async def handle_arabic_commands(update: Update, context: ContextTypes.DEFAULT_T
         await owner_panel_command(update, context)
         return
     
-    # ========== أوامر تتطلب الرد على رسالة ==========
-    
-    # تحذير
+    # أوامر تتطلب الرد
     if text.startswith("#تحذير"):
         if not update.message.reply_to_message:
             await update.message.reply_text("❌ يرجى الرد على رسالة العضو المستهدف")
             return
         parts = text.split(maxsplit=1)
         reason = parts[1] if len(parts) > 1 else "لا يوجد سبب"
-        await warning_command_with_params(update, context, reason)
+        context.user_data['temp_reason'] = reason
+        await warning_command(update, context)
         return
     
-    # كتم
     if text.startswith("#كتم"):
         if not update.message.reply_to_message:
             await update.message.reply_text("❌ يرجى الرد على رسالة العضو المستهدف")
             return
         parts = text.split(maxsplit=2)
+        import re
+        time_patterns = [r'^\d+د$', r'^\d+س$', r'^يوم$']
+        is_time = False
         if len(parts) >= 2:
-            time_part = parts[1]
-            # تحقق إذا كان الجزء الثاني هو وقت
-            import re
-            time_patterns = [r'^\d+د$', r'^\d+س$', r'^يوم$']
-            is_time = False
             for pattern in time_patterns:
-                if re.match(pattern, time_part):
+                if re.match(pattern, parts[1]):
                     is_time = True
                     break
-            
-            if is_time:
-                duration = time_part
-                reason = parts[2] if len(parts) > 2 else "لا يوجد سبب"
-                await mute_command_with_params(update, context, duration, reason)
-            else:
-                reason = time_part
-                await mute_command_with_params(update, context, None, reason)
+        
+        if is_time:
+            context.user_data['temp_duration'] = parts[1]
+            context.user_data['temp_reason'] = parts[2] if len(parts) > 2 else "لا يوجد سبب"
         else:
-            await mute_command_with_params(update, context, None, "لا يوجد سبب")
+            context.user_data['temp_reason'] = parts[1] if len(parts) > 1 else "لا يوجد سبب"
+        await mute_command(update, context)
         return
     
-    # حظر
     if text.startswith("#حظر"):
         if not update.message.reply_to_message:
             await update.message.reply_text("❌ يرجى الرد على رسالة العضو المستهدف")
             return
         parts = text.split(maxsplit=1)
-        reason = parts[1] if len(parts) > 1 else "لا يوجد سبب"
-        await ban_command_with_params(update, context, reason)
+        context.user_data['temp_reason'] = parts[1] if len(parts) > 1 else "لا يوجد سبب"
+        await ban_command(update, context)
         return
     
-    # طرد
     if text.startswith("#طرد"):
         if not update.message.reply_to_message:
             await update.message.reply_text("❌ يرجى الرد على رسالة العضو المستهدف")
             return
         parts = text.split(maxsplit=1)
-        reason = parts[1] if len(parts) > 1 else "لا يوجد سبب"
-        await kick_command_with_params(update, context, reason)
+        context.user_data['temp_reason'] = parts[1] if len(parts) > 1 else "لا يوجد سبب"
+        await kick_command(update, context)
         return
     
-    # خصم
     if text.startswith("#خصم"):
         if not update.message.reply_to_message:
             await update.message.reply_text("❌ يرجى الرد على رسالة العضو المستهدف")
             return
         parts = text.split(maxsplit=2)
         if len(parts) < 2:
-            await update.message.reply_text("❌ يرجى تحديد المبلغ\nمثال: #خصم 500 سبب")
+            await update.message.reply_text("❌ يرجى تحديد المبلغ")
             return
         try:
-            amount = int(parts[1])
-        except ValueError:
+            context.user_data['temp_amount'] = int(parts[1])
+        except:
             await update.message.reply_text("❌ المبلغ يجب أن يكون رقماً")
             return
-        reason = parts[2] if len(parts) >= 3 else "لا يوجد سبب"
-        await deduct_command_with_params(update, context, amount, reason)
+        context.user_data['temp_reason'] = parts[2] if len(parts) > 2 else "لا يوجد سبب"
+        await remove_balance_command(update, context)
         return
     
-    # مكافأة
     if text.startswith("#مكافأة"):
         if not update.message.reply_to_message:
             await update.message.reply_text("❌ يرجى الرد على رسالة العضو المستهدف")
             return
         parts = text.split(maxsplit=2)
         if len(parts) < 2:
-            await update.message.reply_text("❌ يرجى تحديد المبلغ\nمثال: #مكافأة 500 سبب")
+            await update.message.reply_text("❌ يرجى تحديد المبلغ")
             return
         try:
-            amount = int(parts[1])
-        except ValueError:
+            context.user_data['temp_amount'] = int(parts[1])
+        except:
             await update.message.reply_text("❌ المبلغ يجب أن يكون رقماً")
             return
-        reason = parts[2] if len(parts) >= 3 else "لا يوجد سبب"
-        await reward_command_with_params(update, context, amount, reason)
+        context.user_data['temp_reason'] = parts[2] if len(parts) > 2 else "لا يوجد سبب"
+        await add_balance_command(update, context)
         return
     
-    # ========== معالجة إجابات الألعاب ==========
+    # معالجة إجابات الألعاب
     if context.user_data.get('waiting_guess') or context.user_data.get('waiting_question') or context.user_data.get('waiting_reverse') or context.user_data.get('waiting_lucky'):
         await handle_game_answer(update, context)
         return
     
-    # ========== معالجة إدخالات المالك ==========
+    # معالجة إدخالات المالك
     if context.user_data.get('waiting_shop_name') or context.user_data.get('waiting_shop_price') or context.user_data.get('waiting_edit_name') or context.user_data.get('waiting_edit_price') or context.user_data.get('waiting_warn_all') or context.user_data.get('waiting_warn_reason') or context.user_data.get('waiting_deduct_amount') or context.user_data.get('waiting_reward_amount') or context.user_data.get('waiting_broadcast_media') or context.user_data.get('waiting_broadcast_text') or context.user_data.get('waiting_mute_duration') or context.user_data.get('waiting_ban_reason') or context.user_data.get('waiting_admin_reward_amount') or context.user_data.get('waiting_admin_reward_reason'):
         await handle_owner_input(update, context)
         return
     
-    # ========== معالجة إدخالات المشرفين ==========
+    # معالجة إدخالات المشرفين
     if context.user_data.get('admin_warn_target') or context.user_data.get('admin_mute_target') or context.user_data.get('admin_deduct_target'):
         await handle_admin_inputs(update, context)
         return
 
-# ==================== دوال مساعدة للأوامر ====================
-
-async def warning_command_with_params(update: Update, context: ContextTypes.DEFAULT_TYPE, reason: str):
-    """تنفيذ أمر التحذير مع السبب"""
-    context.user_data['temp_reason'] = reason
-    await warning_command(update, context)
-
-async def mute_command_with_params(update: Update, context: ContextTypes.DEFAULT_TYPE, duration: str, reason: str):
-    """تنفيذ أمر الكتم مع المدة والسبب"""
-    if duration:
-        context.user_data['temp_duration'] = duration
-    context.user_data['temp_reason'] = reason
-    await mute_command(update, context)
-
-async def ban_command_with_params(update: Update, context: ContextTypes.DEFAULT_TYPE, reason: str):
-    """تنفيذ أمر الحظر مع السبب"""
-    context.user_data['temp_reason'] = reason
-    await ban_command(update, context)
-
-async def kick_command_with_params(update: Update, context: ContextTypes.DEFAULT_TYPE, reason: str):
-    """تنفيذ أمر الطرد مع السبب"""
-    context.user_data['temp_reason'] = reason
-    await kick_command(update, context)
-
-async def deduct_command_with_params(update: Update, context: ContextTypes.DEFAULT_TYPE, amount: int, reason: str):
-    """تنفيذ أمر الخصم مع المبلغ والسبب"""
-    context.user_data['temp_amount'] = amount
-    context.user_data['temp_reason'] = reason
-    await remove_balance_command(update, context)
-
-async def reward_command_with_params(update: Update, context: ContextTypes.DEFAULT_TYPE, amount: int, reason: str):
-    """تنفيذ أمر المكافأة مع المبلغ والسبب"""
-    context.user_data['temp_amount'] = amount
-    context.user_data['temp_reason'] = reason
-    await add_balance_command(update, context)
-
 def check_mutes_thread(bot):
     """مهمة فحص انتهاء الكتم في خيط منفصل"""
     while True:
-        time.sleep(60)  # كل دقيقة
+        time.sleep(60)
         try:
-            # إنشاء حلقة asyncio جديدة
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             loop.run_until_complete(check_expired_mutes(bot))
@@ -290,7 +242,7 @@ def main():
     # معالج الأوامر العربية
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_arabic_commands))
     
-    # تشغيل مهمة فحص انتهاء الكتم في خيط منفصل
+    # تشغيل مهمة فحص انتهاء الكتم
     check_mutes = threading.Thread(target=check_mutes_thread, args=(app.bot,), daemon=True)
     check_mutes.start()
     
