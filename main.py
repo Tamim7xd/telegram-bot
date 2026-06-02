@@ -54,38 +54,108 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "━━━━━━━━━━━━━━━━━━━━━━"
     )
 
-async def handle_all_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def handle_arabic_commands(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """معالج الأوامر العربية - يدعم جميع الأوامر"""
     text = update.message.text.strip()
     
     print(f"📩 Received: {text}")
     
-    # ========== أوامر الملف الشخصي ==========
+    # ========== أوامر عامة (بدون رد) ==========
     if text in ["#ملف", "#ملفي", "#الملف", "#معلومات", "#معلوماتي", "#المعلومات"]:
         await profile_command(update, context)
         return
     
-    # ========== أوامر الألعاب ==========
     if text in ["#لعبة", "#العاب", "#لعب", "#العب"]:
         await game_command(update, context)
         return
     
-    # ========== أوامر السوق ==========
     if text in ["#سوق", "#محل", "#شراء", "#اشتري", "#اسواق", "#المتجر"]:
         await shop_command(update, context)
         return
     
-    # ========== المكافأة اليومية ==========
     if text in ["#يومي", "#مكافأةيومية", "#يومية"]:
         await daily_reward_command(update, context)
         return
     
-    # ========== لوحات التحكم ==========
     if text in ["#مشرف", "#ادمن", "#الادمن"]:
         await admin_panel_command(update, context)
         return
     
     if text in ["#مالك", "#المالك"]:
         await owner_panel_command(update, context)
+        return
+    
+    # ========== أوامر تتطلب الرد على رسالة ==========
+    if text.startswith("#تحذير"):
+        if not update.message.reply_to_message:
+            await update.message.reply_text("❌ يرجى الرد على رسالة العضو المستهدف")
+            return
+        parts = text.split(maxsplit=1)
+        reason = parts[1] if len(parts) > 1 else "لا يوجد سبب"
+        update.message.text = f"/warn {reason}"
+        await warning_command(update, context)
+        return
+    
+    if text.startswith("#كتم"):
+        if not update.message.reply_to_message:
+            await update.message.reply_text("❌ يرجى الرد على رسالة العضو المستهدف")
+            return
+        parts = text.split(maxsplit=2)
+        if len(parts) >= 2:
+            duration = parts[1]
+            reason = parts[2] if len(parts) > 2 else "لا يوجد سبب"
+            update.message.text = f"/mute {duration} {reason}"
+        else:
+            update.message.text = "/mute"
+        await mute_command(update, context)
+        return
+    
+    if text.startswith("#حظر"):
+        if not update.message.reply_to_message:
+            await update.message.reply_text("❌ يرجى الرد على رسالة العضو المستهدف")
+            return
+        parts = text.split(maxsplit=1)
+        reason = parts[1] if len(parts) > 1 else "لا يوجد سبب"
+        update.message.text = f"/ban {reason}"
+        await ban_command(update, context)
+        return
+    
+    if text.startswith("#طرد"):
+        if not update.message.reply_to_message:
+            await update.message.reply_text("❌ يرجى الرد على رسالة العضو المستهدف")
+            return
+        parts = text.split(maxsplit=1)
+        reason = parts[1] if len(parts) > 1 else "لا يوجد سبب"
+        update.message.text = f"/kick {reason}"
+        await kick_command(update, context)
+        return
+    
+    if text.startswith("#خصم"):
+        if not update.message.reply_to_message:
+            await update.message.reply_text("❌ يرجى الرد على رسالة العضو المستهدف")
+            return
+        parts = text.split(maxsplit=2)
+        if len(parts) >= 2:
+            amount = parts[1]
+            reason = parts[2] if len(parts) > 2 else "لا يوجد سبب"
+            update.message.text = f"/deduct {amount} {reason}"
+        else:
+            update.message.text = "/deduct"
+        await add_balance_command(update, context)
+        return
+    
+    if text.startswith("#مكافأة"):
+        if not update.message.reply_to_message:
+            await update.message.reply_text("❌ يرجى الرد على رسالة العضو المستهدف")
+            return
+        parts = text.split(maxsplit=2)
+        if len(parts) >= 2:
+            amount = parts[1]
+            reason = parts[2] if len(parts) > 2 else "لا يوجد سبب"
+            update.message.text = f"/reward {amount} {reason}"
+        else:
+            update.message.text = "/reward"
+        await remove_balance_command(update, context)
         return
     
     # ========== معالجة إجابات الألعاب ==========
@@ -101,74 +171,6 @@ async def handle_all_messages(update: Update, context: ContextTypes.DEFAULT_TYPE
     # ========== معالجة إدخالات المشرفين ==========
     if context.user_data.get('admin_warn_target') or context.user_data.get('admin_mute_target') or context.user_data.get('admin_deduct_target'):
         await handle_admin_inputs(update, context)
-        return
-
-# ==================== معالج الأوامر التي تتطلب الرد على الرسالة ====================
-
-async def handle_reply_commands(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """معالج الأوامر التي تتطلب الرد على رسالة العضو"""
-    text = update.message.text.strip()
-    
-    print(f"📩 Reply command: {text}")
-    
-    # التحذير
-    if text.startswith("#تحذير"):
-        parts = text.split(maxsplit=1)
-        reason = parts[1] if len(parts) > 1 else "لا يوجد سبب"
-        update.message.text = f"/warn {reason}"
-        await warning_command(update, context)
-        return
-    
-    # كتم
-    if text.startswith("#كتم"):
-        parts = text.split(maxsplit=2)
-        if len(parts) >= 2:
-            duration = parts[1]
-            reason = parts[2] if len(parts) > 2 else "لا يوجد سبب"
-            update.message.text = f"/mute {duration} {reason}"
-        else:
-            update.message.text = "/mute"
-        await mute_command(update, context)
-        return
-    
-    # حظر
-    if text.startswith("#حظر"):
-        parts = text.split(maxsplit=1)
-        reason = parts[1] if len(parts) > 1 else "لا يوجد سبب"
-        update.message.text = f"/ban {reason}"
-        await ban_command(update, context)
-        return
-    
-    # طرد
-    if text.startswith("#طرد"):
-        parts = text.split(maxsplit=1)
-        reason = parts[1] if len(parts) > 1 else "لا يوجد سبب"
-        update.message.text = f"/kick {reason}"
-        await kick_command(update, context)
-        return
-    
-    # خصم
-    if text.startswith("#خصم"):
-        parts = text.split(maxsplit=2)
-        if len(parts) >= 2:
-            amount = parts[1]
-            reason = parts[2] if len(parts) > 2 else "لا يوجد سبب"
-            update.message.text = f"/deduct {amount} {reason}"
-        else:
-            update.message.text = "/deduct"
-        await add_balance_command(update, context)
-        return
-    
-    # مكافأة
-    if text.startswith("#مكافأة"):
-        parts = text.split(maxsplit=2)
-        if len(parts) >= 2:
-            amount = parts[1]
-            reason = parts[2] if len(parts) > 2 else "لا يوجد سبب"
-            update.message.text = f"/reward {amount} {reason}"
-        else:
-            update.message.text = "/reward"
-        await remove_balance_command(update, context)
         return
 
 def backup_thread(bot):
@@ -213,11 +215,8 @@ def main():
     app.add_handler(CallbackQueryHandler(owner_callback, pattern="^owner_"))
     app.add_handler(CallbackQueryHandler(handle_admin_buttons, pattern="^(admin_warn_|admin_mute_|admin_deduct_|close)"))
     
-    # معالج الأوامر العربية العامة
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_all_messages))
-    
-    # معالج الأوامر التي تتطلب الرد على الرسالة (تأتي أولاً)
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_reply_commands))
+    # معالج الأوامر العربية
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_arabic_commands))
     
     # النسخ الاحتياطي
     backup = threading.Thread(target=backup_thread, args=(app.bot,), daemon=True)
