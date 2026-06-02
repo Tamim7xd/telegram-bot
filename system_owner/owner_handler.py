@@ -35,7 +35,7 @@ async def owner_panel_command(update: Update, context: ContextTypes.DEFAULT_TYPE
     await update.message.reply_text("👑 لوحة المالك\n\nاختر الإجراء:", reply_markup=InlineKeyboardMarkup(keyboard))
 
 async def owner_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    print(f"🔔 owner_callback received: {update.callback_query.data}")  # سطر التصحيح
+    print(f"🔔 owner_callback received: {update.callback_query.data}")
     query = update.callback_query
     await query.answer()
     user_id = query.from_user.id
@@ -49,7 +49,7 @@ async def owner_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if data == "owner_close":
         await query.edit_message_text("🔚 تم إغلاق لوحة المالك")
         return
-      
+    
     # ========== إدارة المشرفين ==========
     if data == "owner_admins":
         await show_admins_list(update, context, query)
@@ -632,20 +632,47 @@ async def show_user_logs(update, context, query, target_id, page):
     keyboard.append([InlineKeyboardButton("🔙 رجوع", callback_data=f"user_details_{target_id}")])
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
 
-# ==================== معالج الإدخالات ====================
+# ==================== معالج الإدخالات (مع دعم GIF المباشر) ====================
 
 async def handle_owner_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
+    
     if not is_owner(user_id):
         return
+    
+    # ========== إعلان متحرك - استقبال GIF مباشر (بدون زر) ==========
+    if update.message.animation or update.message.video:
+        context.user_data['broadcast_media'] = update.message
+        await update.message.reply_text("✏️ أرسل نص الإعلان:")
+        context.user_data['waiting_broadcast_text'] = True
+        return
+    
     text = update.message.text.strip()
     
+    # ========== إعلان متحرك - استقبال النص ==========
+    if context.user_data.get('waiting_broadcast_text'):
+        media_msg = context.user_data.get('broadcast_media')
+        caption = f"📢 إعــــلان\n\n{text}\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n👮 صادر عن: المالك\n🕐 {time.strftime('%Y-%m-%d %H:%M')}"
+        
+        if media_msg.animation:
+            await context.bot.send_animation(GROUP_ID, media_msg.animation.file_id, caption=caption)
+        elif media_msg.video:
+            await context.bot.send_video(GROUP_ID, media_msg.video.file_id, caption=caption)
+        
+        await update.message.reply_text("✅ تم إرسال الإعلان المتحرك")
+        context.user_data['broadcast_media'] = None
+        context.user_data['waiting_broadcast_text'] = False
+        return
+    
+    # ========== إضافة لقب - انتظار الاسم ==========
     if context.user_data.get('waiting_shop_name'):
         context.user_data['new_shop_name'] = text
         await update.message.reply_text("💰 أرسل سعر اللقب:")
         context.user_data['waiting_shop_price'] = True
         context.user_data['waiting_shop_name'] = False
         return
+    
+    # ========== إضافة لقب - انتظار السعر ==========
     if context.user_data.get('waiting_shop_price'):
         try:
             price = int(text)
@@ -658,6 +685,8 @@ async def handle_owner_input(update: Update, context: ContextTypes.DEFAULT_TYPE)
         context.user_data['waiting_shop_price'] = False
         context.user_data['new_shop_name'] = None
         return
+    
+    # ========== تعديل لقب - انتظار الاسم ==========
     if context.user_data.get('waiting_edit_name'):
         if text:
             context.user_data['new_edit_name'] = text
@@ -665,6 +694,8 @@ async def handle_owner_input(update: Update, context: ContextTypes.DEFAULT_TYPE)
         context.user_data['waiting_edit_price'] = True
         context.user_data['waiting_edit_name'] = False
         return
+    
+    # ========== تعديل لقب - انتظار السعر ==========
     if context.user_data.get('waiting_edit_price'):
         title_id = context.user_data.get('editing_title_id')
         if title_id and title_id in TITLES:
@@ -680,11 +711,15 @@ async def handle_owner_input(update: Update, context: ContextTypes.DEFAULT_TYPE)
         context.user_data['editing_title_id'] = None
         context.user_data['new_edit_name'] = None
         return
+    
+    # ========== تحذير للجميع ==========
     if context.user_data.get('waiting_warn_all'):
         await context.bot.send_message(GROUP_ID, f"⚠️ تحذير عام\n\n📝 {text}\n\n👮 صادر عن: المالك")
         await update.message.reply_text("✅ تم الإرسال")
         context.user_data['waiting_warn_all'] = False
         return
+    
+    # ========== كتم من قائمة الأعضاء ==========
     if context.user_data.get('mute_target'):
         target_id = context.user_data['mute_target']
         from system_punishments.punishments_handler import parse_duration, format_duration
@@ -704,6 +739,8 @@ async def handle_owner_input(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await update.message.reply_text(f"✅ تم كتم العضو لمدة {duration_text}")
         context.user_data['mute_target'] = None
         return
+    
+    # ========== حظر من قائمة الأعضاء ==========
     if context.user_data.get('ban_target'):
         target_id = context.user_data['ban_target']
         reason = text
@@ -720,6 +757,8 @@ async def handle_owner_input(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await update.message.reply_text(f"✅ تم حظر {user['first_name']}")
         context.user_data['ban_target'] = None
         return
+    
+    # ========== تحذير من قائمة الأعضاء ==========
     if context.user_data.get('warn_target'):
         target_id = context.user_data['warn_target']
         reason = text
@@ -732,6 +771,8 @@ async def handle_owner_input(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await update.message.reply_text(f"✅ تم إضافة تحذير\n⚠️ العدد: {user['warnings']}")
         context.user_data['warn_target'] = None
         return
+    
+    # ========== خصم من قائمة الأعضاء ==========
     if context.user_data.get('deduct_target'):
         try:
             amount = int(text)
@@ -747,6 +788,8 @@ async def handle_owner_input(update: Update, context: ContextTypes.DEFAULT_TYPE)
             await update.message.reply_text("❌ المبلغ يجب أن يكون رقماً")
         context.user_data['deduct_target'] = None
         return
+    
+    # ========== مكافأة من قائمة الأعضاء ==========
     if context.user_data.get('reward_target'):
         try:
             amount = int(text)
@@ -761,32 +804,6 @@ async def handle_owner_input(update: Update, context: ContextTypes.DEFAULT_TYPE)
         except:
             await update.message.reply_text("❌ المبلغ يجب أن يكون رقماً")
         context.user_data['reward_target'] = None
-        return
-    if context.user_data.get('waiting_broadcast_media'):
-        if update.message.animation or update.message.document or update.message.sticker or update.message.video:
-            context.user_data['broadcast_media'] = update.message
-            await update.message.reply_text("✏️ أرسل نص الإعلان:")
-            context.user_data['waiting_broadcast_text'] = True
-            context.user_data['waiting_broadcast_media'] = False
-        else:
-            await update.message.reply_text("❌ أرسل ملف متحرك (GIF، ملصق، فيديو)")
-        return
-    if context.user_data.get('waiting_broadcast_text'):
-        media_msg = context.user_data.get('broadcast_media')
-        caption = f"📢 إعــــلان\n\n{text}\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n👮 صادر عن: المالك\n🕐 {time.strftime('%Y-%m-%d %H:%M')}"
-        try:
-            if media_msg.animation:
-                await context.bot.send_animation(GROUP_ID, media_msg.animation.file_id, caption=caption)
-            elif media_msg.sticker:
-                await context.bot.send_sticker(GROUP_ID, media_msg.sticker.file_id)
-                await context.bot.send_message(GROUP_ID, caption)
-            elif media_msg.video:
-                await context.bot.send_video(GROUP_ID, media_msg.video.file_id, caption=caption)
-            await update.message.reply_text("✅ تم إرسال الإعلان المتحرك")
-        except Exception as e:
-            await update.message.reply_text(f"❌ فشل الإرسال: {e}")
-        context.user_data['broadcast_media'] = None
-        context.user_data['waiting_broadcast_text'] = False
         return
 
 # ==================== دوال الأزرار الإضافية للمشرفين ====================
