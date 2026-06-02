@@ -219,7 +219,7 @@ async def unmute_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     target_name = target.first_name
     target_username = target.username or "لا يوجد"
     
-    # فك الكتم
+    # فك الكتم - استخدام الصلاحيات الصحيحة
     try:
         await context.bot.restrict_chat_member(
             GROUP_ID, 
@@ -227,13 +227,27 @@ async def unmute_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             permissions=telegram.ChatPermissions(
                 can_send_messages=True,
                 can_send_media_messages=True,
-                can_send_other_messages=True
+                can_send_polls=True,
+                can_send_other_messages=True,
+                can_add_web_page_previews=True,
+                can_change_info=True,
+                can_invite_users=True,
+                can_pin_messages=True
             )
         )
     except Exception as e:
         print(f"Unmute error: {e}")
-        await update.message.reply_text(f"❌ فشل فك الكتم: {e}")
-        return
+        # محاولة بديلة بصلاحيات أبسط
+        try:
+            await context.bot.restrict_chat_member(
+                GROUP_ID, 
+                target_id, 
+                permissions=telegram.ChatPermissions(can_send_messages=True)
+            )
+        except Exception as e2:
+            print(f"Alternative unmute error: {e2}")
+            await update.message.reply_text(f"❌ فشل فك الكتم: {e}")
+            return
     
     # تحديث قاعدة البيانات
     conn = get_db()
@@ -258,12 +272,26 @@ async def unmute_user(context, user_id, send_notification=True):
             permissions=telegram.ChatPermissions(
                 can_send_messages=True,
                 can_send_media_messages=True,
-                can_send_other_messages=True
+                can_send_polls=True,
+                can_send_other_messages=True,
+                can_add_web_page_previews=True,
+                can_change_info=True,
+                can_invite_users=True,
+                can_pin_messages=True
             )
         )
         print(f"✅ Unmuted user {user_id} successfully")
     except Exception as e:
         print(f"Unmute error: {e}")
+        try:
+            await context.bot.restrict_chat_member(
+                GROUP_ID, 
+                user_id, 
+                permissions=telegram.ChatPermissions(can_send_messages=True)
+            )
+            print(f"✅ Unmuted user {user_id} with alternative method")
+        except Exception as e2:
+            print(f"Alternative unmute error: {e2}")
     
     conn = get_db()
     conn.execute("UPDATE users SET is_muted = 0, muted_until = 0 WHERE user_id = ?", (user_id,))
