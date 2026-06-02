@@ -11,7 +11,7 @@ from system_profile.profile_handler import profile_command
 from system_games.games_handler import game_command, game_callback, handle_game_answer
 from system_shop.shop_handler import shop_command, shop_callback
 from system_warnings.warnings_handler import warning_command
-from system_punishments.punishments_handler import mute_command, ban_command, kick_command, check_expired_mutes
+from system_punishments.punishments_handler import mute_command, ban_command, kick_command, unmute_command, check_expired_mutes
 from system_economy.economy_handler import add_balance_command, remove_balance_command, daily_reward_command
 from system_admin.admin_handler import admin_panel_command, admin_callback
 from system_owner.owner_handler import owner_panel_command, owner_callback, handle_owner_input, handle_admin_buttons, handle_admin_inputs
@@ -43,6 +43,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "🛡️ أوامر المشرفين:\n"
         "#تحذير سبب - تحذير عضو\n"
         "#كتم مدة سبب - كتم عضو\n"
+        "#فك_كتم - فك الكتم عن عضو\n"
         "#خصم مبلغ سبب - خصم رصيد\n"
         "#مكافأة مبلغ سبب - إضافة رصيد\n"
         "#مشرف - لوحة المشرفين\n\n"
@@ -115,6 +116,13 @@ async def handle_arabic_commands(update: Update, context: ContextTypes.DEFAULT_T
         else:
             context.user_data['temp_reason'] = parts[1] if len(parts) > 1 else "لا يوجد سبب"
         await mute_command(update, context)
+        return
+    
+    if text.startswith("#فك_كتم"):
+        if not update.message.reply_to_message:
+            await update.message.reply_text("❌ يرجى الرد على رسالة العضو المستهدف")
+            return
+        await unmute_command(update, context)
         return
     
     if text.startswith("#حظر"):
@@ -225,6 +233,7 @@ def main():
     app.add_handler(CommandHandler("daily", daily_reward_command))
     app.add_handler(CommandHandler("warn", warning_command))
     app.add_handler(CommandHandler("mute", mute_command))
+    app.add_handler(CommandHandler("unmute", unmute_command))
     app.add_handler(CommandHandler("deduct", remove_balance_command))
     app.add_handler(CommandHandler("reward", add_balance_command))
     app.add_handler(CommandHandler("ban", ban_command))
