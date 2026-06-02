@@ -9,7 +9,6 @@ from shared.permissions import is_admin, is_super_admin
 from shared.logger import log_action
 from config import GROUP_ID
 
-# دوال تحويل الوقت
 def parse_duration(duration_str):
     if not duration_str:
         return 600
@@ -238,18 +237,22 @@ async def unmute_user(context, user_id, send_notification=True):
     
     return user if user else None
 
-async def check_expired_mutes(context):
+async def check_expired_mutes(app):
     """فحص الأعضاء الذين انتهت مدتهم وفك الكتم عنهم"""
     conn = get_db()
     current_time = int(time.time())
     
-    cursor = conn.execute("SELECT user_id FROM users WHERE is_muted = 1 AND muted_until <= ?", (current_time,))
-    expired_users = cursor.fetchall()
+    cursor = conn.execute("SELECT user_id, muted_until FROM users WHERE is_muted = 1")
+    all_muted = cursor.fetchall()
     conn.close()
     
-    print(f"🔍 Checking expired mutes... Found {len(expired_users)} expired users")
+    print(f"🔍 Checking {len(all_muted)} muted users...")
     
-    for user in expired_users:
-        user_id = user["user_id"]
-        print(f"🔓 Unmuting user {user_id}")
-        await unmute_user(context, user_id, send_notification=True)
+    expired_count = 0
+    for user in all_muted:
+        if user["muted_until"] <= current_time:
+            print(f"🔓 Unmuting user {user['user_id']} (expired at {user['muted_until']}, now {current_time})")
+            await unmute_user(app, user["user_id"], send_notification=True)
+            expired_count += 1
+    
+    print(f"✅ Unmuted {expired_count} expired users")
