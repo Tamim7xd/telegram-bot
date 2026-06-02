@@ -232,12 +232,16 @@ async def reward_command_with_params(update: Update, context: ContextTypes.DEFAU
     context.user_data['temp_reason'] = reason
     await add_balance_command(update, context)
 
-async def check_mutes_loop(app):
-    """حلقة فحص انتهاء الكتم كل دقيقة"""
+def check_mutes_thread(bot):
+    """مهمة فحص انتهاء الكتم في خيط منفصل"""
     while True:
-        await asyncio.sleep(60)  # كل دقيقة
+        time.sleep(60)  # كل دقيقة
         try:
-            await check_expired_mutes(app)
+            # إنشاء حلقة asyncio جديدة
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            loop.run_until_complete(check_expired_mutes(bot))
+            loop.close()
         except Exception as e:
             print(f"Check mutes error: {e}")
 
@@ -286,8 +290,9 @@ def main():
     # معالج الأوامر العربية
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_arabic_commands))
     
-    # تشغيل مهمة فحص انتهاء الكتم
-    asyncio.create_task(check_mutes_loop(app))
+    # تشغيل مهمة فحص انتهاء الكتم في خيط منفصل
+    check_mutes = threading.Thread(target=check_mutes_thread, args=(app.bot,), daemon=True)
+    check_mutes.start()
     
     # النسخ الاحتياطي
     backup = threading.Thread(target=backup_thread, args=(app.bot,), daemon=True)
