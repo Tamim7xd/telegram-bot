@@ -101,47 +101,47 @@ async def owner_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await show_admins_list(update, context, query)
         return
     
-    # إدارة السوق
-    if data == "owner_shop":
-        await show_shop_panel(update, context, query)
-        return
-    if data == "shop_view":
-        await show_shop_items(update, context, query)
-        return
-    if data == "shop_add":
-        await query.edit_message_text("✏️ أرسل اسم اللقب الجديد:")
-        context.user_data['waiting_shop_name'] = True
-        return
-    if data == "shop_edit":
-        await show_shop_edit_list(update, context, query)
-        return
-    if data.startswith("shop_edit_title_"):
-        title_id = int(data.split("_")[3])
-        context.user_data['editing_title_id'] = title_id
-        await query.edit_message_text("✏️ أرسل الاسم الجديد (اتركه فارغاً لعدم التغيير):")
-        context.user_data['waiting_edit_name'] = True
-        return
-    if data == "shop_delete":
-        await show_shop_delete_list(update, context, query)
-        return
-    if data.startswith("shop_delete_title_"):
-        title_id = int(data.split("_")[3])
-        title_name = TITLES[title_id]["name"]
-        keyboard = [[InlineKeyboardButton("✅ نعم، احذف", callback_data=f"shop_confirm_delete_{title_id}")], [InlineKeyboardButton("🔙 رجوع", callback_data="owner_shop")]]
-        await query.edit_message_text(f"⚠️ تأكيد حذف اللقب: {title_name}\n\nهل أنت متأكد؟", reply_markup=InlineKeyboardMarkup(keyboard))
-        return
-    if data.startswith("shop_confirm_delete_"):
-        title_id = int(data.split("_")[3])
-        del TITLES[title_id]
-        new_titles = {}
-        for i, (tid, title) in enumerate(TITLES.items(), 1):
-            new_titles[i] = title
-        TITLES.clear()
-        TITLES.update(new_titles)
-        await query.edit_message_text("✅ تم حذف اللقب بنجاح")
-        await asyncio.sleep(2)
-        await show_shop_panel(update, context, query)
-        return
+# إدارة السوق
+if data == "owner_shop":
+    await show_shop_panel(update, context, query)
+    return
+if data == "shop_view":
+    await show_shop_items(update, context, query)
+    return
+if data == "shop_add":
+    await query.edit_message_text("✏️ أرسل اسم اللقب الجديد:")
+    context.user_data['waiting_shop_name'] = True
+    return
+if data == "shop_edit":
+    await show_shop_edit_list(update, context, query)
+    return
+if data.startswith("shop_edit_title_"):
+    title_id = int(data.split("_")[3])
+    context.user_data['editing_title_id'] = title_id
+    await query.edit_message_text("✏️ أرسل الاسم الجديد (اتركه فارغاً لعدم التغيير):")
+    context.user_data['waiting_edit_name'] = True
+    return
+if data == "shop_delete":
+    await show_shop_delete_list(update, context, query)
+    return
+if data.startswith("shop_delete_title_"):
+    title_id = int(data.split("_")[3])
+    title_name = TITLES[title_id]["name"]
+    keyboard = [[InlineKeyboardButton("✅ نعم، احذف", callback_data=f"shop_confirm_delete_{title_id}")], [InlineKeyboardButton("🔙 رجوع", callback_data="owner_shop")]]
+    await query.edit_message_text(f"⚠️ تأكيد حذف اللقب: {title_name}\n\nهل أنت متأكد؟", reply_markup=InlineKeyboardMarkup(keyboard))
+    return
+if data.startswith("shop_confirm_delete_"):
+    title_id = int(data.split("_")[3])
+    del TITLES[title_id]
+    new_titles = {}
+    for i, (tid, title) in enumerate(TITLES.items(), 1):
+        new_titles[i] = title
+    TITLES.clear()
+    TITLES.update(new_titles)
+    await query.edit_message_text("✅ تم حذف اللقب بنجاح")
+    await asyncio.sleep(2)
+    await show_shop_panel(update, context, query)
+    return
     
     # إدارة التحذيرات
     if data == "owner_warnings":
