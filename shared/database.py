@@ -1,5 +1,6 @@
 import sqlite3
 import time
+import os
 
 DB_PATH = "database.db"
 
@@ -65,3 +66,18 @@ def init_db():
     conn.close()
 
 init_db()
+
+async def update_user_name(context, user_id, first_name):
+    """تحديث اسم العضو في المجموعة بناءً على دوره"""
+    from config import GROUP_ID
+    from shared.permissions import get_user_display_name
+    
+    new_name = get_user_display_name(user_id, first_name)
+    
+    try:
+        await context.bot.set_chat_member_title(GROUP_ID, user_id, new_name)
+        print(f"✅ تم تغيير اسم العضو {user_id} إلى: {new_name}")
+        return True
+    except Exception as e:
+        print(f"❌ فشل تغيير اسم العضو {user_id}: {e}")
+        return False
