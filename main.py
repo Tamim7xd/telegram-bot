@@ -258,8 +258,8 @@ def main():
     # معالج الرسائل النصية (الأوامر العربية)
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_all_messages))
     
-    # معالج الملفات (لإعلان متحرك - GIF, ملصق, فيديو)
-    app.add_handler(MessageHandler(filters.ANIMATION | filters.STICKER | filters.VIDEO | filters.DOCUMENT, handle_owner_input))
+    # معالج الملفات (لإعلان متحرك - GIF, فيديو, ملصق)
+    app.add_handler(MessageHandler(filters.ANIMATION | filters.VIDEO | filters.PHOTO | filters.Document.ALL, handle_owner_input))
     
     # تشغيل مهمة فحص الكتم
     check_mutes = threading.Thread(target=check_mutes_thread, args=(app.bot,), daemon=True)
