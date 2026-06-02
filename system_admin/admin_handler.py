@@ -1,4 +1,5 @@
 import asyncio
+import time
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes
 from shared.database import get_db
@@ -52,17 +53,11 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     if data.startswith("admin_unmute_"):
         target_id = int(data.split("_")[2])
-        await unmute_user(context, target_id)
+        user = await unmute_user(context, target_id, send_notification=True)
         
-        conn = get_db()
-        cursor = conn.execute("SELECT first_name, username FROM users WHERE user_id = ?", (target_id,))
-        user = cursor.fetchone()
-        conn.close()
-        
-        name = user["first_name"] or user["username"] or str(target_id)
+        name = user["first_name"] if user else str(target_id)
         
         await query.edit_message_text(f"✅ تم فك الكتم عن {name}")
-        await context.bot.send_message(GROUP_ID, f"🔓 **فك كتم**\n\n👤 {name}\n\n👮 بواسطة: {update.effective_user.first_name}")
         await asyncio.sleep(2)
         await show_offenders_list(update, context, query)
         return
@@ -82,7 +77,7 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         conn.commit()
         conn.close()
         
-        name = user["first_name"] or user["username"] or str(target_id)
+        name = user["first_name"] if user else str(target_id)
         
         await query.edit_message_text(f"✅ تم فك الحظر عن {name}")
         await context.bot.send_message(GROUP_ID, f"🔓 **فك حظر**\n\n👤 {name}\n\n👮 بواسطة: {update.effective_user.first_name}")
@@ -100,7 +95,7 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         conn.commit()
         conn.close()
         
-        name = user["first_name"] or user["username"] or str(target_id)
+        name = user["first_name"] if user else str(target_id)
         
         await query.edit_message_text(f"✅ تم حذف جميع تحذيرات {name}")
         await asyncio.sleep(2)
@@ -112,14 +107,17 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
 async def show_offenders_list(update, context, query):
-    """عرض قائمة المخالفين (اسم + نوع العقوبة فقط)"""
+    """عرض قائمة المخالفين (فقط من لديه عقوبات فعلية)"""
     conn = get_db()
+    current_time = int(time.time())
+    
+    # شرط صارم: فقط من لديه كتم نشط أو حظر أو تحذيرات
     cursor = conn.execute("""
-        SELECT user_id, first_name, username, is_muted, warnings, is_banned 
+        SELECT user_id, first_name, username, is_muted, muted_until, warnings, is_banned 
         FROM users 
-        WHERE is_muted = 1 OR warnings > 0 OR is_banned = 1 
+        WHERE (is_muted = 1 AND muted_until > ?) OR is_banned = 1 OR warnings > 0
         LIMIT 10
-    """)
+    """, (current_time,))
     offenders = cursor.fetchall()
     conn.close()
     
@@ -131,7 +129,7 @@ async def show_offenders_list(update, context, query):
     for o in offenders:
         name = o["first_name"] or o["username"] or str(o["user_id"])
         
-        if o["is_muted"]:
+        if o["is_muted"] and o["muted_until"] > current_time:
             status = "مكتوم"
         elif o["is_banned"]:
             status = "محظور"
@@ -145,15 +143,17 @@ async def show_offenders_list(update, context, query):
     await query.edit_message_text("📋 **قائمة المخالفين:**", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
 
 async def show_offender_details(update, context, query, target_id):
-    """عرض تفاصيل المخالف (مدة، سبب، تحذيرات) + أزرار الإدارة"""
+    """عرض تفاصيل المخالف + أزرار الإدارة"""
     conn = get_db()
+    current_time = int(time.time())
+    
     cursor = conn.execute("""
         SELECT user_id, first_name, username, is_muted, muted_until, warnings, is_banned 
         FROM users WHERE user_id = ?
     """, (target_id,))
     user = cursor.fetchone()
     
-    # جلب آخر عملية لهذا العضو
+    # جلب آخر عملية
     cursor = conn.execute("""
         SELECT action, reason, admin_name, timestamp 
         FROM logs 
@@ -168,30 +168,25 @@ async def show_offender_details(update, context, query, target_id):
         await query.edit_message_text("❌ العضو غير موجود")
         return
     
-    name = user["first_name"] or user["username"] or str(user["user_id"])
+    name = user["first_name"] or "مستخدم"
     username = user["username"] or "لا يوجد"
     
-    # بناء نص التفاصيل
     details = f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
     details += f"👤 **{name}**\n"
     details += f"🆔 @{username}\n"
     details += f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
     
     # حالة العضو
-    if user["is_muted"]:
-        remaining = user["muted_until"] - int(__import__('time').time())
-        if remaining > 0:
-            minutes = remaining // 60
-            seconds = remaining % 60
-            details += f"🔇 **مكتوم** - متبقي {minutes} دقيقة و {seconds} ثانية\n"
-        else:
-            details += f"🔇 **مكتوم** (منتهي)\n"
+    if user["is_muted"] and user["muted_until"] > current_time:
+        remaining = user["muted_until"] - current_time
+        minutes = remaining // 60
+        seconds = remaining % 60
+        details += f"🔇 **مكتوم** - متبقي {minutes} دقيقة و {seconds} ثانية\n"
     elif user["is_banned"]:
         details += f"🚫 **محظور**\n"
     else:
         details += f"⚠️ **منذر** - {user['warnings']} تحذيرات\n"
     
-    # آخر عملية
     if last_action:
         details += f"\n📋 **آخر عملية:**\n"
         details += f"   {last_action['action']}\n"
@@ -200,10 +195,9 @@ async def show_offender_details(update, context, query, target_id):
     
     details += f"\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
     
-    # بناء الأزرار حسب نوع المخالفة
     keyboard = []
     
-    if user["is_muted"]:
+    if user["is_muted"] and user["muted_until"] > current_time:
         keyboard.append([InlineKeyboardButton("🔓 فك الكتم", callback_data=f"admin_unmute_{target_id}")])
     
     if user["is_banned"]:
