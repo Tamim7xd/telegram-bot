@@ -11,7 +11,7 @@ from system_profile.profile_handler import profile_command
 from system_games.games_handler import game_command, game_callback, handle_game_answer
 from system_shop.shop_handler import shop_command, shop_callback
 from system_warnings.warnings_handler import warning_command
-from system_punishments.punishments_handler import mute_command, ban_command, kick_command
+from system_punishments.punishments_handler import mute_command, ban_command, kick_command, check_expired_mutes
 from system_economy.economy_handler import add_balance_command, remove_balance_command, daily_reward_command
 from system_admin.admin_handler import admin_panel_command, admin_callback
 from system_owner.owner_handler import owner_panel_command, owner_callback, handle_owner_input, handle_admin_buttons, handle_admin_inputs
@@ -103,9 +103,26 @@ async def handle_arabic_commands(update: Update, context: ContextTypes.DEFAULT_T
             await update.message.reply_text("❌ يرجى الرد على رسالة العضو المستهدف")
             return
         parts = text.split(maxsplit=2)
-        duration = parts[1] if len(parts) >= 2 else "5د"
-        reason = parts[2] if len(parts) >= 3 else "لا يوجد سبب"
-        await mute_command_with_params(update, context, duration, reason)
+        if len(parts) >= 2:
+            time_part = parts[1]
+            # تحقق إذا كان الجزء الثاني هو وقت
+            import re
+            time_patterns = [r'^\d+د$', r'^\d+س$', r'^يوم$']
+            is_time = False
+            for pattern in time_patterns:
+                if re.match(pattern, time_part):
+                    is_time = True
+                    break
+            
+            if is_time:
+                duration = time_part
+                reason = parts[2] if len(parts) > 2 else "لا يوجد سبب"
+                await mute_command_with_params(update, context, duration, reason)
+            else:
+                reason = time_part
+                await mute_command_with_params(update, context, None, reason)
+        else:
+            await mute_command_with_params(update, context, None, "لا يوجد سبب")
         return
     
     # حظر
@@ -183,13 +200,13 @@ async def handle_arabic_commands(update: Update, context: ContextTypes.DEFAULT_T
 
 async def warning_command_with_params(update: Update, context: ContextTypes.DEFAULT_TYPE, reason: str):
     """تنفيذ أمر التحذير مع السبب"""
-    # تخزين السبب في context
     context.user_data['temp_reason'] = reason
     await warning_command(update, context)
 
 async def mute_command_with_params(update: Update, context: ContextTypes.DEFAULT_TYPE, duration: str, reason: str):
     """تنفيذ أمر الكتم مع المدة والسبب"""
-    context.user_data['temp_duration'] = duration
+    if duration:
+        context.user_data['temp_duration'] = duration
     context.user_data['temp_reason'] = reason
     await mute_command(update, context)
 
@@ -214,6 +231,15 @@ async def reward_command_with_params(update: Update, context: ContextTypes.DEFAU
     context.user_data['temp_amount'] = amount
     context.user_data['temp_reason'] = reason
     await add_balance_command(update, context)
+
+async def check_mutes_loop(app):
+    """حلقة فحص انتهاء الكتم كل دقيقة"""
+    while True:
+        await asyncio.sleep(60)  # كل دقيقة
+        try:
+            await check_expired_mutes(app)
+        except Exception as e:
+            print(f"Check mutes error: {e}")
 
 def backup_thread(bot):
     while True:
@@ -259,6 +285,9 @@ def main():
     
     # معالج الأوامر العربية
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_arabic_commands))
+    
+    # تشغيل مهمة فحص انتهاء الكتم
+    asyncio.create_task(check_mutes_loop(app))
     
     # النسخ الاحتياطي
     backup = threading.Thread(target=backup_thread, args=(app.bot,), daemon=True)
