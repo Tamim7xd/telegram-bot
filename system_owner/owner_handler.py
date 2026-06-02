@@ -49,7 +49,7 @@ async def owner_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text("🔚 تم إغلاق لوحة المالك")
         return
     
-    # إدارة المشرفين
+    # ========== إدارة المشرفين ==========
     if data == "owner_admins":
         await show_admins_list(update, context, query)
         return
@@ -71,8 +71,7 @@ async def owner_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if data.startswith("admin_remove_"):
         target_id = int(data.split("_")[2])
         conn = get_db()
-        cursor = conn.execute("SELECT first_name FROM users WHERE user_id = ?", (target_id,))
-        user = cursor.fetchone()
+        user = conn.execute("SELECT first_name FROM users WHERE user_id = ?", (target_id,)).fetchone()
         conn.close()
         name = user["first_name"] if user else str(target_id)
         remove_admin(target_id)
@@ -89,8 +88,7 @@ async def owner_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         target_id = int(parts[2])
         is_super = parts[3] == "super"
         conn = get_db()
-        cursor = conn.execute("SELECT username, first_name FROM users WHERE user_id = ?", (target_id,))
-        user = cursor.fetchone()
+        user = conn.execute("SELECT username, first_name FROM users WHERE user_id = ?", (target_id,)).fetchone()
         conn.close()
         username = user["username"] if user else str(target_id)
         name = user["first_name"] if user else str(target_id)
@@ -101,49 +99,49 @@ async def owner_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await show_admins_list(update, context, query)
         return
     
-# إدارة السوق
-if data == "owner_shop":
-    await show_shop_panel(update, context, query)
-    return
-if data == "shop_view":
-    await show_shop_items(update, context, query)
-    return
-if data == "shop_add":
-    await query.edit_message_text("✏️ أرسل اسم اللقب الجديد:")
-    context.user_data['waiting_shop_name'] = True
-    return
-if data == "shop_edit":
-    await show_shop_edit_list(update, context, query)
-    return
-if data.startswith("shop_edit_title_"):
-    title_id = int(data.split("_")[3])
-    context.user_data['editing_title_id'] = title_id
-    await query.edit_message_text("✏️ أرسل الاسم الجديد (اتركه فارغاً لعدم التغيير):")
-    context.user_data['waiting_edit_name'] = True
-    return
-if data == "shop_delete":
-    await show_shop_delete_list(update, context, query)
-    return
-if data.startswith("shop_delete_title_"):
-    title_id = int(data.split("_")[3])
-    title_name = TITLES[title_id]["name"]
-    keyboard = [[InlineKeyboardButton("✅ نعم، احذف", callback_data=f"shop_confirm_delete_{title_id}")], [InlineKeyboardButton("🔙 رجوع", callback_data="owner_shop")]]
-    await query.edit_message_text(f"⚠️ تأكيد حذف اللقب: {title_name}\n\nهل أنت متأكد؟", reply_markup=InlineKeyboardMarkup(keyboard))
-    return
-if data.startswith("shop_confirm_delete_"):
-    title_id = int(data.split("_")[3])
-    del TITLES[title_id]
-    new_titles = {}
-    for i, (tid, title) in enumerate(TITLES.items(), 1):
-        new_titles[i] = title
-    TITLES.clear()
-    TITLES.update(new_titles)
-    await query.edit_message_text("✅ تم حذف اللقب بنجاح")
-    await asyncio.sleep(2)
-    await show_shop_panel(update, context, query)
-    return
+    # ========== إدارة السوق ==========
+    if data == "owner_shop":
+        await show_shop_panel(update, context, query)
+        return
+    if data == "shop_view":
+        await show_shop_items(update, context, query)
+        return
+    if data == "shop_add":
+        await query.edit_message_text("✏️ أرسل اسم اللقب الجديد:")
+        context.user_data['waiting_shop_name'] = True
+        return
+    if data == "shop_edit":
+        await show_shop_edit_list(update, context, query)
+        return
+    if data.startswith("shop_edit_title_"):
+        title_id = int(data.split("_")[3])
+        context.user_data['editing_title_id'] = title_id
+        await query.edit_message_text("✏️ أرسل الاسم الجديد (اتركه فارغاً لعدم التغيير):")
+        context.user_data['waiting_edit_name'] = True
+        return
+    if data == "shop_delete":
+        await show_shop_delete_list(update, context, query)
+        return
+    if data.startswith("shop_delete_title_"):
+        title_id = int(data.split("_")[3])
+        title_name = TITLES[title_id]["name"]
+        keyboard = [[InlineKeyboardButton("✅ نعم، احذف", callback_data=f"shop_confirm_delete_{title_id}")], [InlineKeyboardButton("🔙 رجوع", callback_data="owner_shop")]]
+        await query.edit_message_text(f"⚠️ تأكيد حذف اللقب: {title_name}\n\nهل أنت متأكد؟", reply_markup=InlineKeyboardMarkup(keyboard))
+        return
+    if data.startswith("shop_confirm_delete_"):
+        title_id = int(data.split("_")[3])
+        del TITLES[title_id]
+        new_titles = {}
+        for i, (tid, title) in enumerate(TITLES.items(), 1):
+            new_titles[i] = title
+        TITLES.clear()
+        TITLES.update(new_titles)
+        await query.edit_message_text("✅ تم حذف اللقب بنجاح")
+        await asyncio.sleep(2)
+        await show_shop_panel(update, context, query)
+        return
     
-    # إدارة التحذيرات
+    # ========== إدارة التحذيرات ==========
     if data == "owner_warnings":
         await show_warnings_panel(update, context, query)
         return
@@ -158,8 +156,7 @@ if data.startswith("shop_confirm_delete_"):
         target_id = int(data.split("_")[2])
         conn = get_db()
         conn.execute("UPDATE users SET warnings = warnings + 1 WHERE user_id = ?", (target_id,))
-        cursor = conn.execute("SELECT warnings, first_name FROM users WHERE user_id = ?", (target_id,))
-        user = cursor.fetchone()
+        user = conn.execute("SELECT warnings, first_name FROM users WHERE user_id = ?", (target_id,)).fetchone()
         conn.commit()
         conn.close()
         await query.edit_message_text(f"✅ تم إضافة تحذير\n👤 {user['first_name']}\n⚠️ العدد: {user['warnings']}")
@@ -171,8 +168,7 @@ if data.startswith("shop_confirm_delete_"):
         target_id = int(data.split("_")[2])
         conn = get_db()
         conn.execute("UPDATE users SET warnings = warnings - 1 WHERE user_id = ? AND warnings > 0", (target_id,))
-        cursor = conn.execute("SELECT warnings, first_name FROM users WHERE user_id = ?", (target_id,))
-        user = cursor.fetchone()
+        user = conn.execute("SELECT warnings, first_name FROM users WHERE user_id = ?", (target_id,)).fetchone()
         conn.commit()
         conn.close()
         await query.edit_message_text(f"✅ تم حذف تحذير\n👤 {user['first_name']}\n⚠️ العدد: {user['warnings']}")
@@ -182,8 +178,7 @@ if data.startswith("shop_confirm_delete_"):
     if data.startswith("warn_clear_"):
         target_id = int(data.split("_")[2])
         conn = get_db()
-        cursor = conn.execute("SELECT first_name FROM users WHERE user_id = ?", (target_id,))
-        user = cursor.fetchone()
+        user = conn.execute("SELECT first_name FROM users WHERE user_id = ?", (target_id,)).fetchone()
         conn.execute("UPDATE users SET warnings = 0 WHERE user_id = ?", (target_id,))
         conn.commit()
         conn.close()
@@ -200,14 +195,13 @@ if data.startswith("shop_confirm_delete_"):
         await query.edit_message_text(f"⚙️ إعدادات التحذيرات\n\nالحد الأقصى: {MAX_WARNINGS}", reply_markup=InlineKeyboardMarkup(keyboard))
         return
     
-    # عمليات جماعية
+    # ========== عمليات جماعية ==========
     if data == "owner_bulk":
         await show_bulk_panel(update, context, query)
         return
     if data == "bulk_unmute":
         conn = get_db()
-        cursor = conn.execute("SELECT user_id FROM users WHERE is_muted = 1")
-        muted = cursor.fetchall()
+        muted = conn.execute("SELECT user_id FROM users WHERE is_muted = 1").fetchall()
         for u in muted:
             await unmute_user(context, u["user_id"])
         conn.close()
@@ -218,8 +212,7 @@ if data.startswith("shop_confirm_delete_"):
         return
     if data == "bulk_unban":
         conn = get_db()
-        cursor = conn.execute("SELECT user_id FROM users WHERE is_banned = 1")
-        banned = cursor.fetchall()
+        banned = conn.execute("SELECT user_id FROM users WHERE is_banned = 1").fetchall()
         for u in banned:
             try:
                 await context.bot.unban_chat_member(GROUP_ID, u["user_id"])
@@ -254,7 +247,7 @@ if data.startswith("shop_confirm_delete_"):
         await show_bulk_panel(update, context, query)
         return
     
-    # إعلان متحرك
+    # ========== إعلان متحرك ==========
     if data == "owner_broadcast":
         keyboard = [[InlineKeyboardButton("📤 إرسال ملصق/صورة متحركة", callback_data="broadcast_media")], [InlineKeyboardButton("🔙 رجوع", callback_data="owner_back")]]
         await query.edit_message_text("🎬 إعلان متحرك", reply_markup=InlineKeyboardMarkup(keyboard))
@@ -264,7 +257,7 @@ if data.startswith("shop_confirm_delete_"):
         context.user_data['waiting_broadcast_media'] = True
         return
     
-    # السجلات
+    # ========== السجلات ==========
     if data == "owner_logs":
         conn = get_db()
         logs = conn.execute("SELECT * FROM logs ORDER BY timestamp DESC LIMIT 30").fetchall()
@@ -279,7 +272,7 @@ if data.startswith("shop_confirm_delete_"):
         await query.edit_message_text(text[:4000], reply_markup=InlineKeyboardMarkup(keyboard))
         return
     
-    # الأعضاء
+    # ========== الأعضاء ==========
     if data == "owner_users":
         await show_users_list(update, context, query, 0)
         return
@@ -292,7 +285,7 @@ if data.startswith("shop_confirm_delete_"):
         await show_user_full_details(update, context, query, target_id)
         return
     
-    # أزرار إجراءات الأعضاء
+    # ========== أزرار إجراءات الأعضاء ==========
     if data.startswith("user_action_mute_"):
         target_id = int(data.split("_")[3])
         await query.edit_message_text(f"🔇 أرسل مدة الكتم (مثال: 10د):")
@@ -360,7 +353,7 @@ if data.startswith("shop_confirm_delete_"):
         await show_user_logs(update, context, query, target_id, page)
         return
     
-    # رجوع
+    # ========== رجوع ==========
     if data == "owner_back":
         keyboard = [
             [InlineKeyboardButton("👥 إدارة المشرفين", callback_data="owner_admins")],
