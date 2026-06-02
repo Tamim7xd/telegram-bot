@@ -37,3 +37,43 @@ def get_all_admins():
     result = cursor.fetchall()
     conn.close()
     return result
+
+def get_user_role(user_id):
+    """تحديد دور العضو (مالك، مشرف إداري، مشرف عادي، لديه لقب، عضو عادي)"""
+    if is_owner(user_id):
+        return "owner"
+    
+    if is_super_admin(user_id):
+        return "super_admin"
+    
+    if is_admin(user_id):
+        return "admin"
+    
+    conn = get_db()
+    cursor = conn.execute("SELECT title FROM users WHERE user_id = ?", (user_id,))
+    user = cursor.fetchone()
+    conn.close()
+    
+    if user and user["title"]:
+        return "has_title"
+    
+    return "member"
+
+def get_user_display_name(user_id, first_name):
+    """الحصول على الاسم الذي يجب أن يظهر للعضو بناءً على دوره"""
+    role = get_user_role(user_id)
+    
+    if role == "owner":
+        return f"المالك {first_name}"
+    elif role == "super_admin":
+        return f"مشرف إداري {first_name}"
+    elif role == "admin":
+        return f"مشرف {first_name}"
+    elif role == "has_title":
+        conn = get_db()
+        cursor = conn.execute("SELECT title FROM users WHERE user_id = ?", (user_id,))
+        user = cursor.fetchone()
+        conn.close()
+        return f"{user['title']} {first_name}"
+    else:
+        return f"عضو {first_name}"
