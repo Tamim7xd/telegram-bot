@@ -19,7 +19,8 @@ from system_backup.backup_handler import create_backup
 
 logging.basicConfig(level=logging.INFO)
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def register_user(update: Update):
+    """تسجيل المستخدم في قاعدة البيانات إذا لم يكن موجوداً"""
     user_id = update.effective_user.id
     username = update.effective_user.username or "لا يوجد"
     first_name = update.effective_user.first_name or "مستخدم"
@@ -30,6 +31,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
                  (user_id, username, first_name))
     conn.commit()
     conn.close()
+    print(f"📝 Registered user: {first_name} (@{username}) - ID: {user_id}")
+
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await register_user(update)
     
     await update.message.reply_text(
         "✅ البوت يعمل!\n\n"
@@ -55,10 +60,14 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "━━━━━━━━━━━━━━━━━━━━━━"
     )
 
-async def handle_arabic_commands(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def handle_all_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """معالج جميع الرسائل - يسجل المستخدم ثم يعالج الأوامر"""
+    # تسجيل المستخدم أولاً (حتى لو لم يكتب أمراً)
+    await register_user(update)
+    
     text = update.message.text.strip()
     
-    print(f"📩 Received: {text}")
+    print(f"📩 Received from {update.effective_user.first_name}: {text}")
     
     # أوامر عامة
     if text in ["#ملف", "#ملفي", "#الملف", "#معلومات", "#معلوماتي", "#المعلومات"]:
@@ -102,7 +111,7 @@ async def handle_arabic_commands(update: Update, context: ContextTypes.DEFAULT_T
             return
         parts = text.split(maxsplit=2)
         import re
-        time_patterns = [r'^\d+د$', r'^\d+س$', r'^يوم$']
+        time_patterns = [r'^\d+ث$', r'^\d+ثانية$', r'^\d+د$', r'^\d+دقيقة$', r'^\d+س$', r'^\d+ساعة$', r'^يوم$']
         is_time = False
         if len(parts) >= 2:
             for pattern in time_patterns:
@@ -193,9 +202,8 @@ async def handle_arabic_commands(update: Update, context: ContextTypes.DEFAULT_T
         return
 
 def check_mutes_thread(bot):
-    """تشغيل فحص انتهاء الكتم في خيط منفصل"""
     while True:
-        time.sleep(30)  # كل 30 ثانية
+        time.sleep(30)
         try:
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
@@ -247,10 +255,10 @@ def main():
     app.add_handler(CallbackQueryHandler(owner_callback, pattern="^owner_"))
     app.add_handler(CallbackQueryHandler(handle_admin_buttons, pattern="^(admin_warn_|admin_mute_|admin_deduct_|close)"))
     
-    # معالج الأوامر العربية
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_arabic_commands))
+    # معالج جميع الرسائل (يسجل الأعضاء تلقائياً)
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_all_messages))
     
-    # تشغيل مهمة فحص الكتم في خيط منفصل
+    # تشغيل مهمة فحص الكتم
     check_mutes = threading.Thread(target=check_mutes_thread, args=(app.bot,), daemon=True)
     check_mutes.start()
     print("✅ Mute checker started (every 30 seconds)")
