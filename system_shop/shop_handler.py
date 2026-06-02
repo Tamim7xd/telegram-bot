@@ -55,7 +55,7 @@ async def shop_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
         
         balance = user['balance']
-        name = user['first_name']
+        first_name = user['first_name']
         
         if balance >= title['price']:
             new_balance = balance - title['price']
@@ -63,13 +63,15 @@ async def shop_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             conn.execute("INSERT INTO user_titles (user_id, title, purchased_at) VALUES (?, ?, ?)", (user_id, title['name'], int(time.time())))
             conn.commit()
             
-            # تغيير اسم العضو في المجموعة
+            # ========== تغيير اسم العضو في المجموعة ==========
             try:
                 from config import GROUP_ID
-                new_name = f"{title['name']} {name}"
+                new_name = f"{title['name']} {first_name}"
                 await context.bot.set_chat_member_title(GROUP_ID, user_id, new_name)
-            except:
-                pass
+                print(f"✅ Changed name of user {user_id} to: {new_name}")
+            except Exception as e:
+                print(f"Error changing name: {e}")
+            # ================================================
             
             await query.edit_message_text(
                 f"🎉 **تهانينا!**\n\n"
