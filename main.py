@@ -59,25 +59,57 @@ async def handle_all_messages(update: Update, context: ContextTypes.DEFAULT_TYPE
     
     print(f"📩 Received: {text}")
     
-    # أوامر الملف الشخصي
+    # ========== أوامر الملف الشخصي ==========
     if text in ["#ملف", "#ملفي", "#الملف", "#معلومات", "#معلوماتي", "#المعلومات"]:
         await profile_command(update, context)
         return
     
-    # أوامر الألعاب
+    # ========== أوامر الألعاب ==========
     if text in ["#لعبة", "#العاب", "#لعب", "#العب"]:
         await game_command(update, context)
         return
     
-    # أوامر السوق
+    # ========== أوامر السوق ==========
     if text in ["#سوق", "#محل", "#شراء", "#اشتري", "#اسواق", "#المتجر"]:
         await shop_command(update, context)
         return
     
-    # المكافأة اليومية
+    # ========== المكافأة اليومية ==========
     if text in ["#يومي", "#مكافأةيومية", "#يومية"]:
         await daily_reward_command(update, context)
         return
+    
+    # ========== لوحات التحكم ==========
+    if text in ["#مشرف", "#ادمن", "#الادمن"]:
+        await admin_panel_command(update, context)
+        return
+    
+    if text in ["#مالك", "#المالك"]:
+        await owner_panel_command(update, context)
+        return
+    
+    # ========== معالجة إجابات الألعاب ==========
+    if context.user_data.get('waiting_guess') or context.user_data.get('waiting_question') or context.user_data.get('waiting_reverse') or context.user_data.get('waiting_lucky'):
+        await handle_game_answer(update, context)
+        return
+    
+    # ========== معالجة إدخالات المالك ==========
+    if context.user_data.get('waiting_shop_name') or context.user_data.get('waiting_shop_price') or context.user_data.get('waiting_edit_name') or context.user_data.get('waiting_edit_price') or context.user_data.get('waiting_warn_all') or context.user_data.get('waiting_warn_reason') or context.user_data.get('waiting_deduct_amount') or context.user_data.get('waiting_reward_amount') or context.user_data.get('waiting_broadcast_media') or context.user_data.get('waiting_broadcast_text') or context.user_data.get('waiting_mute_duration') or context.user_data.get('waiting_ban_reason') or context.user_data.get('waiting_admin_reward_amount') or context.user_data.get('waiting_admin_reward_reason'):
+        await handle_owner_input(update, context)
+        return
+    
+    # ========== معالجة إدخالات المشرفين ==========
+    if context.user_data.get('admin_warn_target') or context.user_data.get('admin_mute_target') or context.user_data.get('admin_deduct_target'):
+        await handle_admin_inputs(update, context)
+        return
+
+# ==================== معالج الأوامر التي تتطلب الرد على الرسالة ====================
+
+async def handle_reply_commands(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """معالج الأوامر التي تتطلب الرد على رسالة العضو"""
+    text = update.message.text.strip()
+    
+    print(f"📩 Reply command: {text}")
     
     # التحذير
     if text.startswith("#تحذير"):
@@ -138,31 +170,6 @@ async def handle_all_messages(update: Update, context: ContextTypes.DEFAULT_TYPE
             update.message.text = "/reward"
         await remove_balance_command(update, context)
         return
-    
-    # لوحة المشرفين
-    if text in ["#مشرف", "#ادمن", "#الادمن"]:
-        await admin_panel_command(update, context)
-        return
-    
-    # لوحة المالك
-    if text in ["#مالك", "#المالك"]:
-        await owner_panel_command(update, context)
-        return
-    
-    # معالجة إجابات الألعاب
-    if context.user_data.get('waiting_guess') or context.user_data.get('waiting_question') or context.user_data.get('waiting_reverse') or context.user_data.get('waiting_lucky'):
-        await handle_game_answer(update, context)
-        return
-    
-    # معالجة إدخالات المالك
-    if context.user_data.get('waiting_shop_name') or context.user_data.get('waiting_shop_price') or context.user_data.get('waiting_edit_name') or context.user_data.get('waiting_edit_price') or context.user_data.get('waiting_warn_all') or context.user_data.get('waiting_warn_reason') or context.user_data.get('waiting_deduct_amount') or context.user_data.get('waiting_reward_amount') or context.user_data.get('waiting_broadcast_media') or context.user_data.get('waiting_broadcast_text') or context.user_data.get('waiting_mute_duration') or context.user_data.get('waiting_ban_reason') or context.user_data.get('waiting_admin_reward_amount') or context.user_data.get('waiting_admin_reward_reason'):
-        await handle_owner_input(update, context)
-        return
-    
-    # معالجة إدخالات المشرفين
-    if context.user_data.get('admin_warn_target') or context.user_data.get('admin_mute_target') or context.user_data.get('admin_deduct_target'):
-        await handle_admin_inputs(update, context)
-        return
 
 def backup_thread(bot):
     while True:
@@ -206,8 +213,11 @@ def main():
     app.add_handler(CallbackQueryHandler(owner_callback, pattern="^owner_"))
     app.add_handler(CallbackQueryHandler(handle_admin_buttons, pattern="^(admin_warn_|admin_mute_|admin_deduct_|close)"))
     
-    # معالج الأوامر العربية
+    # معالج الأوامر العربية العامة
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_all_messages))
+    
+    # معالج الأوامر التي تتطلب الرد على الرسالة (تأتي أولاً)
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_reply_commands))
     
     # النسخ الاحتياطي
     backup = threading.Thread(target=backup_thread, args=(app.bot,), daemon=True)
