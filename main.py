@@ -57,7 +57,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def handle_arabic_commands(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """معالج الأوامر العربية - يدعم جميع الأوامر"""
     text = update.message.text.strip()
-    user_id = update.effective_user.id
     
     print(f"📩 Received: {text}")
     
@@ -95,7 +94,6 @@ async def handle_arabic_commands(update: Update, context: ContextTypes.DEFAULT_T
             return
         parts = text.split(maxsplit=1)
         reason = parts[1] if len(parts) > 1 else "لا يوجد سبب"
-        # استدعاء الأمر مباشرة مع تمرير المعاملات
         await warning_command_with_params(update, context, reason)
         return
     
@@ -185,40 +183,34 @@ async def handle_arabic_commands(update: Update, context: ContextTypes.DEFAULT_T
 
 async def warning_command_with_params(update: Update, context: ContextTypes.DEFAULT_TYPE, reason: str):
     """تنفيذ أمر التحذير مع السبب"""
-    from system_warnings.warnings_handler import warning_command
     # تخزين السبب في context
     context.user_data['temp_reason'] = reason
     await warning_command(update, context)
 
 async def mute_command_with_params(update: Update, context: ContextTypes.DEFAULT_TYPE, duration: str, reason: str):
     """تنفيذ أمر الكتم مع المدة والسبب"""
-    from system_punishments.punishments_handler import mute_command
     context.user_data['temp_duration'] = duration
     context.user_data['temp_reason'] = reason
     await mute_command(update, context)
 
 async def ban_command_with_params(update: Update, context: ContextTypes.DEFAULT_TYPE, reason: str):
     """تنفيذ أمر الحظر مع السبب"""
-    from system_punishments.punishments_handler import ban_command
     context.user_data['temp_reason'] = reason
     await ban_command(update, context)
 
 async def kick_command_with_params(update: Update, context: ContextTypes.DEFAULT_TYPE, reason: str):
     """تنفيذ أمر الطرد مع السبب"""
-    from system_punishments.punishments_handler import kick_command
     context.user_data['temp_reason'] = reason
     await kick_command(update, context)
 
 async def deduct_command_with_params(update: Update, context: ContextTypes.DEFAULT_TYPE, amount: int, reason: str):
     """تنفيذ أمر الخصم مع المبلغ والسبب"""
-    from system_economy.economy_handler import remove_balance_command
     context.user_data['temp_amount'] = amount
     context.user_data['temp_reason'] = reason
     await remove_balance_command(update, context)
 
 async def reward_command_with_params(update: Update, context: ContextTypes.DEFAULT_TYPE, amount: int, reason: str):
     """تنفيذ أمر المكافأة مع المبلغ والسبب"""
-    from system_economy.economy_handler import add_balance_command
     context.user_data['temp_amount'] = amount
     context.user_data['temp_reason'] = reason
     await add_balance_command(update, context)
