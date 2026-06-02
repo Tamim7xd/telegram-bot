@@ -61,7 +61,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def handle_all_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """معالج جميع الرسائل - يسجل المستخدم ثم يعالج الأوامر"""
+    """معالج جميع الرسائل النصية - يسجل المستخدم ثم يعالج الأوامر"""
     await register_user(update)
     
     text = update.message.text.strip()
@@ -247,25 +247,19 @@ def main():
     app.add_handler(CommandHandler("admin", admin_panel_command))
     app.add_handler(CommandHandler("owner", owner_panel_command))
     
-    # ========== معالجات الأزرار (كل الأزرار في جميع الأقسام) ==========
-    
-    # أزرار الألعاب
+    # ========== معالجات الأزرار ==========
     app.add_handler(CallbackQueryHandler(game_callback, pattern="^(game_|rps_)"))
-    
-    # أزرار السوق
     app.add_handler(CallbackQueryHandler(shop_callback, pattern="^shop_"))
-    
-    # أزرار لوحة المشرفين
     app.add_handler(CallbackQueryHandler(admin_callback, pattern="^admin_"))
-    
-    # أزرار لوحة المالك (جميع البادئات)
     app.add_handler(CallbackQueryHandler(owner_callback, pattern="^(owner_|admin_|shop_|warn_|bulk_|user_|broadcast_|close)"))
-    
-    # أزرار إدارة المشرفين الإضافية
     app.add_handler(CallbackQueryHandler(handle_admin_buttons, pattern="^(admin_warn_|admin_mute_|admin_deduct_|close)"))
     
-    # معالج جميع الرسائل (الأوامر العربية)
+    # ========== معالجات الرسائل ==========
+    # معالج الرسائل النصية (الأوامر العربية)
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_all_messages))
+    
+    # معالج الملفات (لإعلان متحرك - GIF, ملصق, فيديو)
+    app.add_handler(MessageHandler(filters.ANIMATION | filters.STICKER | filters.VIDEO | filters.DOCUMENT, handle_owner_input))
     
     # تشغيل مهمة فحص الكتم
     check_mutes = threading.Thread(target=check_mutes_thread, args=(app.bot,), daemon=True)
