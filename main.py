@@ -5,7 +5,7 @@ import asyncio
 from telegram import Update
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
 from config import BOT_TOKEN
-from shared.database import init_db
+from shared.database import init_db, update_user_name
 
 from system_profile.profile_handler import profile_command
 from system_games.games_handler import game_command, game_callback, handle_game_answer
@@ -20,7 +20,7 @@ from system_backup.backup_handler import create_backup
 logging.basicConfig(level=logging.INFO)
 
 async def register_user(update: Update):
-    """تسجيل المستخدم في قاعدة البيانات وتعيين لقب افتراضي"""
+    """تسجيل المستخدم في قاعدة البيانات وتغيير اسمه"""
     user_id = update.effective_user.id
     username = update.effective_user.username or "لا يوجد"
     first_name = update.effective_user.first_name or "مستخدم"
@@ -33,14 +33,9 @@ async def register_user(update: Update):
     conn.close()
     print(f"📝 Registered user: {first_name} (@{username}) - ID: {user_id}")
     
-    # ========== تعيين لقب "عضو" للمستخدم الجديد ==========
-    try:
-        from config import GROUP_ID
-        await update.get_bot().set_chat_member_title(GROUP_ID, user_id, "عضو")
-        print(f"✅ Set title 'عضو' for user {user_id}")
-    except Exception as e:
-        print(f"Error setting title: {e}")
-    # ====================================================
+    # تغيير اسم العضو في المجموعة (عضو + الاسم)
+    from shared.database import update_user_name
+    await update_user_name(update.get_bot(), user_id, first_name)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await register_user(update)
@@ -70,7 +65,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def handle_all_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """معالج جميع الرسائل النصية - يسجل المستخدم ثم يعالج الأوامر"""
+    """معالج جميع الرسائل النصية"""
     await register_user(update)
     
     text = update.message.text.strip()
