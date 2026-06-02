@@ -214,6 +214,7 @@ async def unmute_user(context, user_id, send_notification=True):
                 can_send_other_messages=True
             )
         )
+        print(f"✅ Unmuted user {user_id} successfully")
     except Exception as e:
         print(f"Unmute error: {e}")
     
@@ -221,7 +222,6 @@ async def unmute_user(context, user_id, send_notification=True):
     conn.execute("UPDATE users SET is_muted = 0, muted_until = 0 WHERE user_id = ?", (user_id,))
     conn.commit()
     
-    # جلب اسم العضو للإشعار
     cursor = conn.execute("SELECT first_name, username FROM users WHERE user_id = ?", (user_id,))
     user = cursor.fetchone()
     conn.close()
@@ -233,7 +233,7 @@ async def unmute_user(context, user_id, send_notification=True):
             GROUP_ID,
             f"🔓 **تم فك الكتم**\n\n"
             f"👤 العضو: {name} (@{username})\n"
-            f"✅ يمكنه التحدث مرة أخرى"
+            f"✅ انتهت فترة العقوبة ويمكنه التحدث مرة أخرى"
         )
     
     return user if user else None
@@ -245,9 +245,11 @@ async def check_expired_mutes(context):
     
     cursor = conn.execute("SELECT user_id FROM users WHERE is_muted = 1 AND muted_until <= ?", (current_time,))
     expired_users = cursor.fetchall()
+    conn.close()
+    
+    print(f"🔍 Checking expired mutes... Found {len(expired_users)} expired users")
     
     for user in expired_users:
         user_id = user["user_id"]
+        print(f"🔓 Unmuting user {user_id}")
         await unmute_user(context, user_id, send_notification=True)
-    
-    conn.close()
