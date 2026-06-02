@@ -11,6 +11,8 @@ async def add_balance_command(update: Update, context: ContextTypes.DEFAULT_TYPE
     user_id = update.effective_user.id
     admin_name = update.effective_user.first_name
     
+    print(f"add_balance_command called by {admin_name}")  # للتصحيح
+    
     if not is_admin(user_id):
         await update.message.reply_text("❌ هذا الأمر للمشرفين فقط")
         return
@@ -27,12 +29,14 @@ async def add_balance_command(update: Update, context: ContextTypes.DEFAULT_TYPE
     amount = context.user_data.get('temp_amount')
     reason = context.user_data.get('temp_reason', "لا يوجد سبب")
     
+    print(f"Amount from context: {amount}, Reason: {reason}")  # للتصحيح
+    
     if amount is None:
-        # قراءة من النص المباشر (إذا جاء من الأمر الإنجليزي)
+        # قراءة من النص المباشر (إذا جاء من الأمر الإنجليزي /reward)
         text = update.message.text
         parts = text.split(maxsplit=2)
         if len(parts) < 2:
-            await update.message.reply_text("❌ يرجى تحديد المبلغ\nمثال: /reward 500 سبب")
+            await update.message.reply_text("❌ يرجى تحديد المبلغ\nمثال: #مكافأة 500 سبب")
             return
         try:
             amount = int(parts[1])
@@ -40,6 +44,10 @@ async def add_balance_command(update: Update, context: ContextTypes.DEFAULT_TYPE
             await update.message.reply_text("❌ المبلغ يجب أن يكون رقماً")
             return
         reason = parts[2] if len(parts) > 2 else "لا يوجد سبب"
+    
+    if amount is None or amount <= 0:
+        await update.message.reply_text("❌ المبلغ يجب أن يكون رقماً موجباً")
+        return
     
     # تنظيف context
     context.user_data.pop('temp_amount', None)
@@ -51,12 +59,15 @@ async def add_balance_command(update: Update, context: ContextTypes.DEFAULT_TYPE
     conn.execute("UPDATE users SET balance = balance + ? WHERE user_id = ?", (amount, target_id))
     
     cursor = conn.execute("SELECT balance FROM users WHERE user_id = ?", (target_id,))
-    new_balance = cursor.fetchone()["balance"]
+    result = cursor.fetchone()
+    new_balance = result["balance"] if result else amount
     
+    # تسجيل العملية
     log_action(conn, user_id, admin_name, "مكافأة", target_id, target_name, reason)
     conn.commit()
     conn.close()
     
+    # إرسال إشعار
     await context.bot.send_message(
         GROUP_ID,
         f"🎁 **مكافأة**\n\n"
@@ -72,6 +83,8 @@ async def remove_balance_command(update: Update, context: ContextTypes.DEFAULT_T
     user_id = update.effective_user.id
     admin_name = update.effective_user.first_name
     
+    print(f"remove_balance_command called by {admin_name}")  # للتصحيح
+    
     if not is_admin(user_id):
         await update.message.reply_text("❌ هذا الأمر للمشرفين فقط")
         return
@@ -84,15 +97,18 @@ async def remove_balance_command(update: Update, context: ContextTypes.DEFAULT_T
     target_id = target.id
     target_name = target.first_name
     
-    # محاولة قراءة المبلغ من context أولاً
+    # محاولة قراءة المبلغ من context أولاً (إذا جاء من الأمر العربي)
     amount = context.user_data.get('temp_amount')
     reason = context.user_data.get('temp_reason', "لا يوجد سبب")
     
+    print(f"Amount from context: {amount}, Reason: {reason}")  # للتصحيح
+    
     if amount is None:
+        # قراءة من النص المباشر (إذا جاء من الأمر الإنجليزي /deduct)
         text = update.message.text
         parts = text.split(maxsplit=2)
         if len(parts) < 2:
-            await update.message.reply_text("❌ يرجى تحديد المبلغ\nمثال: /deduct 500 سبب")
+            await update.message.reply_text("❌ يرجى تحديد المبلغ\nمثال: #خصم 500 سبب")
             return
         try:
             amount = int(parts[1])
@@ -101,21 +117,29 @@ async def remove_balance_command(update: Update, context: ContextTypes.DEFAULT_T
             return
         reason = parts[2] if len(parts) > 2 else "لا يوجد سبب"
     
+    if amount is None or amount <= 0:
+        await update.message.reply_text("❌ المبلغ يجب أن يكون رقماً موجباً")
+        return
+    
     # تنظيف context
     context.user_data.pop('temp_amount', None)
     context.user_data.pop('temp_reason', None)
     
+    # تحديث الرصيد
     conn = get_db()
     conn.execute("INSERT OR IGNORE INTO users (user_id) VALUES (?)", (target_id,))
     conn.execute("UPDATE users SET balance = balance - ? WHERE user_id = ?", (amount, target_id))
     
     cursor = conn.execute("SELECT balance FROM users WHERE user_id = ?", (target_id,))
-    new_balance = cursor.fetchone()["balance"]
+    result = cursor.fetchone()
+    new_balance = result["balance"] if result else 0
     
+    # تسجيل العملية
     log_action(conn, user_id, admin_name, "خصم", target_id, target_name, reason)
     conn.commit()
     conn.close()
     
+    # إرسال إشعار
     await context.bot.send_message(
         GROUP_ID,
         f"💰 **خصم**\n\n"
@@ -144,7 +168,7 @@ async def daily_reward_command(update: Update, context: ContextTypes.DEFAULT_TYP
     conn.execute("UPDATE users SET balance = balance + ?, last_daily = ? WHERE user_id = ?", (DAILY_REWARD, today, user_id))
     
     cursor = conn.execute("SELECT balance FROM users WHERE user_id = ?", (user_id,))
-    new_balance = cursor.fetchone()["balance"]
+    new_balance = cursor.fetchone()["balance"] if cursor.fetchone() else DAILY_REWARD
     conn.commit()
     conn.close()
     
