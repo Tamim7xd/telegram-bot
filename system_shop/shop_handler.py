@@ -1,7 +1,8 @@
 import time
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes
-from shared.database import get_db
+from shared.database import get_db, update_user_name
+from config import GROUP_ID
 
 TITLES = {
     1: {"name": "عضو جديد 🌱", "price": 1000},
@@ -55,15 +56,11 @@ async def shop_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             conn.execute("UPDATE users SET balance = ?, title = ? WHERE user_id = ?", (new_balance, title['name'], user_id))
             conn.execute("INSERT INTO user_titles (user_id, title, purchased_at) VALUES (?, ?, ?)", (user_id, title['name'], int(time.time())))
             conn.commit()
+            conn.close()
             
-            # ========== تعيين اللقب في المجموعة ==========
-            try:
-                from config import GROUP_ID
-                await context.bot.set_chat_member_title(GROUP_ID, user_id, title['name'])
-                print(f"✅ Set title for user {user_id} to: {title['name']}")
-            except Exception as e:
-                print(f"Error setting title: {e}")
-            # ============================================
+            # ========== تغيير اسم العضو في المجموعة ==========
+            await update_user_name(context, user_id, first_name)
+            # ================================================
             
             await query.edit_message_text(
                 f"🎉 **تهانينا!**\n\n"
@@ -80,5 +77,4 @@ async def shop_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"📉 تحتاج: {title['price'] - balance} عملة",
                 parse_mode="Markdown"
             )
-        
-        conn.close()
+            conn.close()
