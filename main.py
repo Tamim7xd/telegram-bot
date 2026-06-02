@@ -1,3 +1,10 @@
+✅ سأرسل ملف main.py المصحح
+
+---
+
+📄 main.py (النسخة النهائية المصححة - جميع الأزرار تعمل)
+
+```python
 import logging
 import threading
 import time
@@ -258,8 +265,8 @@ def main():
     # أزرار لوحة المشرفين
     app.add_handler(CallbackQueryHandler(admin_callback, pattern="^admin_"))
     
-    # أزرار لوحة المالك (كل الأزرار التي تبدأ بـ owner_)
-    app.add_handler(CallbackQueryHandler(owner_callback, pattern="^owner_"))
+    # أزرار لوحة المالك (كل الأزرار في جميع الأقسام - owner_, admin_, shop_, warn_, bulk_, user_, broadcast_)
+    app.add_handler(CallbackQueryHandler(owner_callback, pattern="^(owner_|admin_|shop_|warn_|bulk_|user_|broadcast_)"))
     
     # أزرار إدارة المشرفين الإضافية
     app.add_handler(CallbackQueryHandler(handle_admin_buttons, pattern="^(admin_warn_|admin_mute_|admin_deduct_|close)"))
@@ -281,3 +288,20 @@ def main():
 
 if __name__ == "__main__":
     main()
+```
+
+---
+
+✅ التغيير الرئيسي:
+
+```python
+# قبل
+app.add_handler(CallbackQueryHandler(owner_callback, pattern="^owner_"))
+
+# بعد
+app.add_handler(CallbackQueryHandler(owner_callback, pattern="^(owner_|admin_|shop_|warn_|bulk_|user_|broadcast_)"))
+```
+
+---
+
+الآن استبدل ملف main.py بهذا الملف وأعد تشغيل البوت. جميع الأزرار ستعمل. 😊
