@@ -55,12 +55,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def handle_arabic_commands(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """معالج الأوامر العربية - يدعم جميع الأوامر"""
     text = update.message.text.strip()
     
     print(f"📩 Received: {text}")
     
-    # أوامر عامة (بدون رد)
+    # أوامر عامة
     if text in ["#ملف", "#ملفي", "#الملف", "#معلومات", "#معلوماتي", "#المعلومات"]:
         await profile_command(update, context)
         return
@@ -186,11 +185,10 @@ async def handle_arabic_commands(update: Update, context: ContextTypes.DEFAULT_T
         return
 
 async def check_mutes_loop(app: Application):
-    """حلقة فحص انتهاء الكتم باستخدام asyncio"""
+    """حلقة فحص انتهاء الكتم كل 30 ثانية"""
     while True:
-        await asyncio.sleep(60)  # كل دقيقة
+        await asyncio.sleep(30)
         try:
-            print("🔍 Running check_expired_mutes...")
             await check_expired_mutes(app)
         except Exception as e:
             print(f"Check mutes error: {e}")
@@ -212,7 +210,7 @@ async def post_init(app: Application):
     
     # بدء مهمة فحص انتهاء الكتم
     asyncio.create_task(check_mutes_loop(app))
-    print("✅ Mute checker started")
+    print("✅ Mute checker started (every 30 seconds)")
 
 def main():
     init_db()
