@@ -201,6 +201,54 @@ async def kick_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"👮 بواسطة: {admin_name}"
     )
 
+async def unmute_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """أمر يدوي لفك الكتم عن عضو"""
+    user_id = update.effective_user.id
+    admin_name = update.effective_user.first_name
+    
+    if not is_admin(user_id):
+        await update.message.reply_text("❌ هذا الأمر للمشرفين فقط")
+        return
+    
+    if not update.message.reply_to_message:
+        await update.message.reply_text("❌ يرجى الرد على رسالة العضو المستهدف")
+        return
+    
+    target = update.message.reply_to_message.from_user
+    target_id = target.id
+    target_name = target.first_name
+    target_username = target.username or "لا يوجد"
+    
+    # فك الكتم
+    try:
+        await context.bot.restrict_chat_member(
+            GROUP_ID, 
+            target_id, 
+            permissions=telegram.ChatPermissions(
+                can_send_messages=True,
+                can_send_media_messages=True,
+                can_send_other_messages=True
+            )
+        )
+    except Exception as e:
+        print(f"Unmute error: {e}")
+        await update.message.reply_text(f"❌ فشل فك الكتم: {e}")
+        return
+    
+    # تحديث قاعدة البيانات
+    conn = get_db()
+    conn.execute("UPDATE users SET is_muted = 0, muted_until = 0 WHERE user_id = ?", (target_id,))
+    conn.commit()
+    conn.close()
+    
+    await context.bot.send_message(
+        GROUP_ID,
+        f"🔓 **فك الكتم**\n\n"
+        f"👤 العضو: {target_name} (@{target_username})\n"
+        f"✅ تم فك الكتم ويمكنه التحدث مرة أخرى\n\n"
+        f"👮 بواسطة: {admin_name}"
+    )
+
 async def unmute_user(context, user_id, send_notification=True):
     """فك الكتم عن عضو وتحديث قاعدة البيانات"""
     try:
