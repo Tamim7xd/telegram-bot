@@ -248,14 +248,23 @@ def main():
     app.add_handler(CommandHandler("admin", admin_panel_command))
     app.add_handler(CommandHandler("owner", owner_panel_command))
     
-    # معالجات الأزرار
+    # ========== معالجات الأزرار (الأهم) ==========
+    # أزرار الألعاب
     app.add_handler(CallbackQueryHandler(game_callback, pattern="^(game_|rps_)"))
+    
+    # أزرار السوق
     app.add_handler(CallbackQueryHandler(shop_callback, pattern="^shop_"))
+    
+    # أزرار لوحة المشرفين
     app.add_handler(CallbackQueryHandler(admin_callback, pattern="^admin_"))
+    
+    # أزرار لوحة المالك (كل الأزرار التي تبدأ بـ owner_)
     app.add_handler(CallbackQueryHandler(owner_callback, pattern="^owner_"))
+    
+    # أزرار إدارة المشرفين الإضافية
     app.add_handler(CallbackQueryHandler(handle_admin_buttons, pattern="^(admin_warn_|admin_mute_|admin_deduct_|close)"))
     
-    # معالج جميع الرسائل (يسجل الأعضاء تلقائياً)
+    # معالج جميع الرسائل (الأوامر العربية)
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_all_messages))
     
     # تشغيل مهمة فحص الكتم
