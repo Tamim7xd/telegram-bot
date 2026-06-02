@@ -35,6 +35,7 @@ async def owner_panel_command(update: Update, context: ContextTypes.DEFAULT_TYPE
     await update.message.reply_text("👑 لوحة المالك\n\nاختر الإجراء:", reply_markup=InlineKeyboardMarkup(keyboard))
 
 async def owner_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    print(f"🔔 owner_callback received: {update.callback_query.data}")  # سطر التصحيح
     query = update.callback_query
     await query.answer()
     user_id = query.from_user.id
@@ -48,7 +49,7 @@ async def owner_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if data == "owner_close":
         await query.edit_message_text("🔚 تم إغلاق لوحة المالك")
         return
-    
+      
     # ========== إدارة المشرفين ==========
     if data == "owner_admins":
         await show_admins_list(update, context, query)
