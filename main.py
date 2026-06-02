@@ -20,7 +20,7 @@ from system_backup.backup_handler import create_backup
 logging.basicConfig(level=logging.INFO)
 
 async def register_user(update: Update):
-    """تسجيل المستخدم في قاعدة البيانات إذا لم يكن موجوداً"""
+    """تسجيل المستخدم في قاعدة البيانات وتعيين لقب افتراضي"""
     user_id = update.effective_user.id
     username = update.effective_user.username or "لا يوجد"
     first_name = update.effective_user.first_name or "مستخدم"
@@ -32,6 +32,15 @@ async def register_user(update: Update):
     conn.commit()
     conn.close()
     print(f"📝 Registered user: {first_name} (@{username}) - ID: {user_id}")
+    
+    # ========== تعيين لقب "عضو" للمستخدم الجديد ==========
+    try:
+        from config import GROUP_ID
+        await update.get_bot().set_chat_member_title(GROUP_ID, user_id, "عضو")
+        print(f"✅ Set title 'عضو' for user {user_id}")
+    except Exception as e:
+        print(f"Error setting title: {e}")
+    # ====================================================
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await register_user(update)
@@ -247,18 +256,15 @@ def main():
     app.add_handler(CommandHandler("admin", admin_panel_command))
     app.add_handler(CommandHandler("owner", owner_panel_command))
     
-    # ========== معالجات الأزرار ==========
+    # معالجات الأزرار
     app.add_handler(CallbackQueryHandler(game_callback, pattern="^(game_|rps_)"))
     app.add_handler(CallbackQueryHandler(shop_callback, pattern="^shop_"))
     app.add_handler(CallbackQueryHandler(admin_callback, pattern="^admin_"))
     app.add_handler(CallbackQueryHandler(owner_callback, pattern="^(owner_|admin_|shop_|warn_|bulk_|user_|broadcast_|close)"))
     app.add_handler(CallbackQueryHandler(handle_admin_buttons, pattern="^(admin_warn_|admin_mute_|admin_deduct_|close)"))
     
-    # ========== معالجات الرسائل ==========
-    # معالج الرسائل النصية (الأوامر العربية)
+    # معالجات الرسائل
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_all_messages))
-    
-    # معالج الملفات (لإعلان متحرك - GIF, فيديو, ملصق)
     app.add_handler(MessageHandler(filters.ANIMATION | filters.VIDEO | filters.PHOTO | filters.Document.ALL, handle_owner_input))
     
     # تشغيل مهمة فحص الكتم
