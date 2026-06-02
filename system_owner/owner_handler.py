@@ -95,6 +95,41 @@ async def owner_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await show_users_for_admin(update, context, query, page)
         return
     
+    if data.startswith("admin_set_"):
+        parts = data.split("_")
+        target_id = int(parts[2])
+        is_super = parts[3] == "super"
+        
+        conn = get_db()
+        cursor = conn.execute("SELECT username, first_name FROM users WHERE user_id = ?", (target_id,))
+        user = cursor.fetchone()
+        conn.close()
+        
+        username = user["username"] if user else str(target_id)
+        name = user["first_name"] if user else str(target_id)
+        add_admin(target_id, username, is_super)
+        
+        role = "مشرف إداري 👑" if is_super else "مشرف عادي 🛡️"
+        await query.edit_message_text(f"✅ تم تعيين {name} كـ {role}")
+        await asyncio.sleep(2)
+        await show_admins_list(update, context, query)
+        return
+    
+    # ========== الأعضاء ==========
+    if data == "owner_users":
+        await show_users_list(update, context, query, 0)
+        return
+    
+    if data.startswith("users_page_"):
+        page = int(data.split("_")[2])
+        await show_users_list(update, context, query, page)
+        return
+    
+    if data.startswith("user_actions_"):
+        target_id = int(data.split("_")[2])
+        await show_user_full_details(update, context, query, target_id)
+        return
+    
     # ========== بقية الأقسام ==========
     if data == "owner_shop":
         await show_shop_panel(update, context, query)
@@ -123,15 +158,6 @@ async def owner_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     if data == "owner_logs":
         await show_logs(update, context, query)
-        return
-    
-    if data == "owner_users":
-        await show_users_list(update, context, query, 0)
-        return
-    
-    if data.startswith("users_page_"):
-        page = int(data.split("_")[2])
-        await show_users_list(update, context, query, page)
         return
     
     if data == "owner_back":
@@ -213,12 +239,11 @@ async def show_users_for_admin(update, context, query, page):
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
 
 async def show_user_details_for_admin(update, context, query, target_id):
-    """عرض تفاصيل العضو (الاسم، اليوزر، الرصيد، التحذيرات، نوع المشرف) وأزرار الإدارة"""
+    """عرض تفاصيل العضو (لإدارة المشرفين)"""
     conn = get_db()
     cursor = conn.execute("SELECT user_id, first_name, username, balance, warnings, level, title FROM users WHERE user_id = ?", (target_id,))
     user = cursor.fetchone()
     
-    # التحقق إذا كان العضو مشرفاً
     cursor = conn.execute("SELECT is_super_admin FROM admins WHERE user_id = ?", (target_id,))
     admin_info = cursor.fetchone()
     conn.close()
@@ -229,31 +254,22 @@ async def show_user_details_for_admin(update, context, query, target_id):
     
     name = user["first_name"] or "مستخدم"
     username = user["username"] or "لا يوجد"
-    balance = user["balance"] or 1000
-    warnings = user["warnings"] or 0
-    level = user["level"] or 1
-    title = user["title"] or "لا يوجد"
     
-    # تحديد نوع المشرف الحالي
     is_super = admin_info["is_super_admin"] if admin_info else False
-    admin_status = ""
-    if admin_info:
-        admin_status = "👑 مشرف إداري" if is_super else "🛡️ مشرف عادي"
-    else:
-        admin_status = "❌ ليس مشرفاً"
     
     text = f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
     text += f"👤 **{name}**\n"
     text += f"🆔 @{username}\n"
     text += f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-    text += f"💰 الرصيد: {balance} 🪙\n"
-    text += f"⚠️ التحذيرات: {warnings}\n"
-    text += f"🎖️ المستوى: {level}\n"
-    text += f"🏆 اللقب: {title}\n\n"
-    text += f"📋 **حالة المشرف:** {admin_status}\n"
-    text += f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
     
-    # بناء الأزرار
+    if admin_info:
+        role = "👑 مشرف إداري" if is_super else "🛡️ مشرف عادي"
+        text += f"📋 **حالة المشرف:** {role}\n\n"
+    else:
+        text += f"📋 **حالة المشرف:** ❌ ليس مشرفاً\n\n"
+    
+    text += f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+    
     keyboard = []
     
     if not admin_info:
@@ -305,6 +321,84 @@ async def demote_from_super_admin(update, context, query, target_id):
     await asyncio.sleep(2)
     await show_admins_list(update, context, query)
 
+# ==================== دوال الأعضاء ====================
+
+async def show_users_list(update, context, query, page):
+    """عرض قائمة الأعضاء (للمالك)"""
+    users_per_page = 10
+    offset = page * users_per_page
+    
+    conn = get_db()
+    cursor = conn.execute("SELECT user_id, first_name, username FROM users LIMIT ? OFFSET ?", (users_per_page, offset))
+    users = cursor.fetchall()
+    
+    cursor = conn.execute("SELECT COUNT(*) FROM users")
+    total = cursor.fetchone()[0]
+    conn.close()
+    
+    if not users:
+        await query.edit_message_text("❌ لا يوجد أعضاء في قاعدة البيانات\n\nتأكد من أن الأعضاء يتفاعلون مع البوت (يكتبون أي رسالة)")
+        return
+    
+    text = f"👥 **قائمة الأعضاء** (الصفحة {page + 1} من {((total - 1) // users_per_page) + 1})\n\n"
+    keyboard = []
+    
+    for u in users:
+        name = u["first_name"] or u["username"] or str(u["user_id"])
+        keyboard.append([InlineKeyboardButton(f"👤 {name}", callback_data=f"user_actions_{u['user_id']}")])
+    
+    nav = []
+    if page > 0:
+        nav.append(InlineKeyboardButton("⬅️ السابق", callback_data=f"users_page_{page-1}"))
+    if (page + 1) * users_per_page < total:
+        nav.append(InlineKeyboardButton("التالي ➡️", callback_data=f"users_page_{page+1}"))
+    if nav:
+        keyboard.append(nav)
+    
+    keyboard.append([InlineKeyboardButton("🔙 رجوع", callback_data="owner_back")])
+    
+    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
+
+async def show_user_full_details(update, context, query, target_id):
+    """عرض تفاصيل العضو الكاملة (الاسم، اليوزر، الرصيد، التحذيرات، المستوى، اللقب)"""
+    conn = get_db()
+    cursor = conn.execute("SELECT user_id, first_name, username, balance, warnings, messages, level, title FROM users WHERE user_id = ?", (target_id,))
+    user = cursor.fetchone()
+    conn.close()
+    
+    if not user:
+        await query.edit_message_text("❌ العضو غير موجود")
+        return
+    
+    name = user["first_name"] or "مستخدم"
+    username = user["username"] or "لا يوجد"
+    balance = user["balance"] or 1000
+    warnings = user["warnings"] or 0
+    messages = user["messages"] or 0
+    level = user["level"] or 1
+    title = user["title"] or "لا يوجد"
+    
+    text = f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+    text += f"👤 **{name}**\n"
+    text += f"🆔 @{username}\n"
+    text += f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+    text += f"💰 الرصيد: {balance} 🪙\n"
+    text += f"⚠️ التحذيرات: {warnings}/{MAX_WARNINGS}\n"
+    text += f"📨 الرسائل: {messages}\n"
+    text += f"🎖️ المستوى: {level}\n"
+    text += f"🏆 اللقب: {title}\n"
+    text += f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+    
+    keyboard = [
+        [InlineKeyboardButton("🔇 كتم", callback_data=f"user_action_mute_{target_id}"), InlineKeyboardButton("🔓 فك كتم", callback_data=f"user_action_unmute_{target_id}")],
+        [InlineKeyboardButton("🚫 حظر", callback_data=f"user_action_ban_{target_id}"), InlineKeyboardButton("🔓 فك حظر", callback_data=f"user_action_unban_{target_id}")],
+        [InlineKeyboardButton("⚠️ تحذير", callback_data=f"user_action_warn_{target_id}"), InlineKeyboardButton("🗑 حذف تحذير", callback_data=f"user_action_unwarn_{target_id}")],
+        [InlineKeyboardButton("💰 خصم", callback_data=f"user_action_deduct_{target_id}"), InlineKeyboardButton("🎁 مكافأة", callback_data=f"user_action_reward_{target_id}")],
+        [InlineKeyboardButton("🔙 رجوع", callback_data="owner_users")]
+    ]
+    
+    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
+
 # ==================== دوال مساعدة أخرى ====================
 
 async def show_shop_panel(update, context, query):
@@ -354,44 +448,9 @@ async def show_logs(update, context, query):
     keyboard = [[InlineKeyboardButton("🔙 رجوع", callback_data="owner_back")]]
     await query.edit_message_text(text[:4000], reply_markup=InlineKeyboardMarkup(keyboard))
 
-async def show_users_list(update, context, query, page):
-    users_per_page = 10
-    offset = page * users_per_page
-    
-    conn = get_db()
-    cursor = conn.execute("SELECT user_id, first_name, username FROM users LIMIT ? OFFSET ?", (users_per_page, offset))
-    users = cursor.fetchall()
-    
-    cursor = conn.execute("SELECT COUNT(*) FROM users")
-    total = cursor.fetchone()[0]
-    conn.close()
-    
-    if not users:
-        await query.edit_message_text("❌ لا يوجد أعضاء\n\nتأكد من أن الأعضاء يتفاعلون مع البوت (يكتبون أي رسالة)")
-        return
-    
-    text = f"👥 قائمة الأعضاء (الصفحة {page + 1} من {((total - 1) // users_per_page) + 1})\n\n"
-    keyboard = []
-    
-    for u in users:
-        name = u["first_name"] or u["username"] or str(u["user_id"])
-        keyboard.append([InlineKeyboardButton(f"👤 {name}", callback_data=f"user_actions_{u['user_id']}")])
-    
-    nav = []
-    if page > 0:
-        nav.append(InlineKeyboardButton("⬅️ السابق", callback_data=f"users_page_{page-1}"))
-    if (page + 1) * users_per_page < total:
-        nav.append(InlineKeyboardButton("التالي ➡️", callback_data=f"users_page_{page+1}"))
-    if nav:
-        keyboard.append(nav)
-    
-    keyboard.append([InlineKeyboardButton("🔙 رجوع", callback_data="owner_back")])
-    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
-
 # ==================== دوال الأزرار الإضافية للمشرفين ====================
 
 async def handle_admin_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """معالج الأزرار التي تظهر في ملف العضو للمشرفين"""
     query = update.callback_query
     await query.answer()
     
@@ -426,7 +485,6 @@ async def handle_admin_buttons(update: Update, context: ContextTypes.DEFAULT_TYP
         return
 
 async def handle_admin_inputs(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """معالج الإدخالات من أزرار المشرفين"""
     user_id = update.effective_user.id
     text = update.message.text.strip()
     
@@ -500,27 +558,6 @@ async def handle_owner_input(update: Update, context: ContextTypes.DEFAULT_TYPE)
         return
     
     text = update.message.text.strip()
-    
-    # إضافة مشرف - تعيين نوع (عادي/إداري)
-    if data.startswith("admin_set_"):
-        parts = data.split("_")
-        target_id = int(parts[2])
-        is_super = parts[3] == "super"
-        
-        conn = get_db()
-        cursor = conn.execute("SELECT username, first_name FROM users WHERE user_id = ?", (target_id,))
-        user = cursor.fetchone()
-        conn.close()
-        
-        username = user["username"] if user else str(target_id)
-        name = user["first_name"] if user else str(target_id)
-        add_admin(target_id, username, is_super)
-        
-        role = "مشرف إداري 👑" if is_super else "مشرف عادي 🛡️"
-        await query.edit_message_text(f"✅ تم تعيين {name} كـ {role}")
-        await asyncio.sleep(2)
-        await show_admins_list(update, context, query)
-        return
     
     # إعلان متحرك - انتظار الملف
     if context.user_data.get('waiting_broadcast_media'):
