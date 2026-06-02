@@ -11,39 +11,31 @@ from config import GROUP_ID
 
 # دوال تحويل الوقت
 def parse_duration(duration_str):
-    """تحويل النص إلى ثواني"""
     if not duration_str:
         return 600
-    
     duration_str = duration_str.strip()
-    
     if duration_str.endswith('د'):
         try:
             num = int(duration_str[:-1])
             return num * 60
         except:
             pass
-    
     if duration_str.endswith('س'):
         try:
             num = int(duration_str[:-1])
             return num * 3600
         except:
             pass
-    
     if duration_str == 'يوم':
         return 86400
-    
     try:
         num = int(duration_str)
         return num * 60
     except:
         pass
-    
     return 600
 
 def format_duration(seconds):
-    """تحويل الثواني إلى نص"""
     if seconds >= 86400:
         return f"{seconds // 86400} يوم"
     elif seconds >= 3600:
@@ -56,7 +48,6 @@ def format_duration(seconds):
 DEFAULT_MUTE_DURATION = 600
 
 async def mute_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """كتم عضو"""
     user_id = update.effective_user.id
     admin_name = update.effective_user.first_name
     
@@ -132,7 +123,6 @@ async def mute_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def ban_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """حظر عضو"""
     user_id = update.effective_user.id
     admin_name = update.effective_user.first_name
     
@@ -173,7 +163,6 @@ async def ban_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def kick_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """طرد عضو"""
     user_id = update.effective_user.id
     admin_name = update.effective_user.first_name
     
@@ -213,8 +202,8 @@ async def kick_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"👮 بواسطة: {admin_name}"
     )
 
-async def unmute_user(context, user_id):
-    """فك الكتم عن عضو"""
+async def unmute_user(context, user_id, send_notification=True):
+    """فك الكتم عن عضو وتحديث قاعدة البيانات"""
     try:
         await context.bot.restrict_chat_member(
             GROUP_ID, 
@@ -231,44 +220,34 @@ async def unmute_user(context, user_id):
     conn = get_db()
     conn.execute("UPDATE users SET is_muted = 0, muted_until = 0 WHERE user_id = ?", (user_id,))
     conn.commit()
+    
+    # جلب اسم العضو للإشعار
+    cursor = conn.execute("SELECT first_name, username FROM users WHERE user_id = ?", (user_id,))
+    user = cursor.fetchone()
     conn.close()
+    
+    if send_notification and user:
+        name = user["first_name"] or user["username"] or str(user_id)
+        username = user["username"] or "لا يوجد"
+        await context.bot.send_message(
+            GROUP_ID,
+            f"🔓 **تم فك الكتم**\n\n"
+            f"👤 العضو: {name} (@{username})\n"
+            f"✅ يمكنه التحدث مرة أخرى"
+        )
+    
+    return user if user else None
 
-async def check_expired_mutes(context: ContextTypes.DEFAULT_TYPE):
+async def check_expired_mutes(context):
     """فحص الأعضاء الذين انتهت مدتهم وفك الكتم عنهم"""
     conn = get_db()
     current_time = int(time.time())
     
-    cursor = conn.execute("SELECT user_id, first_name, username FROM users WHERE is_muted = 1 AND muted_until <= ?", (current_time,))
+    cursor = conn.execute("SELECT user_id FROM users WHERE is_muted = 1 AND muted_until <= ?", (current_time,))
     expired_users = cursor.fetchall()
     
     for user in expired_users:
         user_id = user["user_id"]
-        user_name = user["first_name"] or user["username"] or str(user_id)
-        user_username = user["username"] or "لا يوجد"
-        
-        # فك الكتم
-        try:
-            await context.bot.restrict_chat_member(
-                GROUP_ID, 
-                user_id, 
-                permissions=telegram.ChatPermissions(
-                    can_send_messages=True,
-                    can_send_media_messages=True,
-                    can_send_other_messages=True
-                )
-            )
-        except:
-            pass
-        
-        conn.execute("UPDATE users SET is_muted = 0, muted_until = 0 WHERE user_id = ?", (user_id,))
-        
-        # إرسال إشعار
-        await context.bot.send_message(
-            GROUP_ID,
-            f"🔓 **انتهت عقوبة الكتم**\n\n"
-            f"👤 العضو: {user_name} (@{user_username})\n"
-            f"✅ يمكنه التحدث مرة أخرى"
-        )
+        await unmute_user(context, user_id, send_notification=True)
     
-    conn.commit()
     conn.close()
